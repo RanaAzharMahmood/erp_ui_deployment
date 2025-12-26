@@ -7,7 +7,6 @@ import {
   ListItemButton,
   ListItemIcon,
   ListItemText,
-  Typography,
 } from '@mui/material';
 import {
   Dashboard as DashboardIcon,
@@ -21,17 +20,20 @@ import {
   AccountBalance as AccountBalanceIcon,
   Receipt as ReceiptIcon,
   Assessment as AssessmentIcon,
+  Category as CategoryIcon,
 } from '@mui/icons-material';
+import petrozenLogo from '../../assets/images/petrozen-logo.svg';
 
 const menuItems = [
   { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
   { text: 'Companies', icon: <BusinessIcon />, path: '/companies' },
   { text: 'Users', icon: <PeopleIcon />, path: '/users' },
+  { text: 'Categories', icon: <CategoryIcon />, path: '/categories' },
+  { text: 'Products', icon: <InventoryIcon />, path: '/products' },
   { text: 'Customer', icon: <ShoppingBagIcon />, path: '/customer' },
-  { text: 'Vander', icon: <LocalShippingIcon />, path: '/vander' },
+  { text: 'Vendor', icon: <LocalShippingIcon />, path: '/vendor' },
   { text: 'Sales', icon: <PointOfSaleIcon />, path: '/sales' },
   { text: 'Purchase', icon: <ShoppingCartIcon />, path: '/purchase' },
-  { text: 'Inventory', icon: <InventoryIcon />, path: '/inventory' },
   { text: 'Account', icon: <AccountBalanceIcon />, path: '/account' },
   { text: 'Tax', icon: <ReceiptIcon />, path: '/tax' },
   { text: 'Reports', icon: <AssessmentIcon />, path: '/reports' },
@@ -61,44 +63,18 @@ const Sidebar: React.FC<SidebarProps> = () => {
           p: 2.5,
           display: 'flex',
           alignItems: 'center',
-          gap: 1.5,
+          justifyContent: 'center',
           borderBottom: '1px solid #E0E0E0',
         }}
       >
-        <Box
-          sx={{
-            width: 40,
-            height: 40,
-            borderRadius: '8px',
-            background: 'linear-gradient(135deg, #FF6B35 0%, #FF8E53 100%)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            position: 'relative',
-            overflow: 'hidden',
-          }}
-        >
-          <Typography
-            sx={{
-              color: 'white',
-              fontSize: '20px',
-              fontWeight: 700,
-            }}
-          >
-            P
-          </Typography>
-        </Box>
-        <Typography
-          variant="h6"
-          sx={{
-            fontWeight: 700,
-            fontSize: '18px',
-            color: '#1A1A1A',
-            letterSpacing: '0.5px',
-          }}
-        >
-          PETROZEN
-        </Typography>
+        <img 
+          src={petrozenLogo} 
+          alt="PETROZEN" 
+          style={{ 
+            height: '45px',
+            width: 'auto',
+          }} 
+        />
       </Box>
 
       {/* Navigation Menu */}

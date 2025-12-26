@@ -1,11 +1,13 @@
 import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react'
 import { User } from '../types'
+import { getAuthApi } from '../generated/api/client'
 
 interface AuthContextType {
   user: User | null
   isAuthenticated: boolean
   login: (email: string, password: string) => Promise<boolean>
   logout: () => void
+  getAccessToken: () => Promise<string | null>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -29,26 +31,46 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   })
 
   const login = useCallback(async (email: string, password: string): Promise<boolean> => {
-    // Simulate API call - in production, this would be an actual API request
-    await new Promise(resolve => setTimeout(resolve, 500))
-    
-    // Simple validation - in production, this would be handled by backend
-    if (email && password) {
-      const newUser: User = {
-        id: '1',
-        email,
-        name: email.split('@')[0],
+    try {
+      const authApi = getAuthApi()
+      const response = await authApi.v1ApiAuthLoginPost({ email, password })
+      
+      if (response.success && response.data) {
+        const { user: userData, token } = response.data
+        
+        if (userData && token) {
+          const newUser: User = {
+            id: String(userData.id || ''),
+            email: userData.email || email,
+            name: userData.fullName || email.split('@')[0],
+          }
+          
+          setUser(newUser)
+          localStorage.setItem('erp_user', JSON.stringify(newUser))
+          localStorage.setItem('erp_token', token)
+          localStorage.setItem('auth_token', token)
+          
+          return true
+        }
       }
-      setUser(newUser)
-      localStorage.setItem('erp_user', JSON.stringify(newUser))
-      return true
+      
+      return false
+    } catch (error) {
+      console.error('Login error:', error)
+      return false
     }
-    return false
   }, [])
 
   const logout = useCallback(() => {
     setUser(null)
     localStorage.removeItem('erp_user')
+    localStorage.removeItem('erp_token')
+    localStorage.removeItem('auth_token')
+  }, [])
+
+  const getAccessToken = useCallback(async (): Promise<string | null> => {
+    const token = localStorage.getItem('erp_token') || localStorage.getItem('auth_token')
+    return token
   }, [])
 
   return (
@@ -58,6 +80,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         isAuthenticated: !!user,
         login,
         logout,
+        getAccessToken,
       }}
     >
       {children}

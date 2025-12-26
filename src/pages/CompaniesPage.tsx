@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -20,12 +20,7 @@ import {
   InputAdornment,
   FormControl,
   InputLabel,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   Grid,
-  SelectChangeEvent,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -33,6 +28,10 @@ import {
   Edit as EditIcon,
   Delete as DeleteIcon,
 } from '@mui/icons-material';
+import { useDebounce } from '../hooks/useDebounce';
+import { preloadRoute } from '../utils/routePreloader';
+import TableSkeleton from '../components/common/TableSkeleton';
+import LazyImage from '../components/common/LazyImage';
 
 interface Company {
   id: string;
@@ -57,34 +56,27 @@ const INDUSTRIES = [
 
 const STATUSES = ['Active', 'Inactive'];
 
-const initialFormState: Omit<Company, 'id'> = {
-  companyName: '',
-  industry: '',
-  user: '',
-  status: 'Active',
-  subscriptionEnd: '',
-  logo: '',
-};
-
 const CompaniesPage: React.FC = () => {
   const navigate = useNavigate();
   const [companies, setCompanies] = useState<Company[]>([]);
-  const [filteredCompanies, setFilteredCompanies] = useState<Company[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedIndustry, setSelectedIndustry] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('');
-  const [openDialog, setOpenDialog] = useState(false);
-  const [editingCompany, setEditingCompany] = useState<Company | null>(null);
-  const [formData, setFormData] = useState(initialFormState);
+
+  // Debounce search for better performance
+  const debouncedSearch = useDebounce(searchTerm, 300);
 
   // Load companies from localStorage
   useEffect(() => {
-    const savedCompanies = localStorage.getItem('companies');
-    if (savedCompanies) {
-      const parsedCompanies = JSON.parse(savedCompanies);
-      setCompanies(parsedCompanies);
-      setFilteredCompanies(parsedCompanies);
-    } else {
+    setIsLoading(true);
+    // Simulate async loading for better UX
+    setTimeout(() => {
+      const savedCompanies = localStorage.getItem('companies');
+      if (savedCompanies) {
+        const parsedCompanies = JSON.parse(savedCompanies);
+        setCompanies(parsedCompanies);
+      } else {
       // Initialize with sample data
       const sampleData: Company[] = [
         {
@@ -112,22 +104,23 @@ const CompaniesPage: React.FC = () => {
           subscriptionEnd: '2025-12-31',
         },
       ];
-      setCompanies(sampleData);
-      setFilteredCompanies(sampleData);
-      localStorage.setItem('companies', JSON.stringify(sampleData));
-    }
+        setCompanies(sampleData);
+        localStorage.setItem('companies', JSON.stringify(sampleData));
+      }
+      setIsLoading(false);
+    }, 500); // Simulate network delay
   }, []);
 
-  // Filter companies based on search and filters
-  useEffect(() => {
+  // Memoized filtering for better performance
+  const filteredCompanies = useMemo(() => {
     let filtered = companies;
 
-    if (searchTerm) {
+    if (debouncedSearch) {
       filtered = filtered.filter(
         (company) =>
-          company.companyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          company.industry.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          company.user.toLowerCase().includes(searchTerm.toLowerCase())
+          company.companyName.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+          company.industry.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+          company.user.toLowerCase().includes(debouncedSearch.toLowerCase())
       );
     }
 
@@ -139,79 +132,32 @@ const CompaniesPage: React.FC = () => {
       filtered = filtered.filter((company) => company.status === selectedStatus);
     }
 
-    setFilteredCompanies(filtered);
-  }, [searchTerm, selectedIndustry, selectedStatus, companies]);
+    return filtered;
+  }, [debouncedSearch, selectedIndustry, selectedStatus, companies]);
 
-  const handleOpenDialog = (company?: Company) => {
-    if (company) {
-      setEditingCompany(company);
-      setFormData({
-        companyName: company.companyName,
-        industry: company.industry,
-        user: company.user,
-        status: company.status,
-        subscriptionEnd: company.subscriptionEnd,
-        logo: company.logo || '',
-      });
-    } else {
-      setEditingCompany(null);
-      setFormData(initialFormState);
-    }
-    setOpenDialog(true);
-  };
+  // Memoized edit handler with route preloading
+  const handleEdit = useCallback((companyId: string) => {
+    navigate(`/companies/update/${companyId}`);
+  }, [navigate]);
 
-  const handleCloseDialog = () => {
-    setOpenDialog(false);
-    setEditingCompany(null);
-    setFormData(initialFormState);
-  };
-
-  const handleInputChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
-  ) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const handleSelectChange = (e: SelectChangeEvent<string>) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const handleSubmit = () => {
-    if (!formData.companyName || !formData.industry || !formData.user) {
-      alert('Please fill in all required fields');
-      return;
-    }
-
-    let updatedCompanies: Company[];
-
-    if (editingCompany) {
-      updatedCompanies = companies.map((company) =>
-        company.id === editingCompany.id
-          ? { ...formData, id: editingCompany.id }
-          : company
-      );
-    } else {
-      const newCompany: Company = {
-        ...formData,
-        id: Date.now().toString(),
-      };
-      updatedCompanies = [...companies, newCompany];
-    }
-
-    setCompanies(updatedCompanies);
-    localStorage.setItem('companies', JSON.stringify(updatedCompanies));
-    handleCloseDialog();
-  };
-
-  const handleDelete = (id: string) => {
+  // Memoized delete handler
+  const handleDelete = useCallback((id: string) => {
     if (window.confirm('Are you sure you want to delete this company?')) {
       const updatedCompanies = companies.filter((company) => company.id !== id);
       setCompanies(updatedCompanies);
       localStorage.setItem('companies', JSON.stringify(updatedCompanies));
     }
-  };
+  }, [companies]);
+
+  // Preload Add Company page on button hover
+  const handleAddButtonHover = useCallback(() => {
+    preloadRoute('/companies/add');
+  }, []);
+
+  // Preload Update Company page on row hover
+  const handleRowHover = useCallback(() => {
+    preloadRoute('/companies/update');
+  }, []);
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -242,6 +188,7 @@ const CompaniesPage: React.FC = () => {
           variant="contained"
           startIcon={<AddIcon />}
           onClick={() => navigate('/companies/add')}
+          onMouseEnter={handleAddButtonHover}
           sx={{
             borderRadius: 2,
             textTransform: 'none',
@@ -328,7 +275,9 @@ const CompaniesPage: React.FC = () => {
               </TableRow>
             </TableHead>
             <TableBody>
-              {filteredCompanies.length === 0 ? (
+              {isLoading ? (
+                <TableSkeleton rows={5} columns={7} />
+              ) : filteredCompanies.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={7} align="center" sx={{ py: 8 }}>
                     <Typography variant="body1" color="text.secondary">
@@ -338,18 +287,32 @@ const CompaniesPage: React.FC = () => {
                 </TableRow>
               ) : (
                 filteredCompanies.map((company) => (
-                  <TableRow key={company.id} hover>
+                  <TableRow
+                    key={company.id}
+                    hover
+                    onMouseEnter={() => handleRowHover()}
+                    sx={{ cursor: 'pointer' }}
+                  >
                     <TableCell>
-                      <Avatar
-                        sx={{
-                          bgcolor: 'grey.400',
-                          width: 40,
-                          height: 40,
-                        }}
-                        src={company.logo}
-                      >
-                        {company.logo ? null : '🍎'}
-                      </Avatar>
+                      {company.logo ? (
+                        <LazyImage
+                          src={company.logo}
+                          alt={company.companyName}
+                          width={40}
+                          height={40}
+                          borderRadius="50%"
+                        />
+                      ) : (
+                        <Avatar
+                          sx={{
+                            bgcolor: 'grey.400',
+                            width: 40,
+                            height: 40,
+                          }}
+                        >
+                          🍎
+                        </Avatar>
+                      )}
                     </TableCell>
                     <TableCell>
                       <Typography variant="body2" sx={{ fontWeight: 500 }}>
@@ -391,14 +354,17 @@ const CompaniesPage: React.FC = () => {
                     <TableCell align="right">
                       <IconButton
                         size="small"
-                        onClick={() => handleOpenDialog(company)}
+                        onClick={() => handleEdit(company.id)}
                         sx={{ mr: 1 }}
                       >
                         <EditIcon fontSize="small" />
                       </IconButton>
                       <IconButton
                         size="small"
-                        onClick={() => handleDelete(company.id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDelete(company.id);
+                        }}
                         sx={{ color: 'error.main' }}
                       >
                         <DeleteIcon fontSize="small" />
@@ -411,99 +377,6 @@ const CompaniesPage: React.FC = () => {
           </Table>
         </TableContainer>
       </Card>
-
-      {/* Add/Edit Dialog */}
-      <Dialog
-        open={openDialog}
-        onClose={handleCloseDialog}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle>
-          {editingCompany ? 'Edit Company' : 'Add New Company'}
-        </DialogTitle>
-        <DialogContent>
-          <Box sx={{ pt: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <TextField
-              fullWidth
-              label="Company Name"
-              name="companyName"
-              value={formData.companyName}
-              onChange={handleInputChange}
-              required
-            />
-            <FormControl fullWidth>
-              <InputLabel>Industry</InputLabel>
-              <Select
-                name="industry"
-                value={formData.industry}
-                label="Industry"
-                onChange={handleSelectChange}
-              >
-                {INDUSTRIES.map((industry) => (
-                  <MenuItem key={industry} value={industry}>
-                    {industry}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-            <TextField
-              fullWidth
-              label="User"
-              name="user"
-              value={formData.user}
-              onChange={handleInputChange}
-              required
-            />
-            <FormControl fullWidth>
-              <InputLabel>Status</InputLabel>
-              <Select
-                name="status"
-                value={formData.status}
-                label="Status"
-                onChange={handleSelectChange}
-              >
-                {STATUSES.map((status) => (
-                  <MenuItem key={status} value={status}>
-                    {status}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-            <TextField
-              fullWidth
-              label="Subscription End Date"
-              name="subscriptionEnd"
-              type="date"
-              value={formData.subscriptionEnd}
-              onChange={handleInputChange}
-              InputLabelProps={{
-                shrink: true,
-              }}
-              required
-            />
-            <TextField
-              fullWidth
-              label="Logo URL (optional)"
-              name="logo"
-              value={formData.logo}
-              onChange={handleInputChange}
-            />
-          </Box>
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={handleCloseDialog} sx={{ textTransform: 'none' }}>
-            Cancel
-          </Button>
-          <Button
-            onClick={handleSubmit}
-            variant="contained"
-            sx={{ textTransform: 'none' }}
-          >
-            {editingCompany ? 'Update' : 'Add'} Company
-          </Button>
-        </DialogActions>
-      </Dialog>
     </Box>
   );
 };

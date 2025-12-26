@@ -48,7 +48,7 @@ const DashboardLayout: React.FC = () => {
     if (path.includes('/companies')) return 'Companies'
     if (path.includes('/users')) return 'Users'
     if (path.includes('/customer')) return 'Customer'
-    if (path.includes('/vander')) return 'Vander'
+    if (path.includes('/vendor')) return 'Vendor'
     if (path.includes('/sales')) return 'Sales'
     if (path.includes('/purchase')) return 'Purchase'
     if (path.includes('/inventory')) return 'Inventory'
