@@ -6,6 +6,9 @@ import DashboardLayout from './components/layout/DashboardLayout'
 import SuspenseRoute from './components/common/SuspenseRoute'
 
 // Lazy load pages for better performance
+// Dashboard
+const DashboardPage = lazy(() => import('./pages/dashboard/DashboardPage'))
+
 // Master Data - Companies
 const CompaniesPage = lazy(() => import('./pages/master-data/companies/CompaniesPage'))
 const AddCompanyPage = lazy(() => import('./pages/master-data/companies/AddCompanyPage'))
@@ -106,7 +109,7 @@ function App() {
           path="dashboard"
           element={
             <SuspenseRoute>
-              <ProductsPage />
+              <DashboardPage />
             </SuspenseRoute>
           }
         />

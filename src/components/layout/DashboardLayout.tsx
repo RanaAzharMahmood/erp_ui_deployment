@@ -62,13 +62,13 @@ const DashboardLayout: React.FC = () => {
 
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: '#F5F5F5' }}>
-      {/* AppBar */}
+      {/* AppBar - Full width on mobile/tablet, adjusted on md+ */}
       <AppBar
         position="fixed"
         elevation={0}
         sx={{
-          width: { sm: `calc(100% - ${DRAWER_WIDTH}px)` },
-          ml: { sm: `${DRAWER_WIDTH}px` },
+          width: { xs: '100%', md: `calc(100% - ${DRAWER_WIDTH}px)` },
+          ml: { xs: 0, md: `${DRAWER_WIDTH}px` },
           bgcolor: 'white',
           color: '#1A1A1A',
           borderBottom: '1px solid #E0E0E0',
@@ -81,7 +81,7 @@ const DashboardLayout: React.FC = () => {
               aria-label="open drawer"
               edge="start"
               onClick={handleDrawerToggle}
-              sx={{ display: { sm: 'none' } }}
+              sx={{ display: { xs: 'flex', md: 'none' } }}
             >
               <MenuIcon />
             </IconButton>
@@ -145,9 +145,9 @@ const DashboardLayout: React.FC = () => {
       {/* Sidebar Navigation */}
       <Box
         component="nav"
-        sx={{ width: { sm: DRAWER_WIDTH }, flexShrink: { sm: 0 } }}
+        sx={{ width: { xs: 0, md: DRAWER_WIDTH }, flexShrink: { md: 0 } }}
       >
-        {/* Mobile Drawer */}
+        {/* Mobile/Tablet Drawer - Temporary overlay */}
         <Drawer
           variant="temporary"
           open={mobileOpen}
@@ -156,7 +156,7 @@ const DashboardLayout: React.FC = () => {
             keepMounted: true,
           }}
           sx={{
-            display: { xs: 'block', sm: 'none' },
+            display: { xs: 'block', md: 'none' },
             '& .MuiDrawer-paper': {
               boxSizing: 'border-box',
               width: DRAWER_WIDTH,
@@ -167,11 +167,11 @@ const DashboardLayout: React.FC = () => {
           <Sidebar />
         </Drawer>
 
-        {/* Desktop Drawer */}
+        {/* Desktop Drawer - Permanent */}
         <Drawer
           variant="permanent"
           sx={{
-            display: { xs: 'none', sm: 'block' },
+            display: { xs: 'none', md: 'block' },
             '& .MuiDrawer-paper': {
               boxSizing: 'border-box',
               width: DRAWER_WIDTH,
@@ -190,7 +190,7 @@ const DashboardLayout: React.FC = () => {
         component="main"
         sx={{
           flexGrow: 1,
-          width: { sm: `calc(100% - ${DRAWER_WIDTH}px)` },
+          width: { xs: '100%', md: `calc(100% - ${DRAWER_WIDTH}px)` },
           minHeight: '100vh',
           bgcolor: '#F5F5F5',
         }}
@@ -203,4 +203,3 @@ const DashboardLayout: React.FC = () => {
 }
 
 export default DashboardLayout
-

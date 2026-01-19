@@ -6,6 +6,7 @@
 type RouteLoader = () => Promise<any>;
 
 const routeMap: Record<string, RouteLoader> = {
+  '/dashboard': () => import('../pages/dashboard/DashboardPage'),
   '/companies/add': () => import('../pages/master-data/companies/AddCompanyPage'),
   '/companies/update': () => import('../pages/master-data/companies/UpdateCompanyPage'),
   '/customer/add': () => import('../pages/master-data/customers/AddCustomerPage'),

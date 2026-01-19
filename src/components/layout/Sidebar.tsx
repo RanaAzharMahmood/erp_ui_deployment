@@ -14,7 +14,6 @@ import {
   Business as BusinessIcon,
   People as PeopleIcon,
   ShoppingBag as ShoppingBagIcon,
-  LocalShipping as LocalShippingIcon,
   PointOfSale as PointOfSaleIcon,
   ShoppingCart as ShoppingCartIcon,
   Inventory as InventoryIcon,
