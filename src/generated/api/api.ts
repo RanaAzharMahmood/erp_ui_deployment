@@ -1,4 +1,5 @@
 /// <reference path="./custom.d.ts" />
+// @ts-nocheck
 // tslint:disable
 /**
  * ERP System API
@@ -20,8 +21,6 @@ const isomorphicFetch: FetchAPI = (url: string, init?: any): Promise<Response> =
   if (typeof fetch === 'undefined') {
     throw new Error('fetch is not available. Please use a fetch polyfill.');
   }
-
-  console.log('fetching', url, init);
   return fetch(url, init);
 };
 

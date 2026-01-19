@@ -6,14 +6,20 @@
 type RouteLoader = () => Promise<any>;
 
 const routeMap: Record<string, RouteLoader> = {
-  '/companies/add': () => import('../pages/AddCompanyPage'),
-  '/companies/update': () => import('../pages/UpdateCompanyPage'),
-  '/customer/add': () => import('../pages/AddCustomerPage'),
-  '/customer/update': () => import('../pages/UpdateCustomerPage'),
-  '/vendor/add': () => import('../pages/AddVendorPage'),
-  '/vendor/update': () => import('../pages/UpdateVendorPage'),
-  '/tax/add': () => import('../pages/AddTaxPage'),
-  '/tax/update': () => import('../pages/UpdateTaxPage'),
+  '/companies/add': () => import('../pages/master-data/companies/AddCompanyPage'),
+  '/companies/update': () => import('../pages/master-data/companies/UpdateCompanyPage'),
+  '/customer/add': () => import('../pages/master-data/customers/AddCustomerPage'),
+  '/customer/update': () => import('../pages/master-data/customers/UpdateCustomerPage'),
+  '/vendor/add': () => import('../pages/master-data/vendors/AddVendorPage'),
+  '/vendor/update': () => import('../pages/master-data/vendors/UpdateVendorPage'),
+  '/tax/add': () => import('../pages/master-data/taxes/AddTaxPage'),
+  '/tax/update': () => import('../pages/master-data/taxes/UpdateTaxPage'),
+  '/users/add': () => import('../pages/master-data/users/AddUserPage'),
+  '/users/edit': () => import('../pages/master-data/users/UpdateUserPage'),
+  '/inventory/add': () => import('../pages/master-data/items/AddItemPage'),
+  '/inventory/update': () => import('../pages/master-data/items/UpdateItemPage'),
+  '/categories/add': () => import('../pages/master-data/categories/AddCategoryPage'),
+  '/categories/update': () => import('../pages/master-data/categories/UpdateCategoryPage'),
 };
 
 /**

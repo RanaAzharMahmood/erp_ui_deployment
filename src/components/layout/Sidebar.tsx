@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Box,
@@ -7,6 +7,7 @@ import {
   ListItemButton,
   ListItemIcon,
   ListItemText,
+  Collapse,
 } from '@mui/material';
 import {
   Dashboard as DashboardIcon,
@@ -20,21 +21,56 @@ import {
   AccountBalance as AccountBalanceIcon,
   Receipt as ReceiptIcon,
   Assessment as AssessmentIcon,
-  Category as CategoryIcon,
+  ExpandLess,
+  ExpandMore,
+  CreditCard as CreditCardIcon,
+  Article as ArticleIcon,
+  AccountTree as AccountTreeIcon,
+  Payments as PaymentsIcon,
 } from '@mui/icons-material';
 import petrozenLogo from '../../assets/images/petrozen-logo.svg';
 
-const menuItems = [
+interface MenuItem {
+  text: string;
+  icon: React.ReactNode;
+  path?: string;
+  children?: MenuItem[];
+}
+
+const menuItems: MenuItem[] = [
   { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
   { text: 'Companies', icon: <BusinessIcon />, path: '/companies' },
   { text: 'Users', icon: <PeopleIcon />, path: '/users' },
-  { text: 'Categories', icon: <CategoryIcon />, path: '/categories' },
-  { text: 'Products', icon: <InventoryIcon />, path: '/products' },
-  { text: 'Customer', icon: <ShoppingBagIcon />, path: '/customer' },
-  { text: 'Vendor', icon: <LocalShippingIcon />, path: '/vendor' },
-  { text: 'Sales', icon: <PointOfSaleIcon />, path: '/sales' },
-  { text: 'Purchase', icon: <ShoppingCartIcon />, path: '/purchase' },
-  { text: 'Account', icon: <AccountBalanceIcon />, path: '/account' },
+  { text: 'Party', icon: <ShoppingBagIcon />, path: '/party' },
+  {
+    text: 'Sales',
+    icon: <PointOfSaleIcon />,
+    children: [
+      { text: 'Invoice', icon: <ReceiptIcon />, path: '/sales/invoice' },
+      { text: 'Return', icon: <ReceiptIcon />, path: '/sales/return' },
+    ],
+  },
+  {
+    text: 'Purchase',
+    icon: <ShoppingCartIcon />,
+    children: [
+      { text: 'Invoice', icon: <ReceiptIcon />, path: '/purchase/invoice' },
+      { text: 'Return', icon: <ReceiptIcon />, path: '/purchase/return' },
+    ],
+  },
+  { text: 'Inventory', icon: <InventoryIcon />, path: '/inventory' },
+  {
+    text: 'Account',
+    icon: <AccountBalanceIcon />,
+    children: [
+      { text: 'Expense', icon: <CreditCardIcon />, path: '/account/expense' },
+      { text: 'Journal Entry', icon: <ArticleIcon />, path: '/account/journal-entry' },
+      { text: 'Chart of Account', icon: <AccountTreeIcon />, path: '/account/chart-of-account' },
+      { text: 'Bank Account', icon: <AccountBalanceIcon />, path: '/account/bank-account' },
+      { text: 'Bank Deposit', icon: <AccountBalanceIcon />, path: '/account/bank-deposit' },
+      { text: 'Other Payments', icon: <PaymentsIcon />, path: '/account/other-payments' },
+    ],
+  },
   { text: 'Tax', icon: <ReceiptIcon />, path: '/tax' },
   { text: 'Reports', icon: <AssessmentIcon />, path: '/reports' },
 ];
@@ -47,6 +83,86 @@ interface SidebarProps {
 const Sidebar: React.FC<SidebarProps> = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const [openMenus, setOpenMenus] = useState<string[]>(['Account', 'Sales', 'Purchase']);
+
+  const handleMenuClick = (item: MenuItem) => {
+    if (item.children) {
+      setOpenMenus((prev) =>
+        prev.includes(item.text)
+          ? prev.filter((m) => m !== item.text)
+          : [...prev, item.text]
+      );
+    } else if (item.path) {
+      navigate(item.path);
+    }
+  };
+
+  const isSelected = (path?: string) => {
+    if (!path) return false;
+    return location.pathname === path || location.pathname.startsWith(path + '/');
+  };
+
+  const isParentSelected = (item: MenuItem) => {
+    if (!item.children) return false;
+    return item.children.some((child) => isSelected(child.path));
+  };
+
+  const renderMenuItem = (item: MenuItem, isChild = false) => {
+    const selected = isSelected(item.path);
+    const hasChildren = !!item.children;
+    const isOpen = openMenus.includes(item.text);
+    const parentSelected = isParentSelected(item);
+
+    return (
+      <React.Fragment key={item.text}>
+        <ListItem disablePadding sx={{ mb: 0.5 }}>
+          <ListItemButton
+            onClick={() => handleMenuClick(item)}
+            sx={{
+              borderRadius: '8px',
+              mx: isChild ? 1 : 0.5,
+              ml: isChild ? 3 : 0.5,
+              py: isChild ? 1 : 1.5,
+              bgcolor: selected
+                ? '#FF6B35'
+                : parentSelected
+                ? 'rgba(255, 107, 53, 0.08)'
+                : 'transparent',
+              color: selected ? '#FFFFFF' : parentSelected ? '#FF6B35' : '#666666',
+              '&:hover': {
+                bgcolor: selected ? '#FF6B35' : 'rgba(255, 107, 53, 0.08)',
+              },
+              transition: 'all 0.2s ease-in-out',
+            }}
+          >
+            <ListItemIcon
+              sx={{
+                color: selected ? '#FFFFFF' : parentSelected ? '#FF6B35' : '#666666',
+                minWidth: 40,
+              }}
+            >
+              {item.icon}
+            </ListItemIcon>
+            <ListItemText
+              primary={item.text}
+              primaryTypographyProps={{
+                fontSize: isChild ? '13px' : '14px',
+                fontWeight: selected ? 600 : 400,
+              }}
+            />
+            {hasChildren && (isOpen ? <ExpandLess /> : <ExpandMore />)}
+          </ListItemButton>
+        </ListItem>
+        {hasChildren && (
+          <Collapse in={isOpen} timeout="auto" unmountOnExit>
+            <List component="div" disablePadding>
+              {item.children!.map((child) => renderMenuItem(child, true))}
+            </List>
+          </Collapse>
+        )}
+      </React.Fragment>
+    );
+  };
 
   return (
     <Box
@@ -67,56 +183,19 @@ const Sidebar: React.FC<SidebarProps> = () => {
           borderBottom: '1px solid #E0E0E0',
         }}
       >
-        <img 
-          src={petrozenLogo} 
-          alt="PETROZEN" 
-          style={{ 
+        <img
+          src={petrozenLogo}
+          alt="PETROZEN"
+          style={{
             height: '45px',
             width: 'auto',
-          }} 
+          }}
         />
       </Box>
 
       {/* Navigation Menu */}
       <List sx={{ pt: 2, px: 1, flex: 1, overflowY: 'auto' }}>
-        {menuItems.map((item) => {
-          const isSelected = location.pathname === item.path;
-
-          return (
-            <ListItem key={item.text} disablePadding sx={{ mb: 0.5 }}>
-              <ListItemButton
-                onClick={() => navigate(item.path)}
-                sx={{
-                  borderRadius: '8px',
-                  mx: 0.5,
-                  py: 1.5,
-                  bgcolor: isSelected ? '#FF6B35' : 'transparent',
-                  color: isSelected ? '#FFFFFF' : '#666666',
-                  '&:hover': {
-                    bgcolor: isSelected ? '#FF6B35' : 'rgba(255, 107, 53, 0.08)',
-                  },
-                  transition: 'all 0.2s ease-in-out',
-                }}
-              >
-                <ListItemIcon
-                  sx={{
-                    color: isSelected ? '#FFFFFF' : '#666666',
-                    minWidth: 40,
-                  }}
-                >
-                  {item.icon}
-                </ListItemIcon>
-                <ListItemText
-                  primary={item.text}
-                  primaryTypographyProps={{
-                    fontSize: '14px',
-                    fontWeight: isSelected ? 600 : 400,
-                  }}
-                />
-              </ListItemButton>
-            </ListItem>
-          );
-        })}
+        {menuItems.map((item) => renderMenuItem(item))}
       </List>
     </Box>
   );
