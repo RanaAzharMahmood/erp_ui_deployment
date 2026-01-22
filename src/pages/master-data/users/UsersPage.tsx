@@ -14,6 +14,7 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  TableSortLabel,
   Typography,
   Avatar,
   FormControl,
@@ -31,12 +32,20 @@ import {
   FilterList as FilterListIcon,
 } from '@mui/icons-material';
 import { useDebounce } from '../../../hooks/useDebounce';
+import { useCompanies } from '../../../hooks';
 import { preloadRoute } from '../../../utils/routePreloader';
 import TableSkeleton from '../../../components/common/TableSkeleton';
 import FilterManager, { type FilterField } from '../../../components/common/FilterManager';
+import ConfirmDialog from '../../../components/feedback/ConfirmDialog';
+import { COLORS } from '../../../constants/colors';
 import { getUsersApi } from '../../../generated/api/client';
 import type { User as ApiUser } from '../../../generated/api/api';
 import type { User } from '../../../types/common.types';
+
+// API response type for users list
+interface UsersApiResponse {
+  data: ApiUser[];
+}
 
 const USER_ROLES = ['Admin', 'Manager', 'Accountant', 'User'];
 const STATUSES = ['Active', 'Inactive'];
@@ -51,13 +60,27 @@ const UsersPage: React.FC = () => {
   const [selectedStatus, setSelectedStatus] = useState('');
   const [error, setError] = useState<string>('');
   const [successMessage, setSuccessMessage] = useState<string>('');
-  const [companies, setCompanies] = useState<Array<{ id: number; name: string }>>([]);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [filterAnchorEl, setFilterAnchorEl] = useState<HTMLButtonElement | null>(null);
+  const [orderBy, setOrderBy] = useState<string>('fullName');
+  const [order, setOrder] = useState<'asc' | 'desc'>('asc');
+  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; id: string | null }>({
+    open: false,
+    id: null,
+  });
 
   // Debounce search for better performance
   const debouncedSearch = useDebounce(searchTerm, 300);
+
+  // Get companies from hook with refetch capability
+  const { companies: companiesData, refetch: refetchCompanies } = useCompanies();
+  const companies = companiesData.map((c) => ({ id: c.id, name: c.name }));
+
+  // Refetch companies when component mounts to ensure fresh data
+  useEffect(() => {
+    refetchCompanies();
+  }, [refetchCompanies]);
 
   const filterOpen = Boolean(filterAnchorEl);
 
@@ -68,10 +91,11 @@ const UsersPage: React.FC = () => {
 
     try {
       const usersApi = getUsersApi();
-      const response = await usersApi.v1ApiUsersGet();
+      const { data: response } = await usersApi.v1ApiUsersGet();
 
       // Transform API response to match our local interface
-      const transformedUsers: User[] = (response as any).data.map((user: ApiUser) => ({
+      const apiResponse = response as UsersApiResponse;
+      const transformedUsers: User[] = apiResponse.data.map((user: ApiUser) => ({
         id: String(user.id!),
         firstName: user.firstName,
         lastName: user.lastName,
@@ -98,7 +122,7 @@ const UsersPage: React.FC = () => {
 
       // Also save to localStorage as backup
       localStorage.setItem('users', JSON.stringify(transformedUsers));
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error loading users:', err);
       setError('Failed to load users. Loading from local storage...');
 
@@ -112,23 +136,9 @@ const UsersPage: React.FC = () => {
     }
   }, []);
 
-  // Load companies for filter
-  const loadCompanies = useCallback(async () => {
-    try {
-      const savedCompanies = localStorage.getItem('companies');
-      if (savedCompanies) {
-        const parsed = JSON.parse(savedCompanies);
-        setCompanies(parsed.map((c: any) => ({ id: c.id, name: c.companyName })));
-      }
-    } catch (err) {
-      console.error('Error loading companies:', err);
-    }
-  }, []);
-
   useEffect(() => {
     loadUsers();
-    loadCompanies();
-  }, [loadUsers, loadCompanies]);
+  }, [loadUsers]);
 
   // Get current user ID
   const getCurrentUserId = useCallback(() => {
@@ -161,9 +171,16 @@ const UsersPage: React.FC = () => {
     };
   }, []);
 
-  // Memoized filtered users
+  // Sort handler
+  const handleSort = useCallback((property: string) => {
+    const isAsc = orderBy === property && order === 'asc';
+    setOrder(isAsc ? 'desc' : 'asc');
+    setOrderBy(property);
+  }, [orderBy, order]);
+
+  // Memoized filtered and sorted users
   const filteredUsers = useMemo(() => {
-    return users.filter((user) => {
+    const filtered = users.filter((user) => {
       const matchesSearch =
         user.fullName.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
         user.email.toLowerCase().includes(debouncedSearch.toLowerCase());
@@ -178,7 +195,44 @@ const UsersPage: React.FC = () => {
 
       return matchesSearch && matchesCompany && matchesRole && matchesStatus;
     });
-  }, [users, debouncedSearch, selectedCompany, selectedRole, selectedStatus]);
+
+    // Sort the filtered results
+    const sorted = [...filtered].sort((a, b) => {
+      let aValue: string | number = '';
+      let bValue: string | number = '';
+
+      switch (orderBy) {
+        case 'fullName':
+          aValue = a.fullName.toLowerCase();
+          bValue = b.fullName.toLowerCase();
+          break;
+        case 'email':
+          aValue = a.email.toLowerCase();
+          bValue = b.email.toLowerCase();
+          break;
+        case 'roleName':
+          aValue = a.roleName.toLowerCase();
+          bValue = b.roleName.toLowerCase();
+          break;
+        case 'companies':
+          aValue = a.companyAccess.length;
+          bValue = b.companyAccess.length;
+          break;
+        case 'status':
+          aValue = a.status;
+          bValue = b.status;
+          break;
+        default:
+          return 0;
+      }
+
+      if (aValue < bValue) return order === 'asc' ? -1 : 1;
+      if (aValue > bValue) return order === 'asc' ? 1 : -1;
+      return 0;
+    });
+
+    return sorted;
+  }, [users, debouncedSearch, selectedCompany, selectedRole, selectedStatus, orderBy, order]);
 
   // Paginated users
   const paginatedUsers = useMemo(() => {
@@ -198,31 +252,38 @@ const UsersPage: React.FC = () => {
     [navigate]
   );
 
-  const handleDeleteUser = useCallback(
-    async (id: string) => {
-      if (!window.confirm('Are you sure you want to delete this user?')) {
-        return;
-      }
+  const handleDeleteClick = useCallback((id: string) => {
+    setDeleteDialog({ open: true, id });
+  }, []);
 
-      try {
-        const usersApi = getUsersApi();
-        await usersApi.v1ApiUsersIdDelete(Number(id));
+  const handleDeleteConfirm = useCallback(async () => {
+    if (!deleteDialog.id) {
+      setDeleteDialog({ open: false, id: null });
+      return;
+    }
 
-        // Remove from local state
-        setUsers((prev) => prev.filter((user) => user.id !== id));
+    try {
+      const usersApi = getUsersApi();
+      await usersApi.v1ApiUsersIdDelete(Number(deleteDialog.id));
 
-        // Update localStorage
-        const updatedUsers = users.filter((user) => user.id !== id);
-        localStorage.setItem('users', JSON.stringify(updatedUsers));
+      // Remove from local state
+      setUsers((prev) => prev.filter((user) => user.id !== deleteDialog.id));
 
-        setSuccessMessage('User deleted successfully!');
-      } catch (err: any) {
-        console.error('Error deleting user:', err);
-        setError('Failed to delete user. Please try again.');
-      }
-    },
-    [users]
-  );
+      // Update localStorage
+      const updatedUsers = users.filter((user) => user.id !== deleteDialog.id);
+      localStorage.setItem('users', JSON.stringify(updatedUsers));
+
+      setSuccessMessage('User deleted successfully!');
+    } catch (err: unknown) {
+      console.error('Error deleting user:', err);
+      setError('Failed to delete user. Please try again.');
+    }
+    setDeleteDialog({ open: false, id: null });
+  }, [users, deleteDialog.id]);
+
+  const handleDeleteCancel = useCallback(() => {
+    setDeleteDialog({ open: false, id: null });
+  }, []);
 
   const handleResetFilters = useCallback(() => {
     setSelectedCompany('');
@@ -384,8 +445,8 @@ const UsersPage: React.FC = () => {
             startIcon={<AddIcon />}
             onClick={handleAddUser}
             sx={{
-              bgcolor: '#FF6B35',
-              '&:hover': { bgcolor: '#E55A2B' },
+              bgcolor: COLORS.primary,
+              '&:hover': { bgcolor: COLORS.primaryHover },
               textTransform: 'none',
               fontWeight: 500,
               px: 3,
@@ -411,25 +472,76 @@ const UsersPage: React.FC = () => {
       {/* Table */}
       <Card sx={{ boxShadow: 1 }}>
         <TableContainer>
-          <Table>
+          <Table aria-label="Users list">
             <TableHead sx={{ bgcolor: 'rgba(0, 0, 0, 0.02)' }}>
               <TableRow>
-                <TableCell sx={{ fontWeight: 600, fontSize: '0.875rem' }}>
-                  User
-                </TableCell>
-                <TableCell sx={{ fontWeight: 600, fontSize: '0.875rem' }}>
-                  Email
-                </TableCell>
-                <TableCell sx={{ fontWeight: 600, fontSize: '0.875rem' }}>
-                  Role
-                </TableCell>
-                <TableCell sx={{ fontWeight: 600, fontSize: '0.875rem' }}>
-                  Companies
-                </TableCell>
-                <TableCell sx={{ fontWeight: 600, fontSize: '0.875rem' }}>
-                  Status
+                <TableCell
+                  scope="col"
+                  sx={{ fontWeight: 600, fontSize: '0.875rem' }}
+                  aria-sort={orderBy === 'fullName' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'fullName'}
+                    direction={orderBy === 'fullName' ? order : 'asc'}
+                    onClick={() => handleSort('fullName')}
+                  >
+                    User
+                  </TableSortLabel>
                 </TableCell>
                 <TableCell
+                  scope="col"
+                  sx={{ fontWeight: 600, fontSize: '0.875rem' }}
+                  aria-sort={orderBy === 'email' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'email'}
+                    direction={orderBy === 'email' ? order : 'asc'}
+                    onClick={() => handleSort('email')}
+                  >
+                    Email
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell
+                  scope="col"
+                  sx={{ fontWeight: 600, fontSize: '0.875rem' }}
+                  aria-sort={orderBy === 'roleName' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'roleName'}
+                    direction={orderBy === 'roleName' ? order : 'asc'}
+                    onClick={() => handleSort('roleName')}
+                  >
+                    Role
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell
+                  scope="col"
+                  sx={{ fontWeight: 600, fontSize: '0.875rem' }}
+                  aria-sort={orderBy === 'companies' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'companies'}
+                    direction={orderBy === 'companies' ? order : 'asc'}
+                    onClick={() => handleSort('companies')}
+                  >
+                    Companies
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell
+                  scope="col"
+                  sx={{ fontWeight: 600, fontSize: '0.875rem' }}
+                  aria-sort={orderBy === 'status' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'status'}
+                    direction={orderBy === 'status' ? order : 'asc'}
+                    onClick={() => handleSort('status')}
+                  >
+                    Status
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell
+                  scope="col"
                   align="right"
                   sx={{ fontWeight: 600, fontSize: '0.875rem' }}
                 >
@@ -509,13 +621,15 @@ const UsersPage: React.FC = () => {
                         size="small"
                         onClick={() => handleEditUser(user.id)}
                         sx={{ color: '#4CAF50', mr: 1 }}
+                        aria-label={`Edit ${user.fullName}`}
                       >
                         <EditIcon sx={{ fontSize: 20 }} />
                       </IconButton>
                       <IconButton
                         size="small"
-                        onClick={() => handleDeleteUser(user.id)}
-                        sx={{ color: '#EF5350' }}
+                        onClick={() => handleDeleteClick(user.id)}
+                        sx={{ color: COLORS.error }}
+                        aria-label={`Delete ${user.fullName}`}
                       >
                         <DeleteIcon sx={{ fontSize: 20 }} />
                       </IconButton>
@@ -538,6 +652,7 @@ const UsersPage: React.FC = () => {
             onRowsPerPageChange={handleChangeRowsPerPage}
             rowsPerPageOptions={[5, 10, 25, 50]}
             sx={{ borderTop: '1px solid #E0E0E0' }}
+            aria-label="Users table pagination"
           />
         )}
       </Card>
@@ -569,6 +684,17 @@ const UsersPage: React.FC = () => {
           {error}
         </Alert>
       </Snackbar>
+
+      <ConfirmDialog
+        open={deleteDialog.open}
+        title="Delete User"
+        message="Are you sure you want to delete this user? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        confirmColor="error"
+        onConfirm={handleDeleteConfirm}
+        onCancel={handleDeleteCancel}
+      />
     </Box>
   );
 };

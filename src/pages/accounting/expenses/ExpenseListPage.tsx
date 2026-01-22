@@ -9,6 +9,8 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  TablePagination,
+  TableSortLabel,
   IconButton,
   Chip,
   Typography,
@@ -20,6 +22,9 @@ import {
   Select,
   MenuItem,
   Popover,
+  Alert,
+  Snackbar,
+  SelectChangeEvent,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -29,97 +34,310 @@ import {
   FilterList as FilterIcon,
   Print as PrintIcon,
   GridOn as GridIcon,
+  CheckCircle as ApproveIcon,
+  Payment as PayIcon,
+  Block as VoidIcon,
 } from '@mui/icons-material';
 import TableSkeleton from '../../../components/common/TableSkeleton';
 import ConfirmDialog from '../../../components/common/ConfirmDialog';
 import { COLORS } from '../../../constants/colors';
+import { useDebounce } from '../../../hooks/useDebounce';
+import { expenseService, type Expense, type ExpenseStatus } from '../../../services';
 
-interface Expense {
-  id: string;
-  date: string;
-  companyId?: number;
-  companyName: string;
-  payFor: string;
-  grossAmount: number;
-  netAmount: number;
-  status: 'Active' | 'Paid' | 'Overdue' | 'Pending';
-  createdAt: string;
-}
+const STATUSES = ['All', 'draft', 'approved', 'paid', 'void'];
+
+type Order = 'asc' | 'desc';
+type ExpenseOrderBy = 'expenseNumber' | 'date' | 'vendorName' | 'description' | 'amount' | 'totalAmount' | 'status';
+
+const getStatusColor = (status: ExpenseStatus) => {
+  switch (status) {
+    case 'draft':
+      return { bgcolor: 'rgba(158, 158, 158, 0.1)', color: '#9E9E9E', border: '#9E9E9E' };
+    case 'approved':
+      return { bgcolor: 'rgba(33, 150, 243, 0.1)', color: '#2196F3', border: '#2196F3' };
+    case 'paid':
+      return { bgcolor: 'rgba(76, 175, 80, 0.1)', color: '#4CAF50', border: '#4CAF50' };
+    case 'void':
+      return { bgcolor: 'rgba(244, 67, 54, 0.1)', color: '#F44336', border: '#F44336' };
+    default:
+      return { bgcolor: 'rgba(158, 158, 158, 0.1)', color: '#9E9E9E', border: '#9E9E9E' };
+  }
+};
+
+const formatStatusLabel = (status: ExpenseStatus): string => {
+  return status.charAt(0).toUpperCase() + status.slice(1);
+};
 
 const ExpenseListPage: React.FC = () => {
   const navigate = useNavigate();
   const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterAnchorEl, setFilterAnchorEl] = useState<HTMLButtonElement | null>(null);
   const [filters, setFilters] = useState({
     company: '',
     dateFrom: '',
     dateTo: '',
-    grossAmountFrom: '',
-    grossAmountTo: '',
     status: '',
   });
-  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; id: string | null }>({
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [totalCount, setTotalCount] = useState(0);
+  const [error, setError] = useState<string>('');
+  const [successMessage, setSuccessMessage] = useState<string>('');
+  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; id: number | null }>({
     open: false,
     id: null,
   });
+  const [actionDialog, setActionDialog] = useState<{
+    open: boolean;
+    id: number | null;
+    action: 'approve' | 'pay' | 'void' | null;
+  }>({
+    open: false,
+    id: null,
+    action: null,
+  });
 
-  // Load expenses from localStorage
-  useEffect(() => {
-    const loadExpenses = () => {
-      try {
-        const savedExpenses = localStorage.getItem('expenses');
-        if (savedExpenses) {
-          setExpenses(JSON.parse(savedExpenses));
-        }
-      } catch (error) {
-        console.error('Error loading expenses:', error);
-      } finally {
-        setLoading(false);
+  // Sorting state
+  const [orderBy, setOrderBy] = useState<ExpenseOrderBy>('date');
+  const [order, setOrder] = useState<Order>('desc');
+
+  // Debounce search for better performance
+  const debouncedSearch = useDebounce(searchTerm, 300);
+
+  // Load expenses from API
+  const loadExpenses = useCallback(async () => {
+    setIsLoading(true);
+    setError('');
+
+    try {
+      const apiFilters: {
+        status?: ExpenseStatus;
+        dateFrom?: string;
+        dateTo?: string;
+        isActive?: boolean;
+        limit: number;
+        offset: number;
+      } = {
+        limit: rowsPerPage,
+        offset: page * rowsPerPage,
+        isActive: true,
+      };
+
+      if (filters.status && filters.status !== 'All') {
+        apiFilters.status = filters.status as ExpenseStatus;
       }
-    };
-    setTimeout(loadExpenses, 500);
-  }, []);
 
-  // Filter expenses
+      if (filters.dateFrom) {
+        apiFilters.dateFrom = filters.dateFrom;
+      }
+
+      if (filters.dateTo) {
+        apiFilters.dateTo = filters.dateTo;
+      }
+
+      const response = await expenseService.getAll(apiFilters);
+
+      // Filter by search term client-side (for description/reference search)
+      let expenseData = response.data.data;
+      if (debouncedSearch) {
+        const searchLower = debouncedSearch.toLowerCase();
+        expenseData = expenseData.filter(
+          (expense) =>
+            expense.expenseNumber?.toLowerCase().includes(searchLower) ||
+            expense.description?.toLowerCase().includes(searchLower) ||
+            expense.reference?.toLowerCase().includes(searchLower) ||
+            expense.vendorName?.toLowerCase().includes(searchLower)
+        );
+      }
+
+      setExpenses(expenseData);
+      setTotalCount(response.data.total);
+
+      // Save to localStorage as backup
+      localStorage.setItem('expenses', JSON.stringify(expenseData));
+    } catch (err: unknown) {
+      console.error('Error loading expenses:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load expenses';
+      setError(`${errorMessage}. Loading from local storage...`);
+
+      // Fallback to localStorage
+      const savedExpenses = localStorage.getItem('expenses');
+      if (savedExpenses) {
+        const parsedExpenses = JSON.parse(savedExpenses);
+        setExpenses(parsedExpenses);
+        setTotalCount(parsedExpenses.length);
+      } else {
+        setExpenses([]);
+        setTotalCount(0);
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  }, [debouncedSearch, filters.status, filters.dateFrom, filters.dateTo, page, rowsPerPage]);
+
+  useEffect(() => {
+    loadExpenses();
+  }, [loadExpenses]);
+
+  // Handle sort
+  const handleSort = useCallback((property: ExpenseOrderBy) => {
+    setOrder((prevOrder) => (orderBy === property && prevOrder === 'asc' ? 'desc' : 'asc'));
+    setOrderBy(property);
+  }, [orderBy]);
+
+  // Memoized filtered and sorted expenses
   const filteredExpenses = useMemo(() => {
-    return expenses.filter((expense) => {
-      const matchesSearch =
-        !searchTerm ||
-        expense.companyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        expense.payFor.toLowerCase().includes(searchTerm.toLowerCase());
+    const sortedExpenses = [...expenses].sort((a, b) => {
+      let aValue: string | number = '';
+      let bValue: string | number = '';
 
-      const matchesCompany = !filters.company || expense.companyName === filters.company;
-      const matchesStatus = !filters.status || expense.status === filters.status;
+      switch (orderBy) {
+        case 'expenseNumber':
+          aValue = a.expenseNumber || '';
+          bValue = b.expenseNumber || '';
+          break;
+        case 'date':
+          aValue = new Date(a.date).getTime();
+          bValue = new Date(b.date).getTime();
+          break;
+        case 'vendorName':
+          aValue = a.vendorName || '';
+          bValue = b.vendorName || '';
+          break;
+        case 'description':
+          aValue = a.description || '';
+          bValue = b.description || '';
+          break;
+        case 'amount':
+          aValue = a.amount;
+          bValue = b.amount;
+          break;
+        case 'totalAmount':
+          aValue = a.totalAmount;
+          bValue = b.totalAmount;
+          break;
+        case 'status':
+          aValue = a.status;
+          bValue = b.status;
+          break;
+        default:
+          return 0;
+      }
 
-      return matchesSearch && matchesCompany && matchesStatus;
+      if (typeof aValue === 'string' && typeof bValue === 'string') {
+        return order === 'asc'
+          ? aValue.localeCompare(bValue)
+          : bValue.localeCompare(aValue);
+      }
+
+      if (order === 'asc') {
+        return aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
+      }
+      return aValue > bValue ? -1 : aValue < bValue ? 1 : 0;
     });
-  }, [expenses, searchTerm, filters]);
+
+    return sortedExpenses;
+  }, [expenses, orderBy, order]);
 
   const handleAddExpense = useCallback(() => {
     navigate('/account/expense/add');
   }, [navigate]);
 
-  const handleEditExpense = useCallback((id: string) => {
-    navigate(`/account/expense/update/${id}`);
-  }, [navigate]);
+  const handleEditExpense = useCallback(
+    (id: number) => {
+      navigate(`/account/expense/update/${id}`);
+    },
+    [navigate]
+  );
 
-  const handleDeleteClick = useCallback((id: string) => {
+  const handleDeleteClick = useCallback((id: number) => {
     setDeleteDialog({ open: true, id });
   }, []);
 
-  const handleDeleteConfirm = useCallback(() => {
+  const handleDeleteConfirm = useCallback(async () => {
     if (deleteDialog.id) {
-      const updatedExpenses = expenses.filter((e) => e.id !== deleteDialog.id);
-      setExpenses(updatedExpenses);
-      localStorage.setItem('expenses', JSON.stringify(updatedExpenses));
+      try {
+        await expenseService.delete(deleteDialog.id);
+
+        // Update local state
+        const updatedExpenses = expenses.filter((e) => e.id !== deleteDialog.id);
+        setExpenses(updatedExpenses);
+        setTotalCount((prev) => prev - 1);
+        localStorage.setItem('expenses', JSON.stringify(updatedExpenses));
+
+        setSuccessMessage('Expense deleted successfully');
+      } catch (err: unknown) {
+        console.error('Error deleting expense:', err);
+        const errorMessage = err instanceof Error ? err.message : 'Failed to delete expense';
+        setError(errorMessage);
+      }
     }
     setDeleteDialog({ open: false, id: null });
   }, [expenses, deleteDialog.id]);
 
   const handleDeleteCancel = useCallback(() => {
     setDeleteDialog({ open: false, id: null });
+  }, []);
+
+  const handleActionClick = useCallback(
+    (id: number, action: 'approve' | 'pay' | 'void') => {
+      setActionDialog({ open: true, id, action });
+    },
+    []
+  );
+
+  const handleActionConfirm = useCallback(async () => {
+    if (actionDialog.id && actionDialog.action) {
+      try {
+        let response;
+        let message = '';
+
+        switch (actionDialog.action) {
+          case 'approve':
+            response = await expenseService.approve(actionDialog.id);
+            message = 'Expense approved successfully';
+            break;
+          case 'pay':
+            response = await expenseService.markPaid(actionDialog.id);
+            message = 'Expense marked as paid successfully';
+            break;
+          case 'void':
+            response = await expenseService.void(actionDialog.id);
+            message = 'Expense voided successfully';
+            break;
+        }
+
+        if (response) {
+          // Update the expense in local state
+          const updatedExpenses = expenses.map((e) =>
+            e.id === actionDialog.id ? response.data : e
+          );
+          setExpenses(updatedExpenses);
+          localStorage.setItem('expenses', JSON.stringify(updatedExpenses));
+          setSuccessMessage(message);
+        }
+      } catch (err: unknown) {
+        console.error(`Error performing ${actionDialog.action}:`, err);
+        const errorMessage = err instanceof Error ? err.message : `Failed to ${actionDialog.action} expense`;
+        setError(errorMessage);
+      }
+    }
+    setActionDialog({ open: false, id: null, action: null });
+  }, [expenses, actionDialog.id, actionDialog.action]);
+
+  const handleActionCancel = useCallback(() => {
+    setActionDialog({ open: false, id: null, action: null });
+  }, []);
+
+  const handleChangePage = useCallback((_event: unknown, newPage: number) => {
+    setPage(newPage);
+  }, []);
+
+  const handleChangeRowsPerPage = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setPage(0);
   }, []);
 
   const handleFilterClick = (event: React.MouseEvent<HTMLButtonElement>) => {
@@ -135,35 +353,66 @@ const ExpenseListPage: React.FC = () => {
       company: '',
       dateFrom: '',
       dateTo: '',
-      grossAmountFrom: '',
-      grossAmountTo: '',
       status: '',
     });
+    setPage(0);
+  };
+
+  const handleApplyFilters = () => {
+    setPage(0);
+    handleFilterClose();
   };
 
   const filterOpen = Boolean(filterAnchorEl);
 
-  // Get unique values for filters
-  const companyNames = useMemo(() => {
-    const names = new Set(expenses.map((e) => e.companyName).filter(Boolean));
-    return Array.from(names);
-  }, [expenses]);
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    });
+  };
 
-  if (loading) {
-    return (
-      <Box sx={{ p: 3 }}>
-        <Typography variant="h5" sx={{ fontWeight: 600, mb: 3 }}>Expense</Typography>
-        <TableSkeleton rows={5} columns={7} />
-      </Box>
-    );
-  }
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount);
+  };
+
+  const getActionTitle = () => {
+    switch (actionDialog.action) {
+      case 'approve':
+        return 'Approve Expense';
+      case 'pay':
+        return 'Mark as Paid';
+      case 'void':
+        return 'Void Expense';
+      default:
+        return '';
+    }
+  };
+
+  const getActionMessage = () => {
+    switch (actionDialog.action) {
+      case 'approve':
+        return 'Are you sure you want to approve this expense? This action will change the status to approved.';
+      case 'pay':
+        return 'Are you sure you want to mark this expense as paid? This action will change the status to paid.';
+      case 'void':
+        return 'Are you sure you want to void this expense? This action cannot be undone.';
+      default:
+        return '';
+    }
+  };
 
   return (
     <Box sx={{ p: 3, bgcolor: '#F9FAFB', minHeight: '100vh' }}>
       {/* Header */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Typography variant="h5" sx={{ fontWeight: 600 }}>
-          Expense
+          Expenses
         </Typography>
       </Box>
 
@@ -183,10 +432,13 @@ const ExpenseListPage: React.FC = () => {
         </Button>
 
         <TextField
-          placeholder="Search"
+          placeholder="Search by number, description, vendor..."
           size="small"
           value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
+          onChange={(e) => {
+            setSearchTerm(e.target.value);
+            setPage(0);
+          }}
           InputProps={{
             startAdornment: (
               <InputAdornment position="start">
@@ -194,7 +446,7 @@ const ExpenseListPage: React.FC = () => {
               </InputAdornment>
             ),
           }}
-          sx={{ minWidth: 200, '& .MuiOutlinedInput-root': { bgcolor: 'white' } }}
+          sx={{ minWidth: 300, '& .MuiOutlinedInput-root': { bgcolor: 'white' } }}
         />
 
         <Box sx={{ flexGrow: 1 }} />
@@ -249,31 +501,24 @@ const ExpenseListPage: React.FC = () => {
       >
         <Box sx={{ p: 2, width: 350, border: '2px solid #FF6B35', borderRadius: 1 }}>
           <FormControl fullWidth size="small" sx={{ mb: 2 }}>
-            <InputLabel>Select Company</InputLabel>
+            <InputLabel>Status</InputLabel>
             <Select
-              value={filters.company}
-              onChange={(e) => setFilters({ ...filters, company: e.target.value })}
-              label="Select Company"
+              value={filters.status}
+              onChange={(e: SelectChangeEvent) => setFilters({ ...filters, status: e.target.value })}
+              label="Status"
             >
-              <MenuItem value="">ERP</MenuItem>
-              {companyNames.map((name) => (
-                <MenuItem key={name} value={name}>{name}</MenuItem>
+              <MenuItem value="">All</MenuItem>
+              {STATUSES.filter((s) => s !== 'All').map((status) => (
+                <MenuItem key={status} value={status}>
+                  {formatStatusLabel(status as ExpenseStatus)}
+                </MenuItem>
               ))}
             </Select>
           </FormControl>
 
           <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
             <TextField
-              label="Date Range To"
-              type="date"
-              size="small"
-              value={filters.dateTo}
-              onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })}
-              InputLabelProps={{ shrink: true }}
-              sx={{ flex: 1 }}
-            />
-            <TextField
-              label="From"
+              label="Date From"
               type="date"
               size="small"
               value={filters.dateFrom}
@@ -281,45 +526,16 @@ const ExpenseListPage: React.FC = () => {
               InputLabelProps={{ shrink: true }}
               sx={{ flex: 1 }}
             />
+            <TextField
+              label="Date To"
+              type="date"
+              size="small"
+              value={filters.dateTo}
+              onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })}
+              InputLabelProps={{ shrink: true }}
+              sx={{ flex: 1 }}
+            />
           </Box>
-
-          <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
-            <FormControl size="small" sx={{ flex: 1 }}>
-              <InputLabel>Gross Amount To</InputLabel>
-              <Select
-                value={filters.grossAmountTo}
-                onChange={(e) => setFilters({ ...filters, grossAmountTo: e.target.value })}
-                label="Gross Amount To"
-              >
-                <MenuItem value="">00</MenuItem>
-              </Select>
-            </FormControl>
-            <FormControl size="small" sx={{ flex: 1 }}>
-              <InputLabel>From</InputLabel>
-              <Select
-                value={filters.grossAmountFrom}
-                onChange={(e) => setFilters({ ...filters, grossAmountFrom: e.target.value })}
-                label="From"
-              >
-                <MenuItem value="">00</MenuItem>
-              </Select>
-            </FormControl>
-          </Box>
-
-          <FormControl fullWidth size="small" sx={{ mb: 2 }}>
-            <InputLabel>Status</InputLabel>
-            <Select
-              value={filters.status}
-              onChange={(e) => setFilters({ ...filters, status: e.target.value })}
-              label="Status"
-            >
-              <MenuItem value="">All</MenuItem>
-              <MenuItem value="Active">Active</MenuItem>
-              <MenuItem value="Paid">Paid</MenuItem>
-              <MenuItem value="Overdue">Overdue</MenuItem>
-              <MenuItem value="Pending">Pending</MenuItem>
-            </Select>
-          </FormControl>
 
           <Box sx={{ display: 'flex', gap: 1 }}>
             <Button
@@ -345,7 +561,7 @@ const ExpenseListPage: React.FC = () => {
             <Button
               variant="contained"
               size="small"
-              onClick={handleFilterClose}
+              onClick={handleApplyFilters}
               sx={{
                 bgcolor: '#FF6B35',
                 textTransform: 'none',
@@ -361,85 +577,276 @@ const ExpenseListPage: React.FC = () => {
       {/* Table */}
       <Card sx={{ boxShadow: 'none', border: '1px solid #E5E7EB' }}>
         <TableContainer>
-          <Table>
+          <Table aria-label="Expenses list">
             <TableHead>
               <TableRow sx={{ bgcolor: '#F9FAFB' }}>
-                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Date</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Company</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Pay For</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Gross Amount</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Net Amount</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Status</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Actions</TableCell>
+                <TableCell
+                  scope="col"
+                  sx={{ fontWeight: 600, color: '#374151' }}
+                  aria-sort={orderBy === 'expenseNumber' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'expenseNumber'}
+                    direction={orderBy === 'expenseNumber' ? order : 'asc'}
+                    onClick={() => handleSort('expenseNumber')}
+                  >
+                    Expense #
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell
+                  scope="col"
+                  sx={{ fontWeight: 600, color: '#374151' }}
+                  aria-sort={orderBy === 'date' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'date'}
+                    direction={orderBy === 'date' ? order : 'asc'}
+                    onClick={() => handleSort('date')}
+                  >
+                    Date
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell
+                  scope="col"
+                  sx={{ fontWeight: 600, color: '#374151' }}
+                  aria-sort={orderBy === 'vendorName' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'vendorName'}
+                    direction={orderBy === 'vendorName' ? order : 'asc'}
+                    onClick={() => handleSort('vendorName')}
+                  >
+                    Vendor
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell
+                  scope="col"
+                  sx={{ fontWeight: 600, color: '#374151' }}
+                  aria-sort={orderBy === 'description' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'description'}
+                    direction={orderBy === 'description' ? order : 'asc'}
+                    onClick={() => handleSort('description')}
+                  >
+                    Description
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell
+                  scope="col"
+                  sx={{ fontWeight: 600, color: '#374151' }}
+                  aria-sort={orderBy === 'amount' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'amount'}
+                    direction={orderBy === 'amount' ? order : 'asc'}
+                    onClick={() => handleSort('amount')}
+                  >
+                    Amount
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell
+                  scope="col"
+                  sx={{ fontWeight: 600, color: '#374151' }}
+                  aria-sort={orderBy === 'totalAmount' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'totalAmount'}
+                    direction={orderBy === 'totalAmount' ? order : 'asc'}
+                    onClick={() => handleSort('totalAmount')}
+                  >
+                    Total
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell
+                  scope="col"
+                  sx={{ fontWeight: 600, color: '#374151' }}
+                  aria-sort={orderBy === 'status' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'status'}
+                    direction={orderBy === 'status' ? order : 'asc'}
+                    onClick={() => handleSort('status')}
+                  >
+                    Status
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell scope="col" sx={{ fontWeight: 600, color: '#374151' }}>Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {filteredExpenses.length === 0 ? (
+              {isLoading ? (
+                <TableSkeleton rows={5} columns={8} />
+              ) : filteredExpenses.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} align="center" sx={{ py: 8 }}>
+                  <TableCell colSpan={8} align="center" sx={{ py: 8 }}>
                     <Typography color="text.secondary">
                       No expenses found. Click "Add Expense" to add one.
                     </Typography>
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredExpenses.map((expense) => (
-                  <TableRow key={expense.id} hover>
-                    <TableCell>{expense.date}</TableCell>
-                    <TableCell>{expense.companyName}</TableCell>
-                    <TableCell>{expense.payFor}</TableCell>
-                    <TableCell>{expense.grossAmount.toFixed(1)} PKR</TableCell>
-                    <TableCell>{expense.netAmount.toFixed(1)} PKR</TableCell>
-                    <TableCell>
-                      <Chip
-                        label={expense.status}
-                        size="small"
-                        sx={{
-                          bgcolor: expense.status === 'Active' || expense.status === 'Paid'
-                            ? 'rgba(16, 185, 129, 0.1)'
-                            : expense.status === 'Overdue'
-                            ? 'rgba(239, 68, 68, 0.1)'
-                            : 'rgba(251, 191, 36, 0.1)',
-                          color: expense.status === 'Active' || expense.status === 'Paid'
-                            ? '#10B981'
-                            : expense.status === 'Overdue'
-                            ? '#EF4444'
-                            : '#F59E0B',
-                          fontWeight: 500,
-                          border: `1px solid ${
-                            expense.status === 'Active' || expense.status === 'Paid'
-                              ? '#10B981'
-                              : expense.status === 'Overdue'
-                              ? '#EF4444'
-                              : '#F59E0B'
-                          }`,
-                        }}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <IconButton
-                        size="small"
-                        onClick={() => handleEditExpense(expense.id)}
-                        sx={{ color: '#10B981' }}
-                      >
-                        <EditIcon fontSize="small" />
-                      </IconButton>
-                      <IconButton
-                        size="small"
-                        onClick={() => handleDeleteClick(expense.id)}
-                        sx={{ color: COLORS.error }}
-                      >
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
-                    </TableCell>
-                  </TableRow>
-                ))
+                filteredExpenses.map((expense) => {
+                  const statusColors = getStatusColor(expense.status);
+                  return (
+                    <TableRow key={expense.id} hover>
+                      <TableCell>
+                        <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                          {expense.expenseNumber}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>{formatDate(expense.date)}</TableCell>
+                      <TableCell>{expense.vendorName || '-'}</TableCell>
+                      <TableCell>
+                        <Typography
+                          variant="body2"
+                          sx={{
+                            maxWidth: 200,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {expense.description || '-'}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>{formatCurrency(expense.amount)} PKR</TableCell>
+                      <TableCell sx={{ fontWeight: 500 }}>
+                        {formatCurrency(expense.totalAmount)} PKR
+                      </TableCell>
+                      <TableCell>
+                        <Chip
+                          label={formatStatusLabel(expense.status)}
+                          size="small"
+                          sx={{
+                            bgcolor: statusColors.bgcolor,
+                            color: statusColors.color,
+                            fontWeight: 500,
+                            border: `1px solid ${statusColors.border}`,
+                          }}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Box sx={{ display: 'flex', gap: 0.5 }}>
+                          {expense.status === 'draft' && (
+                            <>
+                              <IconButton
+                                size="small"
+                                onClick={() => handleActionClick(expense.id, 'approve')}
+                                sx={{ color: '#2196F3' }}
+                                aria-label={`Approve expense ${expense.expenseNumber}`}
+                              >
+                                <ApproveIcon fontSize="small" />
+                              </IconButton>
+                              <IconButton
+                                size="small"
+                                onClick={() => handleEditExpense(expense.id)}
+                                sx={{ color: '#10B981' }}
+                                aria-label={`Edit expense ${expense.expenseNumber}`}
+                              >
+                                <EditIcon fontSize="small" />
+                              </IconButton>
+                              <IconButton
+                                size="small"
+                                onClick={() => handleDeleteClick(expense.id)}
+                                sx={{ color: COLORS.error }}
+                                aria-label={`Delete expense ${expense.expenseNumber}`}
+                              >
+                                <DeleteIcon fontSize="small" />
+                              </IconButton>
+                            </>
+                          )}
+                          {expense.status === 'approved' && (
+                            <>
+                              <IconButton
+                                size="small"
+                                onClick={() => handleActionClick(expense.id, 'pay')}
+                                sx={{ color: '#4CAF50' }}
+                                aria-label={`Mark expense ${expense.expenseNumber} as paid`}
+                              >
+                                <PayIcon fontSize="small" />
+                              </IconButton>
+                              <IconButton
+                                size="small"
+                                onClick={() => handleActionClick(expense.id, 'void')}
+                                sx={{ color: '#F44336' }}
+                                aria-label={`Void expense ${expense.expenseNumber}`}
+                              >
+                                <VoidIcon fontSize="small" />
+                              </IconButton>
+                            </>
+                          )}
+                          {expense.status === 'paid' && (
+                            <IconButton
+                              size="small"
+                              onClick={() => handleActionClick(expense.id, 'void')}
+                              sx={{ color: '#F44336' }}
+                              aria-label={`Void expense ${expense.expenseNumber}`}
+                            >
+                              <VoidIcon fontSize="small" />
+                            </IconButton>
+                          )}
+                          {expense.status === 'void' && (
+                            <IconButton
+                              size="small"
+                              onClick={() => handleDeleteClick(expense.id)}
+                              sx={{ color: COLORS.error }}
+                              aria-label={`Delete expense ${expense.expenseNumber}`}
+                            >
+                              <DeleteIcon fontSize="small" />
+                            </IconButton>
+                          )}
+                        </Box>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
               )}
             </TableBody>
           </Table>
         </TableContainer>
+
+        {/* Pagination */}
+        {!isLoading && (
+          <TablePagination
+            component="div"
+            count={totalCount}
+            page={page}
+            onPageChange={handleChangePage}
+            rowsPerPage={rowsPerPage}
+            onRowsPerPageChange={handleChangeRowsPerPage}
+            rowsPerPageOptions={[5, 10, 25, 50]}
+            sx={{ borderTop: '1px solid #E0E0E0' }}
+            aria-label="Expenses table pagination"
+          />
+        )}
       </Card>
 
+      {/* Success Snackbar */}
+      <Snackbar
+        open={!!successMessage}
+        autoHideDuration={4000}
+        onClose={() => setSuccessMessage('')}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert onClose={() => setSuccessMessage('')} severity="success" sx={{ width: '100%' }}>
+          {successMessage}
+        </Alert>
+      </Snackbar>
+
+      {/* Error Snackbar */}
+      <Snackbar
+        open={!!error}
+        autoHideDuration={6000}
+        onClose={() => setError('')}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert onClose={() => setError('')} severity="error" sx={{ width: '100%' }}>
+          {error}
+        </Alert>
+      </Snackbar>
+
+      {/* Delete Confirmation Dialog */}
       <ConfirmDialog
         open={deleteDialog.open}
         title="Delete Expense"
@@ -449,6 +856,18 @@ const ExpenseListPage: React.FC = () => {
         confirmColor="error"
         onConfirm={handleDeleteConfirm}
         onCancel={handleDeleteCancel}
+      />
+
+      {/* Action Confirmation Dialog */}
+      <ConfirmDialog
+        open={actionDialog.open}
+        title={getActionTitle()}
+        message={getActionMessage()}
+        confirmText={actionDialog.action === 'void' ? 'Void' : 'Confirm'}
+        cancelText="Cancel"
+        confirmColor={actionDialog.action === 'void' ? 'error' : 'primary'}
+        onConfirm={handleActionConfirm}
+        onCancel={handleActionCancel}
       />
     </Box>
   );

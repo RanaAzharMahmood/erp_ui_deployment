@@ -31,6 +31,7 @@ import {
 } from '@mui/icons-material';
 import PageHeader from '../../../components/common/PageHeader';
 import FormSection from '../../../components/common/FormSection';
+import { useCompanies } from '../../../hooks';
 
 interface LineItem {
   id: string;
@@ -75,24 +76,21 @@ const AddOtherPaymentsPage: React.FC = () => {
     { id: '1', paymentDetails: 'Choose', amount: '0.0' },
   ]);
 
-  const [companies, setCompanies] = useState<Array<{ id: number; name: string }>>([]);
+  const { companies: rawCompanies, refetch: refetchCompanies } = useCompanies();
+  const companies = rawCompanies.map((c) => ({ id: c.id, name: c.name }));
+
+  // Refetch companies on mount to ensure fresh data
+  useEffect(() => {
+    refetchCompanies();
+  }, [refetchCompanies]);
   const [slipImage, setSlipImage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
 
-  // Load companies and existing payment if editing
+  // Load existing payment if editing
   useEffect(() => {
     try {
-      const savedCompanies = localStorage.getItem('companies');
-      if (savedCompanies) {
-        const parsed = JSON.parse(savedCompanies);
-        setCompanies(parsed.map((c: { id: number; companyName: string }) => ({
-          id: c.id,
-          name: c.companyName,
-        })));
-      }
-
       if (isEditMode && id) {
         const savedPayments = localStorage.getItem('otherPayments');
         if (savedPayments) {
@@ -230,7 +228,6 @@ const AddOtherPaymentsPage: React.FC = () => {
                       displayEmpty
                       sx={{ bgcolor: 'white' }}
                     >
-                      <MenuItem value="">EST Gas</MenuItem>
                       {companies.map((company) => (
                         <MenuItem key={company.id} value={company.id}>
                           {company.name}

@@ -9,6 +9,7 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  TableSortLabel,
   IconButton,
   Chip,
   Typography,
@@ -20,6 +21,9 @@ import {
   Select,
   MenuItem,
   Popover,
+  Alert,
+  Snackbar,
+  Tooltip,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -29,103 +33,248 @@ import {
   FilterList as FilterIcon,
   Print as PrintIcon,
   GridOn as GridIcon,
+  CheckCircle as PostIcon,
+  Block as VoidIcon,
 } from '@mui/icons-material';
 import TableSkeleton from '../../../components/common/TableSkeleton';
 import ConfirmDialog from '../../../components/common/ConfirmDialog';
 import { COLORS } from '../../../constants/colors';
+import {
+  getJournalEntriesApi,
+  JournalEntry,
+  JournalEntryStatus,
+  JournalEntryFilters as ApiFilters,
+} from '../../../generated/api/client';
 
-interface JournalEntry {
-  id: string;
-  date: string;
-  accountName: string;
-  accountType: 'Assets' | 'Liabilities' | 'Equity' | 'Revenue' | 'Expenses';
-  companyId?: number;
-  companyName: string;
-  reference: string;
-  debit: number;
-  credit: number;
-  status: 'Approved' | 'Draft' | 'Pending';
-  createdAt: string;
-}
+type Order = 'asc' | 'desc';
+type JournalEntryOrderBy = 'entryNumber' | 'date' | 'reference' | 'description' | 'totalDebit' | 'totalCredit' | 'status';
 
 const JournalEntryListPage: React.FC = () => {
   const navigate = useNavigate();
   const [entries, setEntries] = useState<JournalEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [error, setError] = useState<string>('');
+  const [successMessage, setSuccessMessage] = useState<string>('');
   const [filterAnchorEl, setFilterAnchorEl] = useState<HTMLButtonElement | null>(null);
   const [filters, setFilters] = useState({
     company: '',
     dateFrom: '',
     dateTo: '',
-    accountName: '',
-    accountType: '',
-    reference: '',
-    status: '',
+    status: '' as JournalEntryStatus | '',
   });
-  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; id: string | null }>({
+  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; id: number | null }>({
     open: false,
     id: null,
   });
+  const [postDialog, setPostDialog] = useState<{ open: boolean; id: number | null }>({
+    open: false,
+    id: null,
+  });
+  const [voidDialog, setVoidDialog] = useState<{ open: boolean; id: number | null }>({
+    open: false,
+    id: null,
+  });
+  const [actionLoading, setActionLoading] = useState(false);
 
-  // Load entries from localStorage
-  useEffect(() => {
-    const loadEntries = () => {
-      try {
-        const savedEntries = localStorage.getItem('journalEntries');
-        if (savedEntries) {
-          setEntries(JSON.parse(savedEntries));
-        }
-      } catch (error) {
-        console.error('Error loading journal entries:', error);
-      } finally {
-        setLoading(false);
+  // Sorting state
+  const [orderBy, setOrderBy] = useState<JournalEntryOrderBy>('date');
+  const [order, setOrder] = useState<Order>('desc');
+
+  // Load entries from API
+  const loadEntries = useCallback(async () => {
+    setLoading(true);
+    try {
+      const api = getJournalEntriesApi();
+      const apiFilters: ApiFilters = {
+        isActive: true,
+      };
+
+      if (filters.status) {
+        apiFilters.status = filters.status;
       }
-    };
-    setTimeout(loadEntries, 500);
-  }, []);
+      if (filters.dateFrom) {
+        apiFilters.dateFrom = filters.dateFrom;
+      }
+      if (filters.dateTo) {
+        apiFilters.dateTo = filters.dateTo;
+      }
 
-  // Filter entries
+      const response = await api.getAll(apiFilters);
+      if (response.success && response.data) {
+        setEntries(response.data.data || []);
+      }
+    } catch (err) {
+      console.error('Error loading journal entries:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load journal entries. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  }, [filters.status, filters.dateFrom, filters.dateTo]);
+
+  useEffect(() => {
+    loadEntries();
+  }, [loadEntries]);
+
+  // Handle sort
+  const handleSort = useCallback((property: JournalEntryOrderBy) => {
+    setOrder((prevOrder) => (orderBy === property && prevOrder === 'asc' ? 'desc' : 'asc'));
+    setOrderBy(property);
+  }, [orderBy]);
+
+  // Filter and sort entries locally by search term
   const filteredEntries = useMemo(() => {
-    return entries.filter((entry) => {
+    const filtered = entries.filter((entry) => {
       const matchesSearch =
         !searchTerm ||
-        entry.accountName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        entry.reference.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        entry.companyName.toLowerCase().includes(searchTerm.toLowerCase());
+        entry.entryNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (entry.reference && entry.reference.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (entry.description && entry.description.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (entry.companyName && entry.companyName.toLowerCase().includes(searchTerm.toLowerCase()));
 
-      const matchesCompany = !filters.company || entry.companyName === filters.company;
-      const matchesStatus = !filters.status || entry.status === filters.status;
-      const matchesAccountType = !filters.accountType || entry.accountType === filters.accountType;
-      const matchesReference = !filters.reference || entry.reference === filters.reference;
-
-      return matchesSearch && matchesCompany && matchesStatus && matchesAccountType && matchesReference;
+      return matchesSearch;
     });
-  }, [entries, searchTerm, filters]);
+
+    // Sort the filtered entries
+    const sortedEntries = [...filtered].sort((a, b) => {
+      let aValue: string | number = '';
+      let bValue: string | number = '';
+
+      switch (orderBy) {
+        case 'entryNumber':
+          aValue = a.entryNumber || '';
+          bValue = b.entryNumber || '';
+          break;
+        case 'date':
+          aValue = new Date(a.date).getTime();
+          bValue = new Date(b.date).getTime();
+          break;
+        case 'reference':
+          aValue = a.reference || '';
+          bValue = b.reference || '';
+          break;
+        case 'description':
+          aValue = a.description || '';
+          bValue = b.description || '';
+          break;
+        case 'totalDebit':
+          aValue = a.totalDebit;
+          bValue = b.totalDebit;
+          break;
+        case 'totalCredit':
+          aValue = a.totalCredit;
+          bValue = b.totalCredit;
+          break;
+        case 'status':
+          aValue = a.status;
+          bValue = b.status;
+          break;
+        default:
+          return 0;
+      }
+
+      if (typeof aValue === 'string' && typeof bValue === 'string') {
+        return order === 'asc'
+          ? aValue.localeCompare(bValue)
+          : bValue.localeCompare(aValue);
+      }
+
+      if (order === 'asc') {
+        return aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
+      }
+      return aValue > bValue ? -1 : aValue < bValue ? 1 : 0;
+    });
+
+    return sortedEntries;
+  }, [entries, searchTerm, orderBy, order]);
 
   const handleAddEntry = useCallback(() => {
     navigate('/account/journal-entry/add');
   }, [navigate]);
 
-  const handleEditEntry = useCallback((id: string) => {
-    navigate(`/account/journal-entry/update/${id}`);
-  }, [navigate]);
+  const handleEditEntry = useCallback(
+    (id: number) => {
+      navigate(`/account/journal-entry/update/${id}`);
+    },
+    [navigate]
+  );
 
-  const handleDeleteClick = useCallback((id: string) => {
+  const handleDeleteClick = useCallback((id: number) => {
     setDeleteDialog({ open: true, id });
   }, []);
 
-  const handleDeleteConfirm = useCallback(() => {
+  const handleDeleteConfirm = useCallback(async () => {
     if (deleteDialog.id) {
-      const updatedEntries = entries.filter((e) => e.id !== deleteDialog.id);
-      setEntries(updatedEntries);
-      localStorage.setItem('journalEntries', JSON.stringify(updatedEntries));
+      setActionLoading(true);
+      try {
+        const api = getJournalEntriesApi();
+        await api.delete(deleteDialog.id);
+        setSuccessMessage('Journal entry deleted successfully!');
+        loadEntries();
+      } catch (err) {
+        console.error('Error deleting journal entry:', err);
+        setError(err instanceof Error ? err.message : 'Failed to delete journal entry. Please try again.');
+      } finally {
+        setActionLoading(false);
+      }
     }
     setDeleteDialog({ open: false, id: null });
-  }, [entries, deleteDialog.id]);
+  }, [deleteDialog.id, loadEntries]);
 
   const handleDeleteCancel = useCallback(() => {
     setDeleteDialog({ open: false, id: null });
+  }, []);
+
+  const handlePostClick = useCallback((id: number) => {
+    setPostDialog({ open: true, id });
+  }, []);
+
+  const handlePostConfirm = useCallback(async () => {
+    if (postDialog.id) {
+      setActionLoading(true);
+      try {
+        const api = getJournalEntriesApi();
+        await api.post(postDialog.id);
+        setSuccessMessage('Journal entry posted successfully!');
+        loadEntries();
+      } catch (err) {
+        console.error('Error posting journal entry:', err);
+        setError(err instanceof Error ? err.message : 'Failed to post journal entry. Please try again.');
+      } finally {
+        setActionLoading(false);
+      }
+    }
+    setPostDialog({ open: false, id: null });
+  }, [postDialog.id, loadEntries]);
+
+  const handlePostCancel = useCallback(() => {
+    setPostDialog({ open: false, id: null });
+  }, []);
+
+  const handleVoidClick = useCallback((id: number) => {
+    setVoidDialog({ open: true, id });
+  }, []);
+
+  const handleVoidConfirm = useCallback(async () => {
+    if (voidDialog.id) {
+      setActionLoading(true);
+      try {
+        const api = getJournalEntriesApi();
+        await api.void(voidDialog.id);
+        setSuccessMessage('Journal entry voided successfully!');
+        loadEntries();
+      } catch (err) {
+        console.error('Error voiding journal entry:', err);
+        setError(err instanceof Error ? err.message : 'Failed to void journal entry. Please try again.');
+      } finally {
+        setActionLoading(false);
+      }
+    }
+    setVoidDialog({ open: false, id: null });
+  }, [voidDialog.id, loadEntries]);
+
+  const handleVoidCancel = useCallback(() => {
+    setVoidDialog({ open: false, id: null });
   }, []);
 
   const handleFilterClick = (event: React.MouseEvent<HTMLButtonElement>) => {
@@ -141,31 +290,54 @@ const JournalEntryListPage: React.FC = () => {
       company: '',
       dateFrom: '',
       dateTo: '',
-      accountName: '',
-      accountType: '',
-      reference: '',
       status: '',
     });
   };
 
+  const handleApplyFilters = () => {
+    handleFilterClose();
+    loadEntries();
+  };
+
   const filterOpen = Boolean(filterAnchorEl);
 
-  // Get unique values for filters
-  const companyNames = useMemo(() => {
-    const names = new Set(entries.map((e) => e.companyName).filter(Boolean));
-    return Array.from(names);
-  }, [entries]);
+  const getStatusColor = (status: JournalEntryStatus) => {
+    switch (status) {
+      case 'posted':
+        return { bg: 'rgba(16, 185, 129, 0.1)', color: '#10B981', border: '#10B981' };
+      case 'draft':
+        return { bg: 'rgba(59, 130, 246, 0.1)', color: '#3B82F6', border: '#3B82F6' };
+      case 'void':
+        return { bg: 'rgba(239, 68, 68, 0.1)', color: '#EF4444', border: '#EF4444' };
+      default:
+        return { bg: 'rgba(156, 163, 175, 0.1)', color: '#9CA3AF', border: '#9CA3AF' };
+    }
+  };
 
-  const accountNames = useMemo(() => {
-    const names = new Set(entries.map((e) => e.accountName).filter(Boolean));
-    return Array.from(names);
-  }, [entries]);
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    });
+  };
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-PK', {
+      style: 'currency',
+      currency: 'PKR',
+      minimumFractionDigits: 2,
+    }).format(amount);
+  };
 
   if (loading) {
     return (
       <Box sx={{ p: 3 }}>
-        <Typography variant="h5" sx={{ fontWeight: 600, mb: 3 }}>Journal Entry</Typography>
-        <TableSkeleton rows={5} columns={9} />
+        <Typography variant="h5" sx={{ fontWeight: 600, mb: 3 }}>
+          Journal Entries
+        </Typography>
+        <TableSkeleton rows={5} columns={8} />
       </Box>
     );
   }
@@ -175,7 +347,7 @@ const JournalEntryListPage: React.FC = () => {
       {/* Header */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Typography variant="h5" sx={{ fontWeight: 600 }}>
-          Journal Entry
+          Journal Entries
         </Typography>
       </Box>
 
@@ -195,7 +367,7 @@ const JournalEntryListPage: React.FC = () => {
         </Button>
 
         <TextField
-          placeholder="Search"
+          placeholder="Search by entry number, reference, description..."
           size="small"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
@@ -206,7 +378,7 @@ const JournalEntryListPage: React.FC = () => {
               </InputAdornment>
             ),
           }}
-          sx={{ minWidth: 200, '& .MuiOutlinedInput-root': { bgcolor: 'white' } }}
+          sx={{ minWidth: 300, '& .MuiOutlinedInput-root': { bgcolor: 'white' } }}
         />
 
         <Box sx={{ flexGrow: 1 }} />
@@ -260,32 +432,9 @@ const JournalEntryListPage: React.FC = () => {
         transformOrigin={{ vertical: 'top', horizontal: 'left' }}
       >
         <Box sx={{ p: 2, width: 350, border: '2px solid #FF6B35', borderRadius: 1 }}>
-          <FormControl fullWidth size="small" sx={{ mb: 2 }}>
-            <InputLabel>Company</InputLabel>
-            <Select
-              value={filters.company}
-              onChange={(e) => setFilters({ ...filters, company: e.target.value })}
-              label="Company"
-            >
-              <MenuItem value="">ERP</MenuItem>
-              {companyNames.map((name) => (
-                <MenuItem key={name} value={name}>{name}</MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-
           <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
             <TextField
-              label="Date Range To"
-              type="date"
-              size="small"
-              value={filters.dateTo}
-              onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })}
-              InputLabelProps={{ shrink: true }}
-              sx={{ flex: 1 }}
-            />
-            <TextField
-              label="From"
+              label="Date From"
               type="date"
               size="small"
               value={filters.dateFrom}
@@ -293,79 +442,32 @@ const JournalEntryListPage: React.FC = () => {
               InputLabelProps={{ shrink: true }}
               sx={{ flex: 1 }}
             />
+            <TextField
+              label="Date To"
+              type="date"
+              size="small"
+              value={filters.dateTo}
+              onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })}
+              InputLabelProps={{ shrink: true }}
+              sx={{ flex: 1 }}
+            />
           </Box>
-
-          <FormControl fullWidth size="small" sx={{ mb: 2 }}>
-            <InputLabel>Account Name</InputLabel>
-            <Select
-              value={filters.accountName}
-              onChange={(e) => setFilters({ ...filters, accountName: e.target.value })}
-              label="Account Name"
-            >
-              <MenuItem value="">All</MenuItem>
-              {accountNames.map((name) => (
-                <MenuItem key={name} value={name}>{name}</MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-
-          <FormControl fullWidth size="small" sx={{ mb: 2 }}>
-            <InputLabel>Account Type</InputLabel>
-            <Select
-              value={filters.accountType}
-              onChange={(e) => setFilters({ ...filters, accountType: e.target.value })}
-              label="Account Type"
-            >
-              <MenuItem value="">All</MenuItem>
-              <MenuItem value="Assets">Assets</MenuItem>
-              <MenuItem value="Liabilities">Liabilities</MenuItem>
-              <MenuItem value="Equity">Equity</MenuItem>
-              <MenuItem value="Revenue">Revenue</MenuItem>
-              <MenuItem value="Expenses">Expenses</MenuItem>
-            </Select>
-          </FormControl>
-
-          <FormControl fullWidth size="small" sx={{ mb: 2 }}>
-            <InputLabel>Reference</InputLabel>
-            <Select
-              value={filters.reference}
-              onChange={(e) => setFilters({ ...filters, reference: e.target.value })}
-              label="Reference"
-            >
-              <MenuItem value="">All</MenuItem>
-              <MenuItem value="Expenses">Expense</MenuItem>
-              <MenuItem value="Sales">Sales</MenuItem>
-              <MenuItem value="Purchase">Purchase</MenuItem>
-            </Select>
-          </FormControl>
 
           <FormControl fullWidth size="small" sx={{ mb: 2 }}>
             <InputLabel>Status</InputLabel>
             <Select
               value={filters.status}
-              onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+              onChange={(e) => setFilters({ ...filters, status: e.target.value as JournalEntryStatus | '' })}
               label="Status"
             >
               <MenuItem value="">All</MenuItem>
-              <MenuItem value="Approved">Approved</MenuItem>
-              <MenuItem value="Draft">Draft</MenuItem>
-              <MenuItem value="Pending">Pending</MenuItem>
+              <MenuItem value="draft">Draft</MenuItem>
+              <MenuItem value="posted">Posted</MenuItem>
+              <MenuItem value="void">Void</MenuItem>
             </Select>
           </FormControl>
 
           <Box sx={{ display: 'flex', gap: 1 }}>
-            <Button
-              variant="outlined"
-              size="small"
-              startIcon={<FilterIcon />}
-              sx={{
-                borderColor: '#10B981',
-                color: '#10B981',
-                textTransform: 'none',
-              }}
-            >
-              Save Filter
-            </Button>
             <Button
               variant="text"
               size="small"
@@ -374,10 +476,11 @@ const JournalEntryListPage: React.FC = () => {
             >
               Clear Filter
             </Button>
+            <Box sx={{ flexGrow: 1 }} />
             <Button
               variant="contained"
               size="small"
-              onClick={handleFilterClose}
+              onClick={handleApplyFilters}
               sx={{
                 bgcolor: '#FF6B35',
                 textTransform: 'none',
@@ -393,89 +496,209 @@ const JournalEntryListPage: React.FC = () => {
       {/* Table */}
       <Card sx={{ boxShadow: 'none', border: '1px solid #E5E7EB' }}>
         <TableContainer>
-          <Table>
+          <Table aria-label="Journal entries list">
             <TableHead>
               <TableRow sx={{ bgcolor: '#F9FAFB' }}>
-                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Date</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Account Name</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Account Type</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Company</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Reference</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Debit</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Credit</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Status</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Actions</TableCell>
+                <TableCell
+                  scope="col"
+                  sx={{ fontWeight: 600, color: '#374151' }}
+                  aria-sort={orderBy === 'entryNumber' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'entryNumber'}
+                    direction={orderBy === 'entryNumber' ? order : 'asc'}
+                    onClick={() => handleSort('entryNumber')}
+                  >
+                    Entry Number
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell
+                  scope="col"
+                  sx={{ fontWeight: 600, color: '#374151' }}
+                  aria-sort={orderBy === 'date' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'date'}
+                    direction={orderBy === 'date' ? order : 'asc'}
+                    onClick={() => handleSort('date')}
+                  >
+                    Date
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell
+                  scope="col"
+                  sx={{ fontWeight: 600, color: '#374151' }}
+                  aria-sort={orderBy === 'reference' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'reference'}
+                    direction={orderBy === 'reference' ? order : 'asc'}
+                    onClick={() => handleSort('reference')}
+                  >
+                    Reference
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell
+                  scope="col"
+                  sx={{ fontWeight: 600, color: '#374151' }}
+                  aria-sort={orderBy === 'description' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'description'}
+                    direction={orderBy === 'description' ? order : 'asc'}
+                    onClick={() => handleSort('description')}
+                  >
+                    Description
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell
+                  scope="col"
+                  sx={{ fontWeight: 600, color: '#374151' }}
+                  aria-sort={orderBy === 'totalDebit' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'totalDebit'}
+                    direction={orderBy === 'totalDebit' ? order : 'asc'}
+                    onClick={() => handleSort('totalDebit')}
+                  >
+                    Debit
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell
+                  scope="col"
+                  sx={{ fontWeight: 600, color: '#374151' }}
+                  aria-sort={orderBy === 'totalCredit' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'totalCredit'}
+                    direction={orderBy === 'totalCredit' ? order : 'asc'}
+                    onClick={() => handleSort('totalCredit')}
+                  >
+                    Credit
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell
+                  scope="col"
+                  sx={{ fontWeight: 600, color: '#374151' }}
+                  aria-sort={orderBy === 'status' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'status'}
+                    direction={orderBy === 'status' ? order : 'asc'}
+                    onClick={() => handleSort('status')}
+                  >
+                    Status
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell scope="col" sx={{ fontWeight: 600, color: '#374151' }}>Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {filteredEntries.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} align="center" sx={{ py: 8 }}>
+                  <TableCell colSpan={8} align="center" sx={{ py: 8 }}>
                     <Typography color="text.secondary">
-                      No journal entries found. Click "Add Journal Entry" to add one.
+                      No journal entries found. Click "Add Journal Entry" to create one.
                     </Typography>
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredEntries.map((entry) => (
-                  <TableRow key={entry.id} hover>
-                    <TableCell>{entry.date}</TableCell>
-                    <TableCell>{entry.accountName}</TableCell>
-                    <TableCell>{entry.accountType}</TableCell>
-                    <TableCell>{entry.companyName}</TableCell>
-                    <TableCell>{entry.reference}</TableCell>
-                    <TableCell>{entry.debit.toFixed(1)} PKR</TableCell>
-                    <TableCell>{entry.credit.toFixed(1)} PKR</TableCell>
-                    <TableCell>
-                      <Chip
-                        label={entry.status}
-                        size="small"
-                        sx={{
-                          bgcolor: entry.status === 'Approved'
-                            ? 'rgba(16, 185, 129, 0.1)'
-                            : entry.status === 'Draft'
-                            ? 'rgba(59, 130, 246, 0.1)'
-                            : 'rgba(251, 191, 36, 0.1)',
-                          color: entry.status === 'Approved'
-                            ? '#10B981'
-                            : entry.status === 'Draft'
-                            ? '#3B82F6'
-                            : '#F59E0B',
-                          fontWeight: 500,
-                          border: `1px solid ${
-                            entry.status === 'Approved'
-                              ? '#10B981'
-                              : entry.status === 'Draft'
-                              ? '#3B82F6'
-                              : '#F59E0B'
-                          }`,
-                        }}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <IconButton
-                        size="small"
-                        onClick={() => handleEditEntry(entry.id)}
-                        sx={{ color: '#10B981' }}
-                      >
-                        <EditIcon fontSize="small" />
-                      </IconButton>
-                      <IconButton
-                        size="small"
-                        onClick={() => handleDeleteClick(entry.id)}
-                        sx={{ color: COLORS.error }}
-                      >
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
-                    </TableCell>
-                  </TableRow>
-                ))
+                filteredEntries.map((entry) => {
+                  const statusColors = getStatusColor(entry.status);
+                  const isDraft = entry.status === 'draft';
+                  const isPosted = entry.status === 'posted';
+                  const isVoid = entry.status === 'void';
+
+                  return (
+                    <TableRow key={entry.id} hover>
+                      <TableCell sx={{ fontWeight: 500 }}>{entry.entryNumber}</TableCell>
+                      <TableCell>{formatDate(entry.date)}</TableCell>
+                      <TableCell>{entry.reference || '-'}</TableCell>
+                      <TableCell sx={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {entry.description || '-'}
+                      </TableCell>
+                      <TableCell>{formatCurrency(entry.totalDebit)}</TableCell>
+                      <TableCell>{formatCurrency(entry.totalCredit)}</TableCell>
+                      <TableCell>
+                        <Chip
+                          label={entry.status.charAt(0).toUpperCase() + entry.status.slice(1)}
+                          size="small"
+                          sx={{
+                            bgcolor: statusColors.bg,
+                            color: statusColors.color,
+                            fontWeight: 500,
+                            border: `1px solid ${statusColors.border}`,
+                          }}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Box sx={{ display: 'flex', gap: 0.5 }}>
+                          {isDraft && (
+                            <>
+                              <Tooltip title="Edit">
+                                <IconButton
+                                  size="small"
+                                  onClick={() => handleEditEntry(entry.id)}
+                                  sx={{ color: '#4CAF50' }}
+                                  aria-label={`Edit journal entry ${entry.entryNumber}`}
+                                >
+                                  <EditIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                              <Tooltip title="Post">
+                                <IconButton
+                                  size="small"
+                                  onClick={() => handlePostClick(entry.id)}
+                                  sx={{ color: '#2196F3' }}
+                                  disabled={actionLoading}
+                                  aria-label={`Post journal entry ${entry.entryNumber}`}
+                                >
+                                  <PostIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                              <Tooltip title="Delete">
+                                <IconButton
+                                  size="small"
+                                  onClick={() => handleDeleteClick(entry.id)}
+                                  sx={{ color: COLORS.error }}
+                                  disabled={actionLoading}
+                                  aria-label={`Delete journal entry ${entry.entryNumber}`}
+                                >
+                                  <DeleteIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            </>
+                          )}
+                          {isPosted && (
+                            <Tooltip title="Void">
+                              <IconButton
+                                size="small"
+                                onClick={() => handleVoidClick(entry.id)}
+                                sx={{ color: '#F59E0B' }}
+                                disabled={actionLoading}
+                                aria-label={`Void journal entry ${entry.entryNumber}`}
+                              >
+                                <VoidIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                          )}
+                          {isVoid && (
+                            <Typography variant="caption" color="text.secondary">
+                              No actions
+                            </Typography>
+                          )}
+                        </Box>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
               )}
             </TableBody>
           </Table>
         </TableContainer>
       </Card>
 
+      {/* Delete Confirmation Dialog */}
       <ConfirmDialog
         open={deleteDialog.open}
         title="Delete Journal Entry"
@@ -486,6 +709,54 @@ const JournalEntryListPage: React.FC = () => {
         onConfirm={handleDeleteConfirm}
         onCancel={handleDeleteCancel}
       />
+
+      {/* Post Confirmation Dialog */}
+      <ConfirmDialog
+        open={postDialog.open}
+        title="Post Journal Entry"
+        message="Are you sure you want to post this journal entry? Once posted, the entry cannot be edited."
+        confirmText="Post"
+        cancelText="Cancel"
+        confirmColor="primary"
+        onConfirm={handlePostConfirm}
+        onCancel={handlePostCancel}
+      />
+
+      {/* Void Confirmation Dialog */}
+      <ConfirmDialog
+        open={voidDialog.open}
+        title="Void Journal Entry"
+        message="Are you sure you want to void this journal entry? This action will mark the entry as void."
+        confirmText="Void"
+        cancelText="Cancel"
+        confirmColor="warning"
+        onConfirm={handleVoidConfirm}
+        onCancel={handleVoidCancel}
+      />
+
+      {/* Success Snackbar */}
+      <Snackbar
+        open={!!successMessage}
+        autoHideDuration={4000}
+        onClose={() => setSuccessMessage('')}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert onClose={() => setSuccessMessage('')} severity="success" sx={{ width: '100%' }}>
+          {successMessage}
+        </Alert>
+      </Snackbar>
+
+      {/* Error Snackbar */}
+      <Snackbar
+        open={!!error}
+        autoHideDuration={6000}
+        onClose={() => setError('')}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert onClose={() => setError('')} severity="error" sx={{ width: '100%' }}>
+          {error}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };

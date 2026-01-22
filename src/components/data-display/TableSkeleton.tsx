@@ -42,7 +42,12 @@ const TableSkeleton: React.FC<TableSkeletonProps> = ({
   return (
     <>
       {Array.from({ length: rows }).map((_, rowIndex) => (
-        <TableRow key={`skeleton-row-${rowIndex}`} sx={{ height: rowHeight }}>
+        <TableRow
+          key={`skeleton-row-${rowIndex}`}
+          sx={{ height: rowHeight }}
+          aria-busy="true"
+          aria-label="Loading data"
+        >
           {Array.from({ length: columns }).map((_, colIndex) => (
             <TableCell key={`skeleton-cell-${rowIndex}-${colIndex}`}>
               <Skeleton

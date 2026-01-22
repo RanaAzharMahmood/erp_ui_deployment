@@ -9,6 +9,7 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  TableSortLabel,
   IconButton,
   Chip,
   Typography,
@@ -20,6 +21,8 @@ import {
   Select,
   MenuItem,
   Popover,
+  Snackbar,
+  Alert,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -31,6 +34,9 @@ import {
   GridOn as GridIcon,
 } from '@mui/icons-material';
 import TableSkeleton from '../../../components/common/TableSkeleton';
+import ConfirmDialog from '../../../components/feedback/ConfirmDialog';
+import { COLORS } from '../../../constants/colors';
+import { getCategoriesApi } from '../../../generated/api/client';
 
 interface Category {
   id: number;
@@ -40,6 +46,12 @@ interface Category {
   description?: string;
   isActive: boolean;
   createdAt: string;
+}
+
+interface SnackbarState {
+  open: boolean;
+  message: string;
+  severity: 'success' | 'error' | 'info' | 'warning';
 }
 
 const CategoryListPage: React.FC = () => {
@@ -53,27 +65,74 @@ const CategoryListPage: React.FC = () => {
     categoryName: '',
     status: '',
   });
+  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; id: number | null }>({
+    open: false,
+    id: null,
+  });
+  const [snackbar, setSnackbar] = useState<SnackbarState>({
+    open: false,
+    message: '',
+    severity: 'info',
+  });
+  const [orderBy, setOrderBy] = useState<string>('categoryName');
+  const [order, setOrder] = useState<'asc' | 'desc'>('asc');
 
-  // Load categories from localStorage
-  useEffect(() => {
-    const loadCategories = () => {
-      try {
-        const savedCategories = localStorage.getItem('categories');
-        if (savedCategories) {
-          setCategories(JSON.parse(savedCategories));
+  // Load categories from API
+  const loadCategories = useCallback(async () => {
+    setLoading(true);
+    try {
+      const categoriesApi = getCategoriesApi();
+      // Pass undefined to get all categories regardless of status for the filter to work
+      const response = await categoriesApi.v1ApiCategoriesGet();
+      if (response.data) {
+        interface ApiCategory {
+          id: number;
+          categoryName: string;
+          companyId?: number;
+          companyName?: string;
+          description?: string;
+          isActive: boolean;
+          createdAt: string;
         }
-      } catch (error) {
-        console.error('Error loading categories:', error);
-      } finally {
-        setLoading(false);
+        const apiData = response.data as unknown as ApiCategory[];
+        setCategories(
+          apiData.map((c: ApiCategory) => ({
+            id: c.id,
+            categoryName: c.categoryName,
+            companyId: c.companyId,
+            companyName: c.companyName,
+            description: c.description,
+            isActive: c.isActive,
+            createdAt: c.createdAt,
+          }))
+        );
       }
-    };
-    setTimeout(loadCategories, 500);
+    } catch (error: unknown) {
+      console.error('Error loading categories:', error);
+      setSnackbar({
+        open: true,
+        message: 'Failed to load categories. Please try again.',
+        severity: 'error',
+      });
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  // Filter categories
+  useEffect(() => {
+    loadCategories();
+  }, [loadCategories]);
+
+  // Sort handler
+  const handleSort = useCallback((property: string) => {
+    const isAsc = orderBy === property && order === 'asc';
+    setOrder(isAsc ? 'desc' : 'asc');
+    setOrderBy(property);
+  }, [orderBy, order]);
+
+  // Filter and sort categories
   const filteredCategories = useMemo(() => {
-    return categories.filter((category) => {
+    const filtered = categories.filter((category) => {
       const matchesSearch =
         !searchTerm ||
         category.categoryName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -87,7 +146,40 @@ const CategoryListPage: React.FC = () => {
 
       return matchesSearch && matchesCompany && matchesStatus;
     });
-  }, [categories, searchTerm, filters]);
+
+    // Sort the filtered results
+    const sorted = [...filtered].sort((a, b) => {
+      let aValue: string | number = '';
+      let bValue: string | number = '';
+
+      switch (orderBy) {
+        case 'id':
+          aValue = a.id;
+          bValue = b.id;
+          break;
+        case 'categoryName':
+          aValue = a.categoryName.toLowerCase();
+          bValue = b.categoryName.toLowerCase();
+          break;
+        case 'companyName':
+          aValue = (a.companyName || '').toLowerCase();
+          bValue = (b.companyName || '').toLowerCase();
+          break;
+        case 'status':
+          aValue = a.isActive ? 'Active' : 'Inactive';
+          bValue = b.isActive ? 'Active' : 'Inactive';
+          break;
+        default:
+          return 0;
+      }
+
+      if (aValue < bValue) return order === 'asc' ? -1 : 1;
+      if (aValue > bValue) return order === 'asc' ? 1 : -1;
+      return 0;
+    });
+
+    return sorted;
+  }, [categories, searchTerm, filters, orderBy, order]);
 
   const handleAddCategory = useCallback(() => {
     navigate('/categories/add');
@@ -97,13 +189,50 @@ const CategoryListPage: React.FC = () => {
     navigate(`/categories/update/${id}`);
   }, [navigate]);
 
-  const handleDeleteCategory = useCallback((id: number) => {
-    if (window.confirm('Are you sure you want to delete this category?')) {
-      const updatedCategories = categories.filter((c) => c.id !== id);
-      setCategories(updatedCategories);
-      localStorage.setItem('categories', JSON.stringify(updatedCategories));
+  const handleDeleteClick = useCallback((id: number) => {
+    setDeleteDialog({ open: true, id });
+  }, []);
+
+  const handleDeleteConfirm = useCallback(async () => {
+    if (deleteDialog.id) {
+      try {
+        const categoriesApi = getCategoriesApi();
+        await categoriesApi.v1ApiCategoriesIdDelete(deleteDialog.id);
+
+        // Remove from local state
+        setCategories((prev) => prev.filter((c) => c.id !== deleteDialog.id));
+
+        setSnackbar({
+          open: true,
+          message: 'Category deleted successfully!',
+          severity: 'success',
+        });
+      } catch (error: unknown) {
+        console.error('Error deleting category:', error);
+
+        let errorMessage = 'Failed to delete category. Please try again.';
+        if (error && typeof error === 'object' && 'json' in error && typeof (error as { json: unknown }).json === 'function') {
+          try {
+            const errorData = await (error as { json: () => Promise<{ message?: string }> }).json();
+            errorMessage = errorData.message || errorMessage;
+          } catch {
+            // Use default error message
+          }
+        }
+
+        setSnackbar({
+          open: true,
+          message: errorMessage,
+          severity: 'error',
+        });
+      }
     }
-  }, [categories]);
+    setDeleteDialog({ open: false, id: null });
+  }, [deleteDialog.id]);
+
+  const handleDeleteCancel = useCallback(() => {
+    setDeleteDialog({ open: false, id: null });
+  }, []);
 
   const handleFilterClick = (event: React.MouseEvent<HTMLButtonElement>) => {
     setFilterAnchorEl(event.currentTarget);
@@ -115,6 +244,10 @@ const CategoryListPage: React.FC = () => {
 
   const handleClearFilters = () => {
     setFilters({ company: '', categoryName: '', status: '' });
+  };
+
+  const handleSnackbarClose = () => {
+    setSnackbar((prev) => ({ ...prev, open: false }));
   };
 
   const filterOpen = Boolean(filterAnchorEl);
@@ -206,9 +339,9 @@ const CategoryListPage: React.FC = () => {
           startIcon={<AddIcon />}
           onClick={handleAddCategory}
           sx={{
-            bgcolor: '#FF6B35',
+            bgcolor: COLORS.primary,
             textTransform: 'none',
-            '&:hover': { bgcolor: '#E55A2B' },
+            '&:hover': { bgcolor: COLORS.primaryHover },
           }}
         >
           Add Category
@@ -288,9 +421,9 @@ const CategoryListPage: React.FC = () => {
               size="small"
               onClick={handleFilterClose}
               sx={{
-                bgcolor: '#FF6B35',
+                bgcolor: COLORS.primary,
                 textTransform: 'none',
-                '&:hover': { bgcolor: '#E55A2B' },
+                '&:hover': { bgcolor: COLORS.primaryHover },
               }}
             >
               Apply Filter
@@ -302,14 +435,62 @@ const CategoryListPage: React.FC = () => {
       {/* Table */}
       <Card sx={{ boxShadow: 'none', border: '1px solid #E5E7EB' }}>
         <TableContainer>
-          <Table>
+          <Table aria-label="Categories list">
             <TableHead>
               <TableRow sx={{ bgcolor: '#F9FAFB' }}>
-                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Category Id</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Category Name</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Company</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Status</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Actions</TableCell>
+                <TableCell
+                  scope="col"
+                  sx={{ fontWeight: 600, color: '#374151' }}
+                  aria-sort={orderBy === 'id' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'id'}
+                    direction={orderBy === 'id' ? order : 'asc'}
+                    onClick={() => handleSort('id')}
+                  >
+                    Category Id
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell
+                  scope="col"
+                  sx={{ fontWeight: 600, color: '#374151' }}
+                  aria-sort={orderBy === 'categoryName' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'categoryName'}
+                    direction={orderBy === 'categoryName' ? order : 'asc'}
+                    onClick={() => handleSort('categoryName')}
+                  >
+                    Category Name
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell
+                  scope="col"
+                  sx={{ fontWeight: 600, color: '#374151' }}
+                  aria-sort={orderBy === 'companyName' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'companyName'}
+                    direction={orderBy === 'companyName' ? order : 'asc'}
+                    onClick={() => handleSort('companyName')}
+                  >
+                    Company
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell
+                  scope="col"
+                  sx={{ fontWeight: 600, color: '#374151' }}
+                  aria-sort={orderBy === 'status' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'status'}
+                    direction={orderBy === 'status' ? order : 'asc'}
+                    onClick={() => handleSort('status')}
+                  >
+                    Status
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell scope="col" sx={{ fontWeight: 600, color: '#374151' }}>Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -344,13 +525,15 @@ const CategoryListPage: React.FC = () => {
                         size="small"
                         onClick={() => handleEditCategory(category.id)}
                         sx={{ color: '#10B981' }}
+                        aria-label={`Edit ${category.categoryName}`}
                       >
                         <EditIcon fontSize="small" />
                       </IconButton>
                       <IconButton
                         size="small"
-                        onClick={() => handleDeleteCategory(category.id)}
-                        sx={{ color: '#EF4444' }}
+                        onClick={() => handleDeleteClick(category.id)}
+                        sx={{ color: COLORS.error }}
+                        aria-label={`Delete ${category.categoryName}`}
                       >
                         <DeleteIcon fontSize="small" />
                       </IconButton>
@@ -362,6 +545,34 @@ const CategoryListPage: React.FC = () => {
           </Table>
         </TableContainer>
       </Card>
+
+      <ConfirmDialog
+        open={deleteDialog.open}
+        title="Delete Category"
+        message="Are you sure you want to delete this category? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        confirmColor="error"
+        onConfirm={handleDeleteConfirm}
+        onCancel={handleDeleteCancel}
+      />
+
+      {/* Snackbar for success/error messages */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={handleSnackbarClose}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert
+          onClose={handleSnackbarClose}
+          severity={snackbar.severity}
+          sx={{ width: '100%' }}
+          variant="filled"
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };

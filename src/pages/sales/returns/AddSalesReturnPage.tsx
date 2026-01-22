@@ -31,29 +31,32 @@ import {
 } from '@mui/icons-material';
 import PageHeader from '../../../components/common/PageHeader';
 import FormSection from '../../../components/common/FormSection';
-
-interface LineItem {
-  id: string;
-  item: string;
-  quantity: number;
-  rate: number;
-  amount: number;
-}
-
-interface SalesReturnFormData {
-  companyId: number | '';
-  customerId: string;
-  returnNumber: string;
-  originalInvoice: string;
-  date: string;
-  returnReason: string;
-  paymentMethod: string;
-  accountNumber: string;
-  remarks: string;
-  status: 'Active' | 'Completed' | 'Pending';
-  taxId: string;
-  refundAmount: number;
-}
+import ReturnFormSkeleton from '../../../components/common/ReturnFormSkeleton';
+import { useCompanies } from '../../../hooks';
+import {
+  getCustomersApi,
+  getTaxesApi,
+  getInventoryItemsApi,
+  getSalesInvoicesApi,
+  getSalesReturnsApi,
+} from '../../../generated/api/client';
+import type {
+  LineItem,
+  SalesReturnFormData,
+  CompanyOption,
+  CustomerOption,
+  TaxOption,
+  ItemOption,
+  SalesInvoiceOption,
+  RawCompanyData,
+  RawCustomerData,
+  RawTaxData,
+  RawInventoryItemData,
+  RawSalesInvoiceData,
+  RawSalesReturnData,
+  ReturnStatus,
+  SelectChangeValue,
+} from '../../../types/invoice.types';
 
 const PAYMENT_METHODS = ['Hand in Cash', 'Bank Transfer (Online)', 'Cheque'];
 
@@ -61,6 +64,7 @@ const AddSalesReturnPage: React.FC = () => {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const isEditMode = Boolean(id);
+  const { companies: companiesData } = useCompanies();
 
   const [formData, setFormData] = useState<SalesReturnFormData>({
     companyId: '',
@@ -79,110 +83,210 @@ const AddSalesReturnPage: React.FC = () => {
   const [lineItems, setLineItems] = useState<LineItem[]>([
     { id: '1', item: '', quantity: 0, rate: 0, amount: 0 },
   ]);
-  const [companies, setCompanies] = useState<Array<{ id: number; name: string }>>([]);
-  const [customers, setCustomers] = useState<Array<{ id: string; name: string }>>([]);
-  const [salesInvoices, setSalesInvoices] = useState<Array<{ id: string; invoiceNumber: string; customerId: string }>>([]);
-  const [taxes, setTaxes] = useState<Array<{ id: string; name: string; percentage: number }>>([]);
-  const [items, setItems] = useState<Array<{ id: string; name: string; rate: number }>>([]);
+  const [customers, setCustomers] = useState<CustomerOption[]>([]);
+  const [salesInvoices, setSalesInvoices] = useState<SalesInvoiceOption[]>([]);
+  const [taxes, setTaxes] = useState<TaxOption[]>([]);
+  const [items, setItems] = useState<ItemOption[]>([]);
   const [receiptImage, setReceiptImage] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoading, setIsLoading] = useState(isEditMode);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+
+  // Derive companies from hook data - use c.name as the hook normalizes to 'name' field
+  const companies: CompanyOption[] = (companiesData || []).map((c: RawCompanyData) => ({ id: c.id, name: c.name }));
 
   // Check if payment method requires image upload and account number
   const requiresImageAndAccount = formData.paymentMethod === 'Bank Transfer (Online)' || formData.paymentMethod === 'Cheque';
 
-  // Generate return number
-  const generateReturnNumber = useCallback(() => {
+  // Generate return number from API with localStorage fallback
+  const generateReturnNumber = useCallback(async () => {
+    try {
+      const salesReturnsApi = getSalesReturnsApi();
+      const response = await salesReturnsApi.getNextNumber();
+      if (response.data?.nextNumber) {
+        return response.data.nextNumber;
+      }
+    } catch (err) {
+      console.error('Error getting next return number from API, using localStorage fallback:', err);
+    }
+    // Fallback to localStorage
     const savedReturns = localStorage.getItem('salesReturns');
-    const returns = savedReturns ? JSON.parse(savedReturns) : [];
+    const returns: RawSalesReturnData[] = savedReturns ? JSON.parse(savedReturns) : [];
     const nextNumber = returns.length + 1;
     return `SR-${String(nextNumber).padStart(6, '0')}`;
   }, []);
 
-  // Load data
+  // Load data from API with localStorage fallback
   useEffect(() => {
-    try {
-      const savedCompanies = localStorage.getItem('companies');
-      if (savedCompanies) {
-        const parsed = JSON.parse(savedCompanies);
-        setCompanies(parsed.map((c: any) => ({ id: c.id, name: c.companyName })));
-      }
+    const loadData = async () => {
+      try {
+        // Load customers from API
+        try {
+          const customersApi = getCustomersApi();
+          const customersResponse = await customersApi.getAll();
+          if (customersResponse.data?.data) {
+            setCustomers(customersResponse.data.data.map((c) => ({
+              id: String(c.id),
+              name: c.name,
+            })));
+          }
+        } catch (err) {
+          console.error('Error loading customers from API, using localStorage fallback:', err);
+          const savedCustomers = localStorage.getItem('customers');
+          if (savedCustomers) {
+            const parsed: RawCustomerData[] = JSON.parse(savedCustomers);
+            setCustomers(parsed.map((c) => ({ id: c.id, name: c.customerName || c.name || '' })));
+          }
+        }
 
-      const savedCustomers = localStorage.getItem('customers');
-      if (savedCustomers) {
-        const parsed = JSON.parse(savedCustomers);
-        setCustomers(parsed.map((c: any) => ({ id: c.id, name: c.customerName || c.name })));
-      }
+        // Load sales invoices from API
+        try {
+          const invoicesApi = getSalesInvoicesApi();
+          const invoicesResponse = await invoicesApi.getAll();
+          if (invoicesResponse.data?.data) {
+            setSalesInvoices(invoicesResponse.data.data.map((i) => ({
+              id: String(i.id),
+              invoiceNumber: i.invoiceNumber,
+              customerId: i.customerId || '',
+            })));
+          }
+        } catch (err) {
+          console.error('Error loading invoices from API, using localStorage fallback:', err);
+          const savedInvoices = localStorage.getItem('salesInvoices');
+          if (savedInvoices) {
+            const parsed: RawSalesInvoiceData[] = JSON.parse(savedInvoices);
+            setSalesInvoices(parsed.map((i) => ({
+              id: i.id,
+              invoiceNumber: i.invoiceNumber,
+              customerId: i.customerId,
+            })));
+          }
+        }
 
-      const savedInvoices = localStorage.getItem('salesInvoices');
-      if (savedInvoices) {
-        const parsed = JSON.parse(savedInvoices);
-        setSalesInvoices(parsed.map((i: any) => ({
-          id: i.id,
-          invoiceNumber: i.invoiceNumber,
-          customerId: i.customerId,
-        })));
-      }
+        // Load taxes from API
+        try {
+          const taxesApi = getTaxesApi();
+          const taxesResponse = await taxesApi.getAll();
+          if (taxesResponse.data?.data) {
+            setTaxes(taxesResponse.data.data.map((t) => ({
+              id: String(t.id),
+              name: t.name,
+              percentage: t.percentage,
+            })));
+          }
+        } catch (err) {
+          console.error('Error loading taxes from API, using localStorage fallback:', err);
+          const savedTaxes = localStorage.getItem('taxes');
+          if (savedTaxes) {
+            const parsed: RawTaxData[] = JSON.parse(savedTaxes);
+            setTaxes(parsed.map((t) => ({
+              id: t.id,
+              name: t.taxName,
+              percentage: t.taxPercentage,
+            })));
+          }
+        }
 
-      const savedTaxes = localStorage.getItem('taxes');
-      if (savedTaxes) {
-        const parsed = JSON.parse(savedTaxes);
-        setTaxes(parsed.map((t: any) => ({
-          id: t.id,
-          name: t.taxName,
-          percentage: t.taxPercentage,
-        })));
-      }
+        // Load items from API
+        try {
+          const itemsApi = getInventoryItemsApi();
+          const itemsResponse = await itemsApi.getAll();
+          if (itemsResponse.data?.data) {
+            setItems(itemsResponse.data.data.map((i) => ({
+              id: String(i.id),
+              name: i.name,
+              rate: i.salePrice || 0,
+            })));
+          }
+        } catch (err) {
+          console.error('Error loading items from API, using localStorage fallback:', err);
+          const savedItems = localStorage.getItem('inventoryItems');
+          if (savedItems) {
+            const parsed: RawInventoryItemData[] = JSON.parse(savedItems);
+            setItems(parsed.map((i) => ({
+              id: i.id,
+              name: i.itemName || i.name || '',
+              rate: i.salePrice || i.rate || 0,
+            })));
+          }
+        }
 
-      const savedItems = localStorage.getItem('inventoryItems');
-      if (savedItems) {
-        const parsed = JSON.parse(savedItems);
-        setItems(parsed.map((i: any) => ({
-          id: i.id,
-          name: i.itemName || i.name,
-          rate: i.salePrice || i.rate || 0,
-        })));
-      }
+        // Generate return number for new returns
+        if (!isEditMode) {
+          const returnNumber = await generateReturnNumber();
+          setFormData((prev) => ({ ...prev, returnNumber }));
+        }
 
-      // Generate return number for new returns
-      if (!isEditMode) {
-        setFormData((prev) => ({ ...prev, returnNumber: generateReturnNumber() }));
-      }
-
-      // Load existing return for edit mode
-      if (isEditMode && id) {
-        const savedReturns = localStorage.getItem('salesReturns');
-        if (savedReturns) {
-          const returns = JSON.parse(savedReturns);
-          const returnData = returns.find((r: any) => r.id === id);
-          if (returnData) {
-            setFormData({
-              companyId: returnData.companyId || '',
-              customerId: returnData.customerId || '',
-              returnNumber: returnData.returnNumber,
-              originalInvoice: returnData.originalInvoice || '',
-              date: returnData.date,
-              returnReason: returnData.returnReason || '',
-              paymentMethod: returnData.paymentMethod || '',
-              accountNumber: returnData.accountNumber || '',
-              remarks: returnData.remarks || '',
-              status: returnData.status,
-              taxId: returnData.taxId || '',
-              refundAmount: returnData.refundAmount || 0,
-            });
-            if (returnData.lineItems) {
-              setLineItems(returnData.lineItems);
+        // Load existing return for edit mode
+        if (isEditMode && id) {
+          try {
+            const salesReturnsApi = getSalesReturnsApi();
+            const returnResponse = await salesReturnsApi.getById(Number(id));
+            if (returnResponse.data) {
+              const returnData = returnResponse.data;
+              setFormData({
+                companyId: returnData.companyId || '',
+                customerId: returnData.customerId || '',
+                returnNumber: returnData.returnNumber,
+                originalInvoice: returnData.originalInvoice || '',
+                date: returnData.date,
+                returnReason: returnData.returnReason || '',
+                paymentMethod: returnData.paymentMethod || '',
+                accountNumber: returnData.accountNumber || '',
+                remarks: returnData.remarks || '',
+                status: returnData.status as ReturnStatus,
+                taxId: returnData.taxId || '',
+                refundAmount: returnData.refundAmount || 0,
+              });
+              if (returnData.lineItems) {
+                setLineItems(returnData.lineItems);
+              }
+              if (returnData.receiptImage) {
+                setReceiptImage(returnData.receiptImage);
+              }
             }
-            if (returnData.receiptImage) {
-              setReceiptImage(returnData.receiptImage);
+          } catch (err) {
+            console.error('Error loading return from API, using localStorage fallback:', err);
+            const savedReturns = localStorage.getItem('salesReturns');
+            if (savedReturns) {
+              const returns: RawSalesReturnData[] = JSON.parse(savedReturns);
+              const returnData = returns.find((r) => r.id === id);
+              if (returnData) {
+                setFormData({
+                  companyId: returnData.companyId || '',
+                  customerId: returnData.customerId || '',
+                  returnNumber: returnData.returnNumber,
+                  originalInvoice: returnData.originalInvoice || '',
+                  date: returnData.date,
+                  returnReason: returnData.returnReason || '',
+                  paymentMethod: returnData.paymentMethod || '',
+                  accountNumber: returnData.accountNumber || '',
+                  remarks: returnData.remarks || '',
+                  status: returnData.status,
+                  taxId: returnData.taxId || '',
+                  refundAmount: returnData.refundAmount || 0,
+                });
+                if (returnData.lineItems) {
+                  setLineItems(returnData.lineItems);
+                }
+                if (returnData.receiptImage) {
+                  setReceiptImage(returnData.receiptImage);
+                }
+              }
             }
           }
         }
+      } catch (err: unknown) {
+        console.error('Error loading data:', err);
+      } finally {
+        if (isEditMode) {
+          setIsLoading(false);
+        }
       }
-    } catch (err) {
-      console.error('Error loading data:', err);
-    }
+    };
+
+    loadData();
   }, [isEditMode, id, generateReturnNumber]);
 
   const handleInputChange = useCallback(
@@ -193,15 +297,15 @@ const AddSalesReturnPage: React.FC = () => {
     []
   );
 
-  const handleSelectChange = useCallback((name: string, value: any) => {
+  const handleSelectChange = useCallback((name: string, value: SelectChangeValue) => {
     setFormData((prev) => ({ ...prev, [name]: value }));
   }, []);
 
-  const handleStatusChange = useCallback((status: 'Active' | 'Completed' | 'Pending') => {
+  const handleStatusChange = useCallback((status: ReturnStatus) => {
     setFormData((prev) => ({ ...prev, status }));
   }, []);
 
-  const handleLineItemChange = useCallback((id: string, field: string, value: any) => {
+  const handleLineItemChange = useCallback((id: string, field: string, value: string | number) => {
     setLineItems((prev) =>
       prev.map((item) => {
         if (item.id === id) {
@@ -274,16 +378,14 @@ const AddSalesReturnPage: React.FC = () => {
     setError('');
 
     try {
-      const returns = JSON.parse(localStorage.getItem('salesReturns') || '[]');
       const company = companies.find((c) => c.id === formData.companyId);
       const customer = customers.find((c) => c.id === formData.customerId);
       const firstItem = lineItems.find((l) => l.item)?.item || '';
       const totalQuantity = lineItems.reduce((sum, l) => sum + (l.quantity || 0), 0);
 
       const returnData = {
-        id: isEditMode ? id : String(Date.now()),
         companyId: formData.companyId,
-        companyName: company?.name || 'GST Gas',
+        companyName: company?.name || '',
         customerId: formData.customerId,
         customerName: customer?.name || '',
         returnNumber: formData.returnNumber,
@@ -302,26 +404,46 @@ const AddSalesReturnPage: React.FC = () => {
         status: formData.status,
         lineItems,
         receiptImage,
-        createdAt: isEditMode ? undefined : new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        taxId: formData.taxId,
       };
 
-      if (isEditMode) {
-        const index = returns.findIndex((r: any) => r.id === id);
-        if (index !== -1) {
-          returns[index] = { ...returns[index], ...returnData };
+      // Try API first
+      try {
+        const salesReturnsApi = getSalesReturnsApi();
+        if (isEditMode && id) {
+          await salesReturnsApi.update(Number(id), returnData);
+        } else {
+          await salesReturnsApi.create(returnData);
         }
-      } else {
-        returns.push(returnData);
+        setSuccessMessage(isEditMode ? 'Return updated successfully!' : 'Return created successfully!');
+      } catch (apiErr) {
+        console.error('API error, falling back to localStorage:', apiErr);
+        // Fallback to localStorage
+        const returns: RawSalesReturnData[] = JSON.parse(localStorage.getItem('salesReturns') || '[]');
+        const localReturnData = {
+          ...returnData,
+          id: isEditMode ? id : String(Date.now()),
+          createdAt: isEditMode ? undefined : new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+
+        if (isEditMode) {
+          const index = returns.findIndex((r) => r.id === id);
+          if (index !== -1) {
+            returns[index] = { ...returns[index], ...localReturnData };
+          }
+        } else {
+          returns.push(localReturnData as RawSalesReturnData);
+        }
+
+        localStorage.setItem('salesReturns', JSON.stringify(returns));
+        setSuccessMessage(isEditMode ? 'Return updated successfully!' : 'Return created successfully!');
       }
 
-      localStorage.setItem('salesReturns', JSON.stringify(returns));
-
-      setSuccessMessage(isEditMode ? 'Return updated successfully!' : 'Return created successfully!');
       setTimeout(() => {
         navigate('/sales/return');
       }, 1500);
-    } catch (err) {
+    } catch (err: unknown) {
       console.error('Error saving return:', err);
       setError('Failed to save return. Please try again.');
       setIsSubmitting(false);
@@ -334,6 +456,11 @@ const AddSalesReturnPage: React.FC = () => {
 
   // Filter invoices by selected customer
   const filteredInvoices = salesInvoices.filter((inv) => !formData.customerId || inv.customerId === formData.customerId);
+
+  // Show skeleton while loading in edit mode
+  if (isLoading) {
+    return <ReturnFormSkeleton />;
+  }
 
   return (
     <Box sx={{ p: 3, maxWidth: 1400, mx: 'auto', bgcolor: '#F9FAFB', minHeight: '100vh' }}>
@@ -352,11 +479,10 @@ const AddSalesReturnPage: React.FC = () => {
                 <FormControl fullWidth size="small">
                   <Select
                     value={formData.companyId}
-                    onChange={(e) => handleSelectChange('companyId', e.target.value)}
+                    onChange={(e) => handleSelectChange('companyId', e.target.value as SelectChangeValue)}
                     displayEmpty
                     sx={{ bgcolor: 'white' }}
                   >
-                    <MenuItem value="">EST Gas</MenuItem>
                     {companies.map((comp) => (
                       <MenuItem key={comp.id} value={comp.id}>{comp.name}</MenuItem>
                     ))}
@@ -384,7 +510,7 @@ const AddSalesReturnPage: React.FC = () => {
                 <FormControl fullWidth size="small">
                   <Select
                     value={formData.customerId}
-                    onChange={(e) => handleSelectChange('customerId', e.target.value)}
+                    onChange={(e) => handleSelectChange('customerId', e.target.value as SelectChangeValue)}
                     displayEmpty
                     sx={{ bgcolor: 'white' }}
                   >
@@ -402,7 +528,7 @@ const AddSalesReturnPage: React.FC = () => {
                 <FormControl fullWidth size="small">
                   <Select
                     value={formData.originalInvoice}
-                    onChange={(e) => handleSelectChange('originalInvoice', e.target.value)}
+                    onChange={(e) => handleSelectChange('originalInvoice', e.target.value as SelectChangeValue)}
                     displayEmpty
                     sx={{ bgcolor: 'white' }}
                   >
@@ -449,7 +575,7 @@ const AddSalesReturnPage: React.FC = () => {
                 <FormControl fullWidth size="small">
                   <Select
                     value={formData.paymentMethod}
-                    onChange={(e) => handleSelectChange('paymentMethod', e.target.value)}
+                    onChange={(e) => handleSelectChange('paymentMethod', e.target.value as SelectChangeValue)}
                     displayEmpty
                     sx={{ bgcolor: 'white' }}
                   >
@@ -514,7 +640,7 @@ const AddSalesReturnPage: React.FC = () => {
                         <FormControl fullWidth size="small">
                           <Select
                             value={item.item}
-                            onChange={(e) => handleLineItemChange(item.id, 'item', e.target.value)}
+                            onChange={(e) => handleLineItemChange(item.id, 'item', e.target.value as string)}
                             displayEmpty
                             sx={{ bgcolor: 'white' }}
                           >
@@ -604,7 +730,7 @@ const AddSalesReturnPage: React.FC = () => {
                 <FormControl size="small" sx={{ minWidth: 120 }}>
                   <Select
                     value={formData.taxId}
-                    onChange={(e) => handleSelectChange('taxId', e.target.value)}
+                    onChange={(e) => handleSelectChange('taxId', e.target.value as SelectChangeValue)}
                     displayEmpty
                     sx={{ bgcolor: 'white' }}
                   >
@@ -681,10 +807,10 @@ const AddSalesReturnPage: React.FC = () => {
           <FormSection title="Status" icon={<CircleIcon />} sx={{ mb: 3 }}>
             <Divider sx={{ mb: 2, mt: -1 }} />
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-              {['Active', 'Completed', 'Pending'].map((status) => (
+              {(['Active', 'Completed', 'Pending'] as const).map((status) => (
                 <Box
                   key={status}
-                  onClick={() => handleStatusChange(status as 'Active' | 'Completed' | 'Pending')}
+                  onClick={() => handleStatusChange(status)}
                   sx={{
                     display: 'flex',
                     alignItems: 'center',

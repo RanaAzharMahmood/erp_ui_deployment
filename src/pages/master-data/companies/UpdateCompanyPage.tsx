@@ -1,10 +1,8 @@
-import React, { useState, useEffect, useCallback, memo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   Box,
   Grid,
-  TextField,
-  IconButton,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -14,311 +12,171 @@ import {
   Snackbar,
   Alert,
 } from '@mui/material';
-import {
-  Business as BusinessIcon,
-  Person as PersonIcon,
-  Image as ImageIcon,
-  Circle as CircleIcon,
-  Edit as EditIcon,
-  Delete as DeleteIcon,
-} from '@mui/icons-material';
+import { Image as ImageIcon, Circle as CircleIcon } from '@mui/icons-material';
 import PageHeader from '../../../components/common/PageHeader';
 import FormSection from '../../../components/common/FormSection';
 import StatusSelector from '../../../components/common/StatusSelector';
 import DangerZone from '../../../components/common/DangerZone';
 import ActionButtons from '../../../components/common/ActionButtons';
-import LazyImage from '../../../components/common/LazyImage';
-import { optimizeImage, validateImage } from '../../../utils/imageOptimizer';
-import type { CompanyFormData, Status } from '../../../types/common.types';
+import { CompanyFormFields, CompanyFormSkeleton, LogoUpload } from '../../../components/companies';
+import { useCompanyForm } from '../../../hooks/useCompanyForm';
 import { getCompaniesApi } from '../../../generated/api/client';
-import type { CompaniesIdBody } from '../../../generated/api/api';
+import type { Company as ApiCompany } from '../../../generated/api/api';
+import type { Status } from '../../../types/common.types';
 
-// Memoized Logo Upload Component for better performance
-const LogoUploadSection = memo(
-  ({
-    logoPreview,
-    onLogoUpload,
-    onLogoRemove,
-  }: {
-    logoPreview: string;
-    onLogoUpload: (file: File) => Promise<void>;
-    onLogoRemove: () => void;
-  }) => {
-    const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (file) {
-        await onLogoUpload(file);
-      }
-    };
+// Type for localStorage company data (includes fields from both API and local storage)
+interface LocalStorageCompany {
+  id: number;
+  companyName?: string;
+  name?: string;
+  ntnNumber?: string;
+  website?: string;
+  industry?: string;
+  salesTaxNumber?: string;
+  salesTaxRegistrationNo?: string;
+  companyEmail?: string;
+  address?: string;
+  contactName?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+  phone?: string;
+  status?: Status;
+  logo?: string;
+  logoUrl?: string;
+  user?: string;
+  subscriptionEnd?: string;
+  isActive?: boolean;
+}
 
-    return (
-      <Box
-        sx={{
-          position: 'relative',
-          border: '2px dashed #E0E0E0',
-          borderRadius: 2,
-          p: 4,
-          textAlign: 'center',
-          bgcolor: logoPreview ? 'transparent' : 'rgba(0, 0, 0, 0.02)',
-        }}
-      >
-        {logoPreview ? (
-          <Box sx={{ position: 'relative', display: 'inline-block' }}>
-            <LazyImage
-              src={logoPreview}
-              alt="Company Logo"
-              width={200}
-              height={120}
-              borderRadius="8px"
-              objectFit="contain"
-            />
-            <Box
-              sx={{
-                position: 'absolute',
-                top: 8,
-                right: 8,
-                display: 'flex',
-                gap: 1,
-              }}
-            >
-              <IconButton
-                size="small"
-                onClick={() => document.getElementById('logo-upload')?.click()}
-                sx={{
-                  bgcolor: 'white',
-                  boxShadow: 1,
-                  '&:hover': { bgcolor: '#f5f5f5' },
-                }}
-              >
-                <EditIcon sx={{ fontSize: 18, color: '#4CAF50' }} />
-              </IconButton>
-              <IconButton
-                size="small"
-                onClick={onLogoRemove}
-                sx={{
-                  bgcolor: 'white',
-                  boxShadow: 1,
-                  '&:hover': { bgcolor: '#f5f5f5' },
-                }}
-              >
-                <DeleteIcon sx={{ fontSize: 18, color: '#EF5350' }} />
-              </IconButton>
-            </Box>
-          </Box>
-        ) : (
-          <Box
-            sx={{ cursor: 'pointer' }}
-            onClick={() => document.getElementById('logo-upload')?.click()}
-          >
-            <IconButton
-              sx={{
-                width: 64,
-                height: 64,
-                bgcolor: 'rgba(255, 107, 53, 0.1)',
-                mb: 2,
-                '&:hover': {
-                  bgcolor: 'rgba(255, 107, 53, 0.2)',
-                },
-              }}
-            >
-              <ImageIcon sx={{ color: '#FF6B35', fontSize: 32 }} />
-            </IconButton>
-            <Box sx={{ typography: 'body2', fontWeight: 500, mb: 0.5 }}>
-              Upload Company logo
-            </Box>
-            <Box sx={{ typography: 'caption', color: 'text.secondary' }}>
-              SVG, PNG, JPG or GIF (max. 2MB)
-            </Box>
-          </Box>
-        )}
-        <input
-          type="file"
-          id="logo-upload"
-          accept="image/*"
-          hidden
-          onChange={handleFileSelect}
-        />
-      </Box>
-    );
-  }
-);
+// Extended company data type that includes both API fields and extended local fields
+type ExtendedCompanyData = ApiCompany & {
+  companyName?: string;
+  website?: string;
+  industry?: string;
+  salesTaxNumber?: string;
+  companyEmail?: string;
+  contactName?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+  logo?: string;
+  user?: string;
+  subscriptionEnd?: string;
+};
 
-LogoUploadSection.displayName = 'LogoUploadSection';
+// Type for API response wrapper
+interface CompanyApiResponse {
+  data?: ExtendedCompanyData;
+}
 
 const UpdateCompanyPage: React.FC = () => {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
-  const [formData, setFormData] = useState<CompanyFormData>({
-    companyName: '',
-    ntnNumber: '',
-    website: '',
-    industry: '',
-    salesTaxNumber: '',
-    companyEmail: '',
-    address: '',
-    contactName: '',
-    contactEmail: '',
-    contactPhone: '',
-    status: 'Active',
-    logo: '',
-    user: '',
-    subscriptionEnd: '',
-  });
-  const [logoPreview, setLogoPreview] = useState<string>('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [error, setError] = useState<string>('');
-  const [successMessage, setSuccessMessage] = useState<string>('');
+  const [deleteError, setDeleteError] = useState<string>('');
 
-  // Load company data on mount
+  const {
+    formData,
+    setFormData,
+    logoPreview,
+    setLogoPreview,
+    isSubmitting,
+    error,
+    setError,
+    successMessage,
+    setSuccessMessage,
+    handleInputChange,
+    handleStatusChange,
+    handleLogoUpload,
+    handleLogoRemove,
+    handleSubmit,
+    handleCancel,
+  } = useCompanyForm({ mode: 'update', companyId: id });
+
+  // Load company data from API on mount
   useEffect(() => {
     if (!id) {
       navigate('/companies');
       return;
     }
 
-    const companies = JSON.parse(localStorage.getItem('companies') || '[]');
-    const company = companies.find((c: any) => c.id === id);
+    const loadCompany = async () => {
+      try {
+        const companiesApi = getCompaniesApi();
+        const response = await companiesApi.v1ApiCompaniesIdGet(Number(id)) as CompanyApiResponse;
+        const company = response?.data || (response as unknown as ExtendedCompanyData);
 
-    if (!company) {
-      navigate('/companies');
-      return;
-    }
+        if (!company) {
+          navigate('/companies');
+          return;
+        }
 
-    setFormData({
-      companyName: company.companyName || '',
-      ntnNumber: company.ntnNumber || company.user || '',
-      website: company.website || '',
-      industry: company.industry || '',
-      salesTaxNumber: company.salesTaxNumber || '',
-      companyEmail: company.companyEmail || '',
-      address: company.address || '',
-      contactName: company.contactName || '',
-      contactEmail: company.contactEmail || '',
-      contactPhone: company.contactPhone || '',
-      status: company.status || 'Active',
-      logo: company.logo || '',
-      user: company.user || '',
-      subscriptionEnd: company.subscriptionEnd || '',
-    });
+        setFormData({
+          companyName: company.name || company.companyName || '',
+          ntnNumber: company.ntnNumber || company.user || '',
+          website: company.website || '',
+          industry: company.industry || 'Gas & Fuel',
+          salesTaxNumber: company.salesTaxRegistrationNo || company.salesTaxNumber || '',
+          companyEmail: company.companyEmail || '',
+          address: company.address || '',
+          contactName: company.contactName || '',
+          contactEmail: company.contactEmail || '',
+          contactPhone: company.phone || company.contactPhone || '',
+          status: company.isActive === false ? 'Inactive' : 'Active',
+          logo: company.logoUrl || company.logo || '',
+          user: company.user || '',
+          subscriptionEnd: company.subscriptionEnd || '',
+        });
 
-    if (company.logo) {
-      setLogoPreview(company.logo);
-    }
-  }, [id, navigate]);
+        if (company.logoUrl || company.logo) {
+          setLogoPreview(company.logoUrl || company.logo || '');
+        }
 
-  // Memoized input change handler
-  const handleInputChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-      const { name, value } = e.target;
-      setFormData((prev) => ({ ...prev, [name]: value }));
-    },
-    []
-  );
+        setIsLoading(false);
+      } catch (err: unknown) {
+        console.error('Error loading company from API:', err);
+        // Fallback to localStorage
+        const companies = JSON.parse(localStorage.getItem('companies') || '[]') as LocalStorageCompany[];
+        const company = companies.find((c: LocalStorageCompany) => c.id === Number(id));
 
-  // Memoized status change handler
-  const handleStatusChange = useCallback((status: Status) => {
-    setFormData((prev) => ({ ...prev, status }));
-  }, []);
+        if (!company) {
+          navigate('/companies');
+          return;
+        }
 
-  // Optimized logo upload with image compression
-  const handleLogoUpload = useCallback(async (file: File) => {
-    // Validate image
-    const validation = validateImage(file, 2);
-    if (!validation.valid) {
-      alert(validation.error);
-      return;
-    }
+        setFormData({
+          companyName: company.companyName || company.name || '',
+          ntnNumber: company.ntnNumber || company.user || '',
+          website: company.website || '',
+          industry: company.industry || '',
+          salesTaxNumber: company.salesTaxNumber || '',
+          companyEmail: company.companyEmail || '',
+          address: company.address || '',
+          contactName: company.contactName || '',
+          contactEmail: company.contactEmail || '',
+          contactPhone: company.contactPhone || '',
+          status: (company.status as Status) || 'Active',
+          logo: company.logo || '',
+          user: company.user || '',
+          subscriptionEnd: company.subscriptionEnd || '',
+        });
 
-    try {
-      // Optimize image (resize to max 200x200, 80% quality)
-      const optimizedLogo = await optimizeImage(file, {
-        maxWidth: 200,
-        maxHeight: 200,
-        quality: 0.8,
-        format: 'image/jpeg',
-      });
+        if (company.logo) {
+          setLogoPreview(company.logo);
+        }
 
-      setLogoPreview(optimizedLogo);
-      setFormData((prev) => ({ ...prev, logo: optimizedLogo }));
-    } catch (error) {
-      console.error('Error optimizing image:', error);
-      alert('Failed to upload image. Please try again.');
-    }
-  }, []);
+        setIsLoading(false);
+      }
+    };
 
-  // Memoized logo removal handler
-  const handleLogoRemove = useCallback(() => {
-    setLogoPreview('');
-    setFormData((prev) => ({ ...prev, logo: '' }));
-  }, []);
+    loadCompany();
+  }, [id, navigate, setFormData, setLogoPreview]);
 
-  // Memoized submit handler with API
-  const handleSubmit = useCallback(async () => {
-    // Validation
-    if (
-      !formData.companyName ||
-      !formData.ntnNumber ||
-      !formData.industry ||
-      !formData.companyEmail
-    ) {
-      setError('Please fill in all required fields');
-      return;
-    }
-
-    setIsSubmitting(true);
-    setError('');
-
-    try {
-      const companiesApi = getCompaniesApi();
-
-      // Prepare API payload
-      const payload: CompaniesIdBody = {
-        name: formData.companyName,
-        address: formData.address || undefined,
-        city: undefined,
-        phone: formData.contactPhone || undefined,
-        logoUrl: formData.logo || undefined,
-        ntnNumber: formData.ntnNumber || undefined,
-        salesTaxRegistrationNo: formData.salesTaxNumber || undefined,
-        isActive: formData.status === 'Active',
-      };
-
-      // Call API
-      await companiesApi.v1ApiCompaniesIdPut(payload, Number(id));
-
-      // Update localStorage
-      const companies = JSON.parse(localStorage.getItem('companies') || '[]');
-      const updatedCompanies = companies.map((company: any) =>
-        company.id === Number(id)
-          ? {
-              ...company,
-              ...formData,
-              user: formData.ntnNumber,
-              updatedAt: new Date().toISOString(),
-            }
-          : company
-      );
-      localStorage.setItem('companies', JSON.stringify(updatedCompanies));
-
-      setSuccessMessage('Company updated successfully!');
-
-      // Navigate back with slight delay for better UX
-      setTimeout(() => {
-        navigate('/companies');
-      }, 1500);
-    } catch (err: any) {
-      console.error('Error updating company:', err);
-      setError('Failed to update company. Please try again.');
-      setIsSubmitting(false);
-    }
-  }, [formData, id, navigate]);
-
-  // Memoized delete handler with API
+  // Handle delete with API
   const handleDelete = useCallback(async () => {
     setIsDeleting(true);
-    setError('');
+    setDeleteError('');
 
     try {
       const companiesApi = getCompaniesApi();
@@ -327,8 +185,8 @@ const UpdateCompanyPage: React.FC = () => {
       await companiesApi.v1ApiCompaniesIdDelete(Number(id));
 
       // Update localStorage
-      const companies = JSON.parse(localStorage.getItem('companies') || '[]');
-      const updatedCompanies = companies.filter((company: any) => company.id !== Number(id));
+      const companies = JSON.parse(localStorage.getItem('companies') || '[]') as LocalStorageCompany[];
+      const updatedCompanies = companies.filter((company: LocalStorageCompany) => company.id !== Number(id));
       localStorage.setItem('companies', JSON.stringify(updatedCompanies));
 
       setSuccessMessage('Company deleted successfully!');
@@ -338,17 +196,16 @@ const UpdateCompanyPage: React.FC = () => {
       setTimeout(() => {
         navigate('/companies');
       }, 1500);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error deleting company:', err);
-      setError('Failed to delete company. Please try again.');
+      setDeleteError('Failed to delete company. Please try again.');
       setIsDeleting(false);
     }
-  }, [id, navigate]);
+  }, [id, navigate, setSuccessMessage]);
 
-  // Memoized cancel handler
-  const handleCancel = useCallback(() => {
-    navigate('/companies');
-  }, [navigate]);
+  if (isLoading) {
+    return <CompanyFormSkeleton />;
+  }
 
   return (
     <Box sx={{ p: 3, maxWidth: 1400, mx: 'auto' }}>
@@ -357,147 +214,21 @@ const UpdateCompanyPage: React.FC = () => {
       <Grid container spacing={3}>
         {/* Left Column */}
         <Grid item xs={12} lg={8}>
-          {/* Company Information */}
-          <FormSection title="Company Information" icon={<BusinessIcon />}>
-            <Grid container spacing={2.5}>
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  label="Company Name"
-                  name="companyName"
-                  value={formData.companyName}
-                  onChange={handleInputChange}
-                  placeholder="Enter company name"
-                  required
-                  size="small"
-                />
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  label="NTN Number"
-                  name="ntnNumber"
-                  value={formData.ntnNumber}
-                  onChange={handleInputChange}
-                  placeholder="1451566"
-                  required
-                  size="small"
-                />
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  label="Website"
-                  name="website"
-                  value={formData.website}
-                  onChange={handleInputChange}
-                  placeholder="www.incognogas.com"
-                  size="small"
-                />
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  label="Industry"
-                  name="industry"
-                  value={formData.industry}
-                  onChange={handleInputChange}
-                  placeholder="Gas & Fuel"
-                  required
-                  size="small"
-                />
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  label="Sales Tax Number"
-                  name="salesTaxNumber"
-                  value={formData.salesTaxNumber}
-                  onChange={handleInputChange}
-                  placeholder="AA000000"
-                  size="small"
-                />
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  label="Company Email"
-                  name="companyEmail"
-                  type="email"
-                  value={formData.companyEmail}
-                  onChange={handleInputChange}
-                  placeholder="example@example.com"
-                  required
-                  size="small"
-                />
-              </Grid>
-              <Grid item xs={12}>
-                <TextField
-                  fullWidth
-                  label="Address"
-                  name="address"
-                  value={formData.address}
-                  onChange={handleInputChange}
-                  placeholder="Incogno Gas — powering progress with trust and energy..."
-                  multiline
-                  rows={4}
-                  size="small"
-                />
-              </Grid>
-            </Grid>
-          </FormSection>
-
-          <Box sx={{ mt: 3 }}>
-            {/* Primary Contact */}
-            <FormSection title="Primary Contact" icon={<PersonIcon />}>
-              <Grid container spacing={2.5}>
-                <Grid item xs={12} sm={6}>
-                  <TextField
-                    fullWidth
-                    label="Contact Name"
-                    name="contactName"
-                    value={formData.contactName}
-                    onChange={handleInputChange}
-                    placeholder="John Herry"
-                    size="small"
-                  />
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <TextField
-                    fullWidth
-                    label="Contact Email"
-                    name="contactEmail"
-                    type="email"
-                    value={formData.contactEmail}
-                    onChange={handleInputChange}
-                    placeholder="example@example.com"
-                    size="small"
-                  />
-                </Grid>
-                <Grid item xs={12}>
-                  <TextField
-                    fullWidth
-                    label="Contact Phone Number"
-                    name="contactPhone"
-                    value={formData.contactPhone}
-                    onChange={handleInputChange}
-                    placeholder="045 4515 545485"
-                    size="small"
-                  />
-                </Grid>
-              </Grid>
-            </FormSection>
-          </Box>
+          <CompanyFormFields
+            formData={formData}
+            onInputChange={handleInputChange}
+          />
         </Grid>
 
         {/* Right Column */}
         <Grid item xs={12} lg={4}>
           {/* Company Logo */}
           <FormSection title="Company Logo" icon={<ImageIcon />} sx={{ mb: 3 }}>
-            <LogoUploadSection
+            <LogoUpload
               logoPreview={logoPreview}
               onLogoUpload={handleLogoUpload}
               onLogoRemove={handleLogoRemove}
+              showEditDelete
             />
           </FormSection>
 
@@ -573,13 +304,23 @@ const UpdateCompanyPage: React.FC = () => {
 
       {/* Error Snackbar */}
       <Snackbar
-        open={!!error}
+        open={!!error || !!deleteError}
         autoHideDuration={6000}
-        onClose={() => setError('')}
+        onClose={() => {
+          setError('');
+          setDeleteError('');
+        }}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
       >
-        <Alert onClose={() => setError('')} severity="error" sx={{ width: '100%' }}>
-          {error}
+        <Alert
+          onClose={() => {
+            setError('');
+            setDeleteError('');
+          }}
+          severity="error"
+          sx={{ width: '100%' }}
+        >
+          {error || deleteError}
         </Alert>
       </Snackbar>
     </Box>

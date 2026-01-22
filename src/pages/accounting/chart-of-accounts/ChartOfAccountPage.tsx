@@ -14,6 +14,9 @@ import {
   Tab,
   IconButton,
   Collapse,
+  Snackbar,
+  Alert,
+  TableSortLabel,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -27,147 +30,259 @@ import {
   ExpandLess as ExpandLessIcon,
 } from '@mui/icons-material';
 import TableSkeleton from '../../../components/common/TableSkeleton';
+import ConfirmDialog from '../../../components/feedback/ConfirmDialog';
+import { COLORS } from '../../../constants/colors';
+import {
+  getChartOfAccountsApi,
+  ChartOfAccount as ApiChartOfAccount,
+  AccountType as ApiAccountType,
+  getCompaniesApi,
+} from '../../../generated/api/client';
 
-// Parent Account Structure
-const PARENT_ACCOUNTS = {
-  Assets: [
-    {
-      code: '110',
-      name: 'Current Assets',
-      children: [
-        { code: '111', name: 'Cash', systemName: 'Cash' },
-        { code: '112', name: 'Bank', systemName: 'Bank' },
-        { code: '113', name: 'Inventory', systemName: 'Inventory' },
-      ],
-    },
-    {
-      code: '120',
-      name: 'Non Current Assets',
-      children: [
-        { code: '121', name: 'Fixed Assets', systemName: 'Fixed Assets' },
-      ],
-    },
-  ],
-  Liabilities: [
-    {
-      code: '200',
-      name: 'Current Liabilities',
-      children: [],
-    },
-    {
-      code: '210',
-      name: 'Non Current Liabilities',
-      children: [],
-    },
-  ],
-  Equity: [
-    {
-      code: '202',
-      name: 'Equity',
-      children: [],
-    },
-  ],
-  Revenue: [
-    {
-      code: '300',
-      name: 'Revenue',
-      children: [],
-    },
-  ],
-  Expenses: [
-    {
-      code: '400',
-      name: 'Direct Cost',
-      children: [],
-    },
-    {
-      code: '410',
-      name: 'Depreciation',
-      children: [],
-    },
-    {
-      code: '420',
-      name: 'Expense',
-      children: [],
-    },
-  ],
+// Map API account type to display type
+const ACCOUNT_TYPE_MAP: Record<ApiAccountType, 'Assets' | 'Liabilities' | 'Equity' | 'Revenue' | 'Expenses'> = {
+  asset: 'Assets',
+  liability: 'Liabilities',
+  equity: 'Equity',
+  revenue: 'Revenue',
+  expense: 'Expenses',
+};
+
+// Reverse map for API calls
+const DISPLAY_TYPE_TO_API: Record<string, ApiAccountType> = {
+  Assets: 'asset',
+  Liabilities: 'liability',
+  Equity: 'equity',
+  Revenue: 'revenue',
+  Expenses: 'expense',
 };
 
 interface Account {
-  id: string;
+  id: number;
   code: string;
   name: string;
   systemName: string;
-  parentCode: string;
+  parentId: number | null;
   accountType: 'Assets' | 'Liabilities' | 'Equity' | 'Revenue' | 'Expenses';
   balance: number;
-  companyId?: number;
+  openingBalance: number;
+  companyId: number;
   companyName: string;
+  isSystemAccount: boolean;
+  isActive: boolean;
   createdAt: string;
+  children?: Account[];
 }
+
+interface SnackbarState {
+  open: boolean;
+  message: string;
+  severity: 'success' | 'error' | 'info' | 'warning';
+}
+
+type Order = 'asc' | 'desc';
+type AccountOrderBy = 'code' | 'name' | 'systemName' | 'balance';
+
+// Map API response to internal format
+const mapApiToInternal = (account: ApiChartOfAccount, companyName: string = ''): Account => ({
+  id: account.id,
+  code: account.accountCode,
+  name: account.accountName,
+  systemName: account.accountName,
+  parentId: account.parentId ?? null,
+  accountType: ACCOUNT_TYPE_MAP[account.accountType],
+  balance: account.currentBalance,
+  openingBalance: account.openingBalance,
+  companyId: account.companyId,
+  companyName,
+  isSystemAccount: account.isSystemAccount,
+  isActive: account.isActive,
+  createdAt: account.createdAt,
+  children: account.children?.map((child) => mapApiToInternal(child, companyName)),
+});
 
 const ChartOfAccountPage: React.FC = () => {
   const navigate = useNavigate();
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const [hierarchyAccounts, setHierarchyAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCompany, setSelectedCompany] = useState('');
+  const [selectedCompanyId, setSelectedCompanyId] = useState<number | ''>('');
   const [selectedTab, setSelectedTab] = useState(0);
-  const [expandedSections, setExpandedSections] = useState<string[]>(['110', '111', '112', '120', '121', '202', '400', '410', '420']);
+  const [expandedSections, setExpandedSections] = useState<Set<number>>(new Set());
   const [companies, setCompanies] = useState<Array<{ id: number; name: string }>>([]);
+  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; id: number | null; isSystemAccount: boolean }>({
+    open: false,
+    id: null,
+    isSystemAccount: false,
+  });
+  const [snackbar, setSnackbar] = useState<SnackbarState>({
+    open: false,
+    message: '',
+    severity: 'info',
+  });
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  // Sorting state
+  const [orderBy, setOrderBy] = useState<AccountOrderBy>('code');
+  const [order, setOrder] = useState<Order>('asc');
 
   const tabs = ['All', 'Asset', 'Equity', 'Expenses', 'Liabilities', 'Revenue'];
 
-  // Load accounts and companies
-  useEffect(() => {
-    const loadData = () => {
-      try {
-        const savedAccounts = localStorage.getItem('chartOfAccounts');
-        if (savedAccounts) {
-          setAccounts(JSON.parse(savedAccounts));
+  // Load companies
+  const loadCompanies = useCallback(async () => {
+    try {
+      const companiesApi = getCompaniesApi();
+      const response = await companiesApi.v1ApiCompaniesGet();
+      if (response.data) {
+        // Handle both name and companyName from API response
+        const mappedCompanies = response.data.map((c: any) => ({
+          id: c.id,
+          name: c.name || c.companyName || '',
+        }));
+        setCompanies(mappedCompanies);
+        // Set first company as default if available
+        if (mappedCompanies.length > 0 && selectedCompanyId === '') {
+          setSelectedCompanyId(mappedCompanies[0].id);
         }
-
-        const savedCompanies = localStorage.getItem('companies');
-        if (savedCompanies) {
-          const parsed = JSON.parse(savedCompanies);
-          setCompanies(parsed.map((c: { id: number; companyName: string }) => ({
-            id: c.id,
-            name: c.companyName,
-          })));
-        }
-      } catch (error) {
-        console.error('Error loading data:', error);
-      } finally {
-        setLoading(false);
       }
-    };
-    setTimeout(loadData, 500);
-  }, []);
+    } catch (error) {
+      console.error('Error loading companies:', error);
+      setSnackbar({
+        open: true,
+        message: 'Failed to load companies. Please try again.',
+        severity: 'error',
+      });
+    }
+  }, [selectedCompanyId]);
+
+  // Load accounts from API
+  const loadAccounts = useCallback(async () => {
+    if (!selectedCompanyId) return;
+
+    setLoading(true);
+    try {
+      const chartOfAccountsApi = getChartOfAccountsApi();
+      const companyName = companies.find((c) => c.id === selectedCompanyId)?.name || '';
+
+      // Load flat list of accounts
+      const response = await chartOfAccountsApi.getAllAccounts({
+        companyId: selectedCompanyId,
+      });
+
+      if (response.data) {
+        const mappedAccounts = response.data.map((account) => mapApiToInternal(account, companyName));
+        setAccounts(mappedAccounts);
+      }
+
+      // Load hierarchy for tree view
+      const hierarchyResponse = await chartOfAccountsApi.getAccountHierarchy(selectedCompanyId);
+      if (hierarchyResponse.data) {
+        const mappedHierarchy = hierarchyResponse.data.map((account) => mapApiToInternal(account, companyName));
+        setHierarchyAccounts(mappedHierarchy);
+        // Expand all root accounts by default
+        const rootIds = new Set(mappedHierarchy.map((a) => a.id));
+        setExpandedSections(rootIds);
+      }
+    } catch (error: any) {
+      console.error('Error loading chart of accounts:', error);
+      setSnackbar({
+        open: true,
+        message: error.message || 'Failed to load chart of accounts. Please try again.',
+        severity: 'error',
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedCompanyId, companies]);
+
+  useEffect(() => {
+    loadCompanies();
+  }, [loadCompanies]);
+
+  useEffect(() => {
+    if (selectedCompanyId) {
+      loadAccounts();
+    }
+  }, [selectedCompanyId, loadAccounts]);
+
+  // Handle sort
+  const handleSort = useCallback((property: AccountOrderBy) => {
+    setOrder((prevOrder) => (orderBy === property && prevOrder === 'asc' ? 'desc' : 'asc'));
+    setOrderBy(property);
+  }, [orderBy]);
 
   const handleAddAccount = useCallback(() => {
     navigate('/account/chart-of-account/add');
   }, [navigate]);
 
-  const handleEditAccount = useCallback((id: string) => {
+  const handleEditAccount = useCallback((id: number) => {
     navigate(`/account/chart-of-account/update/${id}`);
   }, [navigate]);
 
-  const handleDeleteAccount = useCallback((id: string) => {
-    if (window.confirm('Are you sure you want to delete this account?')) {
-      const updatedAccounts = accounts.filter((a) => a.id !== id);
-      setAccounts(updatedAccounts);
-      localStorage.setItem('chartOfAccounts', JSON.stringify(updatedAccounts));
+  const handleDeleteClick = useCallback((id: number, isSystemAccount: boolean) => {
+    if (isSystemAccount) {
+      setSnackbar({
+        open: true,
+        message: 'System accounts cannot be deleted.',
+        severity: 'warning',
+      });
+      return;
     }
-  }, [accounts]);
+    setDeleteDialog({ open: true, id, isSystemAccount });
+  }, []);
 
-  const toggleSection = useCallback((code: string) => {
-    setExpandedSections((prev) =>
-      prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code]
-    );
+  const handleDeleteConfirm = useCallback(async () => {
+    if (!deleteDialog.id) return;
+
+    setIsDeleting(true);
+    try {
+      const chartOfAccountsApi = getChartOfAccountsApi();
+      await chartOfAccountsApi.deleteAccount(deleteDialog.id);
+
+      // Reload accounts after deletion
+      await loadAccounts();
+
+      setSnackbar({
+        open: true,
+        message: 'Account deleted successfully.',
+        severity: 'success',
+      });
+    } catch (error: any) {
+      console.error('Error deleting account:', error);
+      setSnackbar({
+        open: true,
+        message: error.message || 'Failed to delete account. Please try again.',
+        severity: 'error',
+      });
+    } finally {
+      setIsDeleting(false);
+      setDeleteDialog({ open: false, id: null, isSystemAccount: false });
+    }
+  }, [deleteDialog.id, loadAccounts]);
+
+  const handleDeleteCancel = useCallback(() => {
+    setDeleteDialog({ open: false, id: null, isSystemAccount: false });
+  }, []);
+
+  const toggleSection = useCallback((id: number) => {
+    setExpandedSections((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
+      return newSet;
+    });
+  }, []);
+
+  const handleSnackbarClose = useCallback(() => {
+    setSnackbar((prev) => ({ ...prev, open: false }));
   }, []);
 
   // Filter accounts by tab
-  const getFilteredAccountType = useCallback(() => {
+  const getFilteredAccountType = useCallback((): 'Assets' | 'Liabilities' | 'Equity' | 'Revenue' | 'Expenses' | null => {
     switch (selectedTab) {
       case 1: return 'Assets';
       case 2: return 'Equity';
@@ -187,23 +302,83 @@ const ChartOfAccountPage: React.FC = () => {
         account.code.toLowerCase().includes(searchTerm.toLowerCase());
 
       const matchesType = !accountType || account.accountType === accountType;
-      const matchesCompany = !selectedCompany || account.companyName === selectedCompany;
+      const matchesActive = account.isActive;
 
-      return matchesSearch && matchesType && matchesCompany;
+      return matchesSearch && matchesType && matchesActive;
     });
-  }, [accounts, searchTerm, selectedCompany, getFilteredAccountType]);
+  }, [accounts, searchTerm, getFilteredAccountType]);
 
-  // Group accounts by parent
-  const groupedAccounts = useMemo(() => {
-    const groups: Record<string, Account[]> = {};
-    filteredAccounts.forEach((account) => {
-      if (!groups[account.parentCode]) {
-        groups[account.parentCode] = [];
+  // Filter hierarchy accounts
+  const filteredHierarchy = useMemo(() => {
+    const accountType = getFilteredAccountType();
+    if (!accountType) return hierarchyAccounts;
+
+    return hierarchyAccounts.filter((account) => account.accountType === accountType);
+  }, [hierarchyAccounts, getFilteredAccountType]);
+
+  // Sort accounts within each type
+  const sortAccounts = useCallback((accountsToSort: Account[]): Account[] => {
+    return [...accountsToSort].sort((a, b) => {
+      let aValue: string | number = '';
+      let bValue: string | number = '';
+
+      switch (orderBy) {
+        case 'code':
+          aValue = a.code || '';
+          bValue = b.code || '';
+          break;
+        case 'name':
+          aValue = a.name || '';
+          bValue = b.name || '';
+          break;
+        case 'systemName':
+          aValue = a.systemName || '';
+          bValue = b.systemName || '';
+          break;
+        case 'balance':
+          aValue = a.balance;
+          bValue = b.balance;
+          break;
+        default:
+          return 0;
       }
-      groups[account.parentCode].push(account);
+
+      if (typeof aValue === 'string' && typeof bValue === 'string') {
+        return order === 'asc'
+          ? aValue.localeCompare(bValue)
+          : bValue.localeCompare(aValue);
+      }
+
+      if (order === 'asc') {
+        return aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
+      }
+      return aValue > bValue ? -1 : aValue < bValue ? 1 : 0;
     });
+  }, [orderBy, order]);
+
+  // Group accounts by type for display
+  const accountsByType = useMemo(() => {
+    const groups: Record<string, Account[]> = {
+      Assets: [],
+      Liabilities: [],
+      Equity: [],
+      Revenue: [],
+      Expenses: [],
+    };
+
+    filteredHierarchy.forEach((account) => {
+      if (groups[account.accountType]) {
+        groups[account.accountType].push(account);
+      }
+    });
+
+    // Sort each group
+    Object.keys(groups).forEach((type) => {
+      groups[type] = sortAccounts(groups[type]);
+    });
+
     return groups;
-  }, [filteredAccounts]);
+  }, [filteredHierarchy, sortAccounts]);
 
   // Calculate totals by account type
   const calculateTypeTotal = useCallback((type: string) => {
@@ -212,59 +387,24 @@ const ChartOfAccountPage: React.FC = () => {
       .reduce((sum, a) => sum + (a.balance || 0), 0);
   }, [filteredAccounts]);
 
-  // Calculate parent total
-  const calculateParentTotal = useCallback((parentCode: string) => {
-    return filteredAccounts
-      .filter((a) => a.parentCode === parentCode)
-      .reduce((sum, a) => sum + (a.balance || 0), 0);
-  }, [filteredAccounts]);
+  // Calculate account total including children
+  const calculateAccountTotal = useCallback((account: Account): number => {
+    let total = account.balance || 0;
+    if (account.children) {
+      account.children.forEach((child) => {
+        total += calculateAccountTotal(child);
+      });
+    }
+    return total;
+  }, []);
 
-  const renderAccountRow = (account: Account) => (
-    <Box
-      key={account.id}
-      sx={{
-        display: 'flex',
-        alignItems: 'center',
-        py: 1.5,
-        px: 2,
-        borderBottom: '1px solid #E5E7EB',
-        '&:hover': { bgcolor: '#F9FAFB' },
-      }}
-    >
-      <Typography sx={{ width: '15%', pl: 6, color: '#6B7280', fontSize: '14px' }}>
-        {account.code}
-      </Typography>
-      <Typography sx={{ width: '25%', fontSize: '14px' }}>
-        {account.name}
-      </Typography>
-      <Typography sx={{ width: '20%', color: '#FF6B35', fontSize: '14px' }}>
-        {account.systemName}
-      </Typography>
-      <Typography sx={{ width: '20%', fontSize: '14px', textAlign: 'right' }}>
-        {account.balance.toLocaleString()} PKR
-      </Typography>
-      <Box sx={{ width: '20%', display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
-        <IconButton size="small" sx={{ color: '#6B7280' }}>
-          <DescriptionIcon fontSize="small" />
-        </IconButton>
-        <IconButton size="small" onClick={() => handleEditAccount(account.id)} sx={{ color: '#6B7280' }}>
-          <EditIcon fontSize="small" />
-        </IconButton>
-        <IconButton size="small" onClick={() => handleDeleteAccount(account.id)} sx={{ color: '#EF4444' }}>
-          <DeleteIcon fontSize="small" />
-        </IconButton>
-      </Box>
-    </Box>
-  );
-
-  const renderParentSection = (parent: { code: string; name: string; children?: { code: string; name: string; systemName: string }[] }, type: string) => {
-    const isExpanded = expandedSections.includes(parent.code);
-    const childAccounts = groupedAccounts[parent.code] || [];
-    const total = calculateParentTotal(parent.code);
+  const renderAccountRow = (account: Account, depth: number = 0) => {
+    const isExpanded = expandedSections.has(account.id);
+    const hasChildren = account.children && account.children.length > 0;
+    const total = calculateAccountTotal(account);
 
     return (
-      <Box key={parent.code}>
-        {/* Parent Row */}
+      <React.Fragment key={account.id}>
         <Box
           sx={{
             display: 'flex',
@@ -272,108 +412,94 @@ const ChartOfAccountPage: React.FC = () => {
             py: 1.5,
             px: 2,
             borderBottom: '1px solid #E5E7EB',
-            cursor: 'pointer',
-            '&:hover': { bgcolor: '#F9FAFB' },
+            bgcolor: depth === 0 ? '#FAFAFA' : 'white',
+            cursor: hasChildren ? 'pointer' : 'default',
+            '&:hover': { bgcolor: '#F5F5F5' },
           }}
-          onClick={() => toggleSection(parent.code)}
+          onClick={() => hasChildren && toggleSection(account.id)}
         >
-          <Box sx={{ width: '15%', display: 'flex', alignItems: 'center', pl: 2 }}>
-            {isExpanded ? <ExpandLessIcon fontSize="small" sx={{ mr: 1 }} /> : <ExpandMoreIcon fontSize="small" sx={{ mr: 1 }} />}
+          <Box sx={{ width: '15%', display: 'flex', alignItems: 'center', pl: depth * 3 }}>
+            {hasChildren && (
+              isExpanded ? <ExpandLessIcon fontSize="small" sx={{ mr: 1 }} /> : <ExpandMoreIcon fontSize="small" sx={{ mr: 1 }} />
+            )}
+            <Typography sx={{ color: '#6B7280', fontSize: '14px' }}>
+              {account.code}
+            </Typography>
           </Box>
-          <Typography sx={{ width: '25%', fontWeight: 500, fontSize: '14px' }}>
-            {parent.name}
+          <Typography sx={{ width: '25%', fontWeight: depth === 0 ? 500 : 400, fontSize: '14px' }}>
+            {account.name}
           </Typography>
-          <Typography sx={{ width: '20%' }}></Typography>
+          <Typography sx={{ width: '20%', color: COLORS.primary, fontSize: '14px' }}>
+            {account.systemName}
+          </Typography>
           <Typography sx={{ width: '20%', fontSize: '14px', textAlign: 'right' }}>
             {total.toLocaleString()} PKR
           </Typography>
-          <Box sx={{ width: '20%', display: 'flex', justifyContent: 'flex-end' }}>
-            <Button
+          <Box sx={{ width: '20%', display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
+            {depth === 0 && (
+              <Button
+                size="small"
+                startIcon={<AddIcon />}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigate(`/account/chart-of-account/add?parent=${account.id}&type=${DISPLAY_TYPE_TO_API[account.accountType]}`);
+                }}
+                sx={{
+                  color: COLORS.primary,
+                  textTransform: 'none',
+                  fontSize: '12px',
+                }}
+                aria-label={`Add sub-account under ${account.name}`}
+              >
+                Add Account
+              </Button>
+            )}
+            <IconButton size="small" sx={{ color: '#6B7280' }} aria-label={`View details for ${account.name}`}>
+              <DescriptionIcon fontSize="small" />
+            </IconButton>
+            <IconButton
               size="small"
-              startIcon={<AddIcon />}
               onClick={(e) => {
                 e.stopPropagation();
-                navigate(`/account/chart-of-account/add?parent=${parent.code}&type=${type}`);
+                handleEditAccount(account.id);
               }}
-              sx={{
-                color: '#FF6B35',
-                textTransform: 'none',
-                fontSize: '12px',
-              }}
+              sx={{ color: '#6B7280' }}
+              aria-label={`Edit ${account.name}`}
             >
-              Add A New Account
-            </Button>
+              <EditIcon fontSize="small" />
+            </IconButton>
+            <IconButton
+              size="small"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDeleteClick(account.id, account.isSystemAccount);
+              }}
+              sx={{ color: account.isSystemAccount ? '#D1D5DB' : COLORS.error }}
+              disabled={account.isSystemAccount || isDeleting}
+              aria-label={`Delete ${account.name}`}
+            >
+              <DeleteIcon fontSize="small" />
+            </IconButton>
           </Box>
         </Box>
 
-        {/* Child Accounts */}
-        <Collapse in={isExpanded}>
-          {childAccounts.map((account) => renderAccountRow(account))}
-          {parent.children?.map((child) => {
-            const childAccountsForSubParent = groupedAccounts[child.code] || [];
-            const childTotal = calculateParentTotal(child.code);
-            const isChildExpanded = expandedSections.includes(child.code);
-
-            return (
-              <Box key={child.code}>
-                {/* Sub-parent Row */}
-                <Box
-                  sx={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    py: 1.5,
-                    px: 2,
-                    borderBottom: '1px solid #E5E7EB',
-                    bgcolor: '#FAFAFA',
-                    cursor: 'pointer',
-                    '&:hover': { bgcolor: '#F5F5F5' },
-                  }}
-                  onClick={() => toggleSection(child.code)}
-                >
-                  <Box sx={{ width: '15%', display: 'flex', alignItems: 'center', pl: 4 }}>
-                    {isChildExpanded ? <ExpandLessIcon fontSize="small" sx={{ mr: 1 }} /> : <ExpandMoreIcon fontSize="small" sx={{ mr: 1 }} />}
-                  </Box>
-                  <Typography sx={{ width: '25%', fontWeight: 500, fontSize: '14px', color: '#6B7280' }}>
-                    {child.name}
-                  </Typography>
-                  <Typography sx={{ width: '20%' }}></Typography>
-                  <Typography sx={{ width: '20%', fontSize: '14px', textAlign: 'right' }}>
-                    {childTotal.toLocaleString()} PKR
-                  </Typography>
-                  <Box sx={{ width: '20%', display: 'flex', justifyContent: 'flex-end' }}>
-                    <Button
-                      size="small"
-                      startIcon={<AddIcon />}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        navigate(`/account/chart-of-account/add?parent=${child.code}&type=${type}`);
-                      }}
-                      sx={{
-                        color: '#FF6B35',
-                        textTransform: 'none',
-                        fontSize: '12px',
-                      }}
-                    >
-                      Add A New Account
-                    </Button>
-                  </Box>
-                </Box>
-
-                {/* Sub-child Accounts */}
-                <Collapse in={isChildExpanded}>
-                  {childAccountsForSubParent.map((account) => renderAccountRow(account))}
-                </Collapse>
-              </Box>
-            );
-          })}
-        </Collapse>
-      </Box>
+        {/* Render children */}
+        {hasChildren && (
+          <Collapse in={isExpanded}>
+            {account.children!.map((child) => renderAccountRow(child, depth + 1))}
+          </Collapse>
+        )}
+      </React.Fragment>
     );
   };
 
-  const renderAccountTypeSection = (type: keyof typeof PARENT_ACCOUNTS) => {
-    const parents = PARENT_ACCOUNTS[type];
+  const renderAccountTypeSection = (type: 'Assets' | 'Liabilities' | 'Equity' | 'Revenue' | 'Expenses') => {
+    const typeAccounts = accountsByType[type] || [];
     const total = calculateTypeTotal(type);
+
+    if (typeAccounts.length === 0 && selectedTab !== 0) {
+      return null;
+    }
 
     return (
       <Box key={type} sx={{ mb: 2 }}>
@@ -385,20 +511,36 @@ const ChartOfAccountPage: React.FC = () => {
             py: 2,
             px: 2,
             borderBottom: '2px solid #E5E7EB',
-            bgcolor: '#FAFAFA',
+            bgcolor: '#F3F4F6',
           }}
         >
           <Typography sx={{ width: '60%', fontWeight: 600, fontSize: '16px' }}>
             {type === 'Expenses' ? 'Expense' : type}
           </Typography>
           <Typography sx={{ width: '20%', fontWeight: 600, fontSize: '16px', textAlign: 'right' }}>
-            {total.toLocaleString()}
+            {total.toLocaleString()} PKR
           </Typography>
           <Box sx={{ width: '20%' }}></Box>
         </Box>
 
-        {/* Parent Sections */}
-        {parents.map((parent) => renderParentSection(parent, type))}
+        {/* Accounts */}
+        {typeAccounts.length > 0 ? (
+          typeAccounts.map((account) => renderAccountRow(account))
+        ) : (
+          <Box sx={{ py: 3, textAlign: 'center' }}>
+            <Typography color="text.secondary" sx={{ fontSize: '14px' }}>
+              No accounts found in this category.
+            </Typography>
+            <Button
+              size="small"
+              startIcon={<AddIcon />}
+              onClick={() => navigate(`/account/chart-of-account/add?type=${DISPLAY_TYPE_TO_API[type]}`)}
+              sx={{ mt: 1, color: COLORS.primary, textTransform: 'none' }}
+            >
+              Add {type === 'Expenses' ? 'Expense' : type} Account
+            </Button>
+          </Box>
+        )}
       </Box>
     );
   };
@@ -417,7 +559,7 @@ const ChartOfAccountPage: React.FC = () => {
       {/* Header */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Typography variant="h5" sx={{ fontWeight: 600 }}>
-          Chart of Acount
+          Chart of Account
         </Typography>
       </Box>
 
@@ -425,14 +567,14 @@ const ChartOfAccountPage: React.FC = () => {
       <Card sx={{ p: 2, mb: 3, display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
         <FormControl size="small" sx={{ minWidth: 150 }}>
           <Select
-            value={selectedCompany}
-            onChange={(e) => setSelectedCompany(e.target.value)}
+            value={selectedCompanyId}
+            onChange={(e) => setSelectedCompanyId(e.target.value as number)}
             displayEmpty
             sx={{ bgcolor: 'white' }}
           >
-            <MenuItem value="">EST Gas</MenuItem>
+            <MenuItem value="" disabled>Select Company</MenuItem>
             {companies.map((company) => (
-              <MenuItem key={company.id} value={company.name}>{company.name}</MenuItem>
+              <MenuItem key={company.id} value={company.id}>{company.name}</MenuItem>
             ))}
           </Select>
         </FormControl>
@@ -485,9 +627,9 @@ const ChartOfAccountPage: React.FC = () => {
           startIcon={<AddIcon />}
           onClick={handleAddAccount}
           sx={{
-            bgcolor: '#FF6B35',
+            bgcolor: COLORS.primary,
             textTransform: 'none',
-            '&:hover': { bgcolor: '#E55A2B' },
+            '&:hover': { bgcolor: COLORS.primaryHover },
           }}
         >
           Add Account
@@ -506,7 +648,7 @@ const ChartOfAccountPage: React.FC = () => {
               fontWeight: 500,
             },
             '& .Mui-selected': {
-              bgcolor: '#FF6B35',
+              bgcolor: COLORS.primary,
               color: 'white !important',
               borderRadius: '4px 4px 0 0',
             },
@@ -530,25 +672,59 @@ const ChartOfAccountPage: React.FC = () => {
             bgcolor: '#F9FAFB',
           }}
         >
-          <Typography sx={{ width: '15%', fontWeight: 600, fontSize: '14px', color: '#374151' }}>
-            Code
-          </Typography>
-          <Typography sx={{ width: '25%', fontWeight: 600, fontSize: '14px', color: '#374151' }}>
-            Name
-          </Typography>
-          <Typography sx={{ width: '20%', fontWeight: 600, fontSize: '14px', color: '#374151' }}>
-            System Name
-          </Typography>
-          <Typography sx={{ width: '20%', fontWeight: 600, fontSize: '14px', color: '#374151', textAlign: 'right' }}>
-            Balance
-          </Typography>
+          <Box sx={{ width: '15%' }}>
+            <TableSortLabel
+              active={orderBy === 'code'}
+              direction={orderBy === 'code' ? order : 'asc'}
+              onClick={() => handleSort('code')}
+              sx={{ fontWeight: 600, fontSize: '14px', color: '#374151' }}
+            >
+              Code
+            </TableSortLabel>
+          </Box>
+          <Box sx={{ width: '25%' }}>
+            <TableSortLabel
+              active={orderBy === 'name'}
+              direction={orderBy === 'name' ? order : 'asc'}
+              onClick={() => handleSort('name')}
+              sx={{ fontWeight: 600, fontSize: '14px', color: '#374151' }}
+            >
+              Name
+            </TableSortLabel>
+          </Box>
+          <Box sx={{ width: '20%' }}>
+            <TableSortLabel
+              active={orderBy === 'systemName'}
+              direction={orderBy === 'systemName' ? order : 'asc'}
+              onClick={() => handleSort('systemName')}
+              sx={{ fontWeight: 600, fontSize: '14px', color: '#374151' }}
+            >
+              System Name
+            </TableSortLabel>
+          </Box>
+          <Box sx={{ width: '20%', textAlign: 'right' }}>
+            <TableSortLabel
+              active={orderBy === 'balance'}
+              direction={orderBy === 'balance' ? order : 'asc'}
+              onClick={() => handleSort('balance')}
+              sx={{ fontWeight: 600, fontSize: '14px', color: '#374151' }}
+            >
+              Balance
+            </TableSortLabel>
+          </Box>
           <Typography sx={{ width: '20%', fontWeight: 600, fontSize: '14px', color: '#374151', textAlign: 'right' }}>
             Actions
           </Typography>
         </Box>
 
         {/* Account Sections */}
-        {selectedTab === 0 ? (
+        {!selectedCompanyId ? (
+          <Box sx={{ py: 8, textAlign: 'center' }}>
+            <Typography color="text.secondary">
+              Please select a company to view chart of accounts.
+            </Typography>
+          </Box>
+        ) : selectedTab === 0 ? (
           <>
             {renderAccountTypeSection('Assets')}
             {renderAccountTypeSection('Liabilities')}
@@ -565,6 +741,31 @@ const ChartOfAccountPage: React.FC = () => {
           )
         )}
       </Card>
+
+      <ConfirmDialog
+        open={deleteDialog.open}
+        title="Delete Account"
+        message="Are you sure you want to delete this account? This action will mark the account as inactive."
+        onConfirm={handleDeleteConfirm}
+        onCancel={handleDeleteCancel}
+      />
+
+      {/* Snackbar for success/error messages */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={handleSnackbarClose}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert
+          onClose={handleSnackbarClose}
+          severity={snackbar.severity}
+          sx={{ width: '100%' }}
+          variant="filled"
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };

@@ -9,6 +9,7 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  TableSortLabel,
   IconButton,
   Chip,
   Typography,
@@ -47,6 +48,9 @@ interface OtherPayment {
   createdAt: string;
 }
 
+type Order = 'asc' | 'desc';
+type OtherPaymentOrderBy = 'companyName' | 'number' | 'date' | 'reference' | 'contactName' | 'totalAmount' | 'status';
+
 const OtherPaymentsListPage: React.FC = () => {
   const navigate = useNavigate();
   const [payments, setPayments] = useState<OtherPayment[]>([]);
@@ -67,6 +71,10 @@ const OtherPaymentsListPage: React.FC = () => {
     id: null,
   });
 
+  // Sorting state
+  const [orderBy, setOrderBy] = useState<OtherPaymentOrderBy>('date');
+  const [order, setOrder] = useState<Order>('desc');
+
   // Load payments from localStorage
   useEffect(() => {
     const loadPayments = () => {
@@ -84,9 +92,15 @@ const OtherPaymentsListPage: React.FC = () => {
     setTimeout(loadPayments, 500);
   }, []);
 
-  // Filter payments
+  // Handle sort
+  const handleSort = useCallback((property: OtherPaymentOrderBy) => {
+    setOrder((prevOrder) => (orderBy === property && prevOrder === 'asc' ? 'desc' : 'asc'));
+    setOrderBy(property);
+  }, [orderBy]);
+
+  // Filter and sort payments
   const filteredPayments = useMemo(() => {
-    return payments.filter((payment) => {
+    const filtered = payments.filter((payment) => {
       const matchesSearch =
         !searchTerm ||
         payment.companyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -100,7 +114,59 @@ const OtherPaymentsListPage: React.FC = () => {
 
       return matchesSearch && matchesCompany && matchesStatus && matchesReference && matchesContactName;
     });
-  }, [payments, searchTerm, filters]);
+
+    // Sort the filtered payments
+    const sortedPayments = [...filtered].sort((a, b) => {
+      let aValue: string | number = '';
+      let bValue: string | number = '';
+
+      switch (orderBy) {
+        case 'companyName':
+          aValue = a.companyName || '';
+          bValue = b.companyName || '';
+          break;
+        case 'number':
+          aValue = a.number || '';
+          bValue = b.number || '';
+          break;
+        case 'date':
+          aValue = new Date(a.date).getTime();
+          bValue = new Date(b.date).getTime();
+          break;
+        case 'reference':
+          aValue = a.reference || '';
+          bValue = b.reference || '';
+          break;
+        case 'contactName':
+          aValue = a.contactName || '';
+          bValue = b.contactName || '';
+          break;
+        case 'totalAmount':
+          aValue = a.totalAmount;
+          bValue = b.totalAmount;
+          break;
+        case 'status':
+          aValue = a.status;
+          bValue = b.status;
+          break;
+        default:
+          return 0;
+      }
+
+      if (typeof aValue === 'string' && typeof bValue === 'string') {
+        return order === 'asc'
+          ? aValue.localeCompare(bValue)
+          : bValue.localeCompare(aValue);
+      }
+
+      if (order === 'asc') {
+        return aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
+      }
+      return aValue > bValue ? -1 : aValue < bValue ? 1 : 0;
+    });
+
+    return sortedPayments;
+  }, [payments, searchTerm, filters, orderBy, order]);
 
   const handleAddPayment = useCallback(() => {
     navigate('/account/other-payments/add');
@@ -392,17 +458,101 @@ const OtherPaymentsListPage: React.FC = () => {
       {/* Table */}
       <Card sx={{ boxShadow: 'none', border: '1px solid #E5E7EB' }}>
         <TableContainer>
-          <Table>
+          <Table aria-label="Other payments list">
             <TableHead>
               <TableRow sx={{ bgcolor: '#F9FAFB' }}>
-                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Company</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Number</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Date</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Reference</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Contact Name</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Total Amount</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Status</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Actions</TableCell>
+                <TableCell
+                  scope="col"
+                  sx={{ fontWeight: 600, color: '#374151' }}
+                  aria-sort={orderBy === 'companyName' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'companyName'}
+                    direction={orderBy === 'companyName' ? order : 'asc'}
+                    onClick={() => handleSort('companyName')}
+                  >
+                    Company
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell
+                  scope="col"
+                  sx={{ fontWeight: 600, color: '#374151' }}
+                  aria-sort={orderBy === 'number' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'number'}
+                    direction={orderBy === 'number' ? order : 'asc'}
+                    onClick={() => handleSort('number')}
+                  >
+                    Number
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell
+                  scope="col"
+                  sx={{ fontWeight: 600, color: '#374151' }}
+                  aria-sort={orderBy === 'date' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'date'}
+                    direction={orderBy === 'date' ? order : 'asc'}
+                    onClick={() => handleSort('date')}
+                  >
+                    Date
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell
+                  scope="col"
+                  sx={{ fontWeight: 600, color: '#374151' }}
+                  aria-sort={orderBy === 'reference' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'reference'}
+                    direction={orderBy === 'reference' ? order : 'asc'}
+                    onClick={() => handleSort('reference')}
+                  >
+                    Reference
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell
+                  scope="col"
+                  sx={{ fontWeight: 600, color: '#374151' }}
+                  aria-sort={orderBy === 'contactName' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'contactName'}
+                    direction={orderBy === 'contactName' ? order : 'asc'}
+                    onClick={() => handleSort('contactName')}
+                  >
+                    Contact Name
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell
+                  scope="col"
+                  sx={{ fontWeight: 600, color: '#374151' }}
+                  aria-sort={orderBy === 'totalAmount' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'totalAmount'}
+                    direction={orderBy === 'totalAmount' ? order : 'asc'}
+                    onClick={() => handleSort('totalAmount')}
+                  >
+                    Total Amount
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell
+                  scope="col"
+                  sx={{ fontWeight: 600, color: '#374151' }}
+                  aria-sort={orderBy === 'status' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'status'}
+                    direction={orderBy === 'status' ? order : 'asc'}
+                    onClick={() => handleSort('status')}
+                  >
+                    Status
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell scope="col" sx={{ fontWeight: 600, color: '#374151' }}>Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -454,6 +604,7 @@ const OtherPaymentsListPage: React.FC = () => {
                         size="small"
                         onClick={() => handleEditPayment(payment.id)}
                         sx={{ color: '#10B981' }}
+                        aria-label={`Edit payment ${payment.number}`}
                       >
                         <EditIcon fontSize="small" />
                       </IconButton>
@@ -461,6 +612,7 @@ const OtherPaymentsListPage: React.FC = () => {
                         size="small"
                         onClick={() => handleDeleteClick(payment.id)}
                         sx={{ color: COLORS.error }}
+                        aria-label={`Delete payment ${payment.number}`}
                       >
                         <DeleteIcon fontSize="small" />
                       </IconButton>

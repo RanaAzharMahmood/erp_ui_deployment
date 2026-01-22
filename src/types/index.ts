@@ -30,3 +30,5 @@ export interface LoginCredentials {
   password: string
 }
 
+export * from './customer.types'
+export * from './invoice.types'

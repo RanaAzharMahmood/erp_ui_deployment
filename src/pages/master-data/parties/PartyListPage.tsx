@@ -9,6 +9,7 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  TableSortLabel,
   IconButton,
   Chip,
   Typography,
@@ -20,6 +21,8 @@ import {
   Select,
   MenuItem,
   Popover,
+  Snackbar,
+  Alert,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -32,16 +35,26 @@ import {
 } from '@mui/icons-material';
 import PageHeader from '../../../components/common/PageHeader';
 import TableSkeleton from '../../../components/common/TableSkeleton';
+import ConfirmDialog from '../../../components/feedback/ConfirmDialog';
+import { COLORS } from '../../../constants/colors';
+import { getPartiesApi } from '../../../generated/api/client';
 
 interface Party {
-  id: string;
+  id: number;
   partyName: string;
   partyType: 'Customer' | 'Vendor';
   contactName: string;
   contactEmail?: string;
+  companyId?: number;
   companyName?: string;
   isActive: boolean;
   createdAt: string;
+}
+
+interface SnackbarState {
+  open: boolean;
+  message: string;
+  severity: 'success' | 'error' | 'info' | 'warning';
 }
 
 const PartyListPage: React.FC = () => {
@@ -55,29 +68,103 @@ const PartyListPage: React.FC = () => {
     partyType: '',
     status: '',
   });
+  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; id: number | null }>({
+    open: false,
+    id: null,
+  });
+  const [snackbar, setSnackbar] = useState<SnackbarState>({
+    open: false,
+    message: '',
+    severity: 'info',
+  });
+  const [orderBy, setOrderBy] = useState<string>('partyName');
+  const [order, setOrder] = useState<'asc' | 'desc'>('asc');
 
-  // Load parties from localStorage or API
-  useEffect(() => {
-    const loadParties = () => {
+  // Load parties from API with localStorage fallback
+  const loadParties = useCallback(async () => {
+    setLoading(true);
+    try {
+      const partiesApi = getPartiesApi();
+      const response = await partiesApi.v1ApiPartiesGet();
+      if (response.data?.data) {
+        interface ApiParty {
+          id: number;
+          partyName: string;
+          partyType: 'Customer' | 'Vendor';
+          contactName: string;
+          contactEmail?: string;
+          companyId?: number;
+          companyName?: string;
+          isActive: boolean;
+          createdAt: string;
+        }
+        const apiData = response.data.data as unknown as ApiParty[];
+        const apiParties = apiData.map((p: ApiParty) => ({
+          id: p.id,
+          partyName: p.partyName,
+          partyType: p.partyType,
+          contactName: p.contactName,
+          contactEmail: p.contactEmail,
+          companyId: p.companyId,
+          companyName: p.companyName,
+          isActive: p.isActive,
+          createdAt: p.createdAt,
+        }));
+        setParties(apiParties);
+        // Update localStorage as cache
+        localStorage.setItem('parties', JSON.stringify(apiParties));
+      }
+    } catch (error: unknown) {
+      console.error('Error loading parties from API:', error);
+      // Fallback to localStorage
       try {
         const savedParties = localStorage.getItem('parties');
         if (savedParties) {
-          setParties(JSON.parse(savedParties));
+          interface StoredParty {
+            id: number | string;
+            partyName: string;
+            partyType: 'Customer' | 'Vendor';
+            contactName: string;
+            contactEmail?: string;
+            companyId?: number;
+            companyName?: string;
+            isActive: boolean;
+            createdAt: string;
+          }
+          const parsedParties: StoredParty[] = JSON.parse(savedParties);
+          // Ensure id is number
+          setParties(parsedParties.map((p: StoredParty) => ({
+            ...p,
+            id: typeof p.id === 'string' ? parseInt(p.id, 10) : p.id,
+          })));
         }
-      } catch (error) {
-        console.error('Error loading parties:', error);
-      } finally {
-        setLoading(false);
+      } catch (localError) {
+        console.error('Error loading parties from localStorage:', localError);
       }
-    };
-
-    // Simulate loading delay
-    setTimeout(loadParties, 500);
+      setSnackbar({
+        open: true,
+        message: 'Failed to load parties from server. Showing cached data.',
+        severity: 'warning',
+      });
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  // Filter parties based on search and filters
+  useEffect(() => {
+    loadParties();
+  }, [loadParties]);
+
+  // Sort handler
+  const handleSort = useCallback((property: string) => {
+    const isAsc = orderBy === property && order === 'asc';
+    setOrder(isAsc ? 'desc' : 'asc');
+    setOrderBy(property);
+  }, [orderBy, order]);
+
+  // Filter and sort parties based on search and filters
   const filteredParties = useMemo(() => {
-    return parties.filter((party) => {
+    const filtered = parties.filter((party) => {
       const matchesSearch =
         !searchTerm ||
         party.partyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -97,23 +184,105 @@ const PartyListPage: React.FC = () => {
 
       return matchesSearch && matchesCompany && matchesType && matchesStatus;
     });
-  }, [parties, searchTerm, filters]);
+
+    // Sort the filtered results
+    const sorted = [...filtered].sort((a, b) => {
+      let aValue: string | number = '';
+      let bValue: string | number = '';
+
+      switch (orderBy) {
+        case 'contactName':
+          aValue = a.contactName.toLowerCase();
+          bValue = b.contactName.toLowerCase();
+          break;
+        case 'companyName':
+          aValue = (a.companyName || '').toLowerCase();
+          bValue = (b.companyName || '').toLowerCase();
+          break;
+        case 'partyName':
+          aValue = a.partyName.toLowerCase();
+          bValue = b.partyName.toLowerCase();
+          break;
+        case 'partyType':
+          aValue = a.partyType;
+          bValue = b.partyType;
+          break;
+        case 'status':
+          aValue = a.isActive ? 'Active' : 'Inactive';
+          bValue = b.isActive ? 'Active' : 'Inactive';
+          break;
+        case 'createdAt':
+          aValue = new Date(a.createdAt).getTime();
+          bValue = new Date(b.createdAt).getTime();
+          break;
+        default:
+          return 0;
+      }
+
+      if (aValue < bValue) return order === 'asc' ? -1 : 1;
+      if (aValue > bValue) return order === 'asc' ? 1 : -1;
+      return 0;
+    });
+
+    return sorted;
+  }, [parties, searchTerm, filters, orderBy, order]);
 
   const handleAddParty = useCallback(() => {
     navigate('/party/add');
   }, [navigate]);
 
-  const handleEditParty = useCallback((id: string) => {
+  const handleEditParty = useCallback((id: number) => {
     navigate(`/party/update/${id}`);
   }, [navigate]);
 
-  const handleDeleteParty = useCallback((id: string) => {
-    if (window.confirm('Are you sure you want to delete this party?')) {
-      const updatedParties = parties.filter((p) => p.id !== id);
-      setParties(updatedParties);
-      localStorage.setItem('parties', JSON.stringify(updatedParties));
+  const handleDeleteClick = useCallback((id: number) => {
+    setDeleteDialog({ open: true, id });
+  }, []);
+
+  const handleDeleteConfirm = useCallback(async () => {
+    if (deleteDialog.id) {
+      try {
+        const partiesApi = getPartiesApi();
+        await partiesApi.v1ApiPartiesIdDelete(deleteDialog.id);
+
+        // Remove from local state
+        setParties((prev) => prev.filter((p) => p.id !== deleteDialog.id));
+
+        // Update localStorage cache
+        const updatedParties = parties.filter((p) => p.id !== deleteDialog.id);
+        localStorage.setItem('parties', JSON.stringify(updatedParties));
+
+        setSnackbar({
+          open: true,
+          message: 'Party deleted successfully!',
+          severity: 'success',
+        });
+      } catch (error: unknown) {
+        console.error('Error deleting party:', error);
+
+        let errorMessage = 'Failed to delete party. Please try again.';
+        if (error && typeof error === 'object' && 'json' in error && typeof (error as { json: unknown }).json === 'function') {
+          try {
+            const errorData = await (error as { json: () => Promise<{ message?: string }> }).json();
+            errorMessage = errorData.message || errorMessage;
+          } catch {
+            // Use default error message
+          }
+        }
+
+        setSnackbar({
+          open: true,
+          message: errorMessage,
+          severity: 'error',
+        });
+      }
     }
-  }, [parties]);
+    setDeleteDialog({ open: false, id: null });
+  }, [parties, deleteDialog.id]);
+
+  const handleDeleteCancel = useCallback(() => {
+    setDeleteDialog({ open: false, id: null });
+  }, []);
 
   const handleFilterClick = (event: React.MouseEvent<HTMLButtonElement>) => {
     setFilterAnchorEl(event.currentTarget);
@@ -129,6 +298,10 @@ const PartyListPage: React.FC = () => {
 
   const handleApplyFilters = () => {
     handleFilterClose();
+  };
+
+  const handleSnackbarClose = () => {
+    setSnackbar((prev) => ({ ...prev, open: false }));
   };
 
   const filterOpen = Boolean(filterAnchorEl);
@@ -220,9 +393,9 @@ const PartyListPage: React.FC = () => {
           startIcon={<AddIcon />}
           onClick={handleAddParty}
           sx={{
-            bgcolor: '#FF6B35',
+            bgcolor: COLORS.primary,
             textTransform: 'none',
-            '&:hover': { bgcolor: '#E55A2B' },
+            '&:hover': { bgcolor: COLORS.primaryHover },
           }}
         >
           Party
@@ -305,9 +478,9 @@ const PartyListPage: React.FC = () => {
               size="small"
               onClick={handleApplyFilters}
               sx={{
-                bgcolor: '#FF6B35',
+                bgcolor: COLORS.primary,
                 textTransform: 'none',
-                '&:hover': { bgcolor: '#E55A2B' },
+                '&:hover': { bgcolor: COLORS.primaryHover },
               }}
             >
               Apply Filter
@@ -319,16 +492,88 @@ const PartyListPage: React.FC = () => {
       {/* Table */}
       <Card sx={{ boxShadow: 'none', border: '1px solid #E5E7EB' }}>
         <TableContainer>
-          <Table>
+          <Table aria-label="Parties list">
             <TableHead>
               <TableRow sx={{ bgcolor: '#F9FAFB' }}>
-                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Contact</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Company</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Party Name</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Party Type</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Status</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Created at</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Actions</TableCell>
+                <TableCell
+                  scope="col"
+                  sx={{ fontWeight: 600, color: '#374151' }}
+                  aria-sort={orderBy === 'contactName' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'contactName'}
+                    direction={orderBy === 'contactName' ? order : 'asc'}
+                    onClick={() => handleSort('contactName')}
+                  >
+                    Contact
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell
+                  scope="col"
+                  sx={{ fontWeight: 600, color: '#374151' }}
+                  aria-sort={orderBy === 'companyName' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'companyName'}
+                    direction={orderBy === 'companyName' ? order : 'asc'}
+                    onClick={() => handleSort('companyName')}
+                  >
+                    Company
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell
+                  scope="col"
+                  sx={{ fontWeight: 600, color: '#374151' }}
+                  aria-sort={orderBy === 'partyName' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'partyName'}
+                    direction={orderBy === 'partyName' ? order : 'asc'}
+                    onClick={() => handleSort('partyName')}
+                  >
+                    Party Name
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell
+                  scope="col"
+                  sx={{ fontWeight: 600, color: '#374151' }}
+                  aria-sort={orderBy === 'partyType' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'partyType'}
+                    direction={orderBy === 'partyType' ? order : 'asc'}
+                    onClick={() => handleSort('partyType')}
+                  >
+                    Party Type
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell
+                  scope="col"
+                  sx={{ fontWeight: 600, color: '#374151' }}
+                  aria-sort={orderBy === 'status' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'status'}
+                    direction={orderBy === 'status' ? order : 'asc'}
+                    onClick={() => handleSort('status')}
+                  >
+                    Status
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell
+                  scope="col"
+                  sx={{ fontWeight: 600, color: '#374151' }}
+                  aria-sort={orderBy === 'createdAt' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'createdAt'}
+                    direction={orderBy === 'createdAt' ? order : 'asc'}
+                    onClick={() => handleSort('createdAt')}
+                  >
+                    Created at
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell scope="col" sx={{ fontWeight: 600, color: '#374151' }}>Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -358,7 +603,7 @@ const PartyListPage: React.FC = () => {
                     <TableCell>{party.partyType}</TableCell>
                     <TableCell>
                       <Chip
-                        label={party.isActive ? 'Paid' : 'Inactive'}
+                        label={party.isActive ? 'Active' : 'Inactive'}
                         size="small"
                         sx={{
                           bgcolor: party.isActive ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
@@ -376,13 +621,15 @@ const PartyListPage: React.FC = () => {
                         size="small"
                         onClick={() => handleEditParty(party.id)}
                         sx={{ color: '#10B981' }}
+                        aria-label={`Edit ${party.partyName}`}
                       >
                         <EditIcon fontSize="small" />
                       </IconButton>
                       <IconButton
                         size="small"
-                        onClick={() => handleDeleteParty(party.id)}
-                        sx={{ color: '#EF4444' }}
+                        onClick={() => handleDeleteClick(party.id)}
+                        sx={{ color: COLORS.error }}
+                        aria-label={`Delete ${party.partyName}`}
                       >
                         <DeleteIcon fontSize="small" />
                       </IconButton>
@@ -394,6 +641,34 @@ const PartyListPage: React.FC = () => {
           </Table>
         </TableContainer>
       </Card>
+
+      <ConfirmDialog
+        open={deleteDialog.open}
+        title="Delete Party"
+        message="Are you sure you want to delete this party? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        confirmColor="error"
+        onConfirm={handleDeleteConfirm}
+        onCancel={handleDeleteCancel}
+      />
+
+      {/* Snackbar for success/error messages */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={handleSnackbarClose}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert
+          onClose={handleSnackbarClose}
+          severity={snackbar.severity}
+          sx={{ width: '100%' }}
+          variant="filled"
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };

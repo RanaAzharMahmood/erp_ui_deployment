@@ -26,6 +26,7 @@ function StatusSelector<T extends string = Status>({
       <RadioGroup
         value={value}
         onChange={(e) => onChange(e.target.value as T)}
+        aria-label="Status selection"
       >
         {options.map((status) => (
           <FormControlLabel
@@ -38,6 +39,9 @@ function StatusSelector<T extends string = Status>({
                   '&.Mui-checked': {
                     color: '#FF6B35',
                   },
+                }}
+                inputProps={{
+                  'aria-label': `Set status to ${status}`,
                 }}
               />
             }

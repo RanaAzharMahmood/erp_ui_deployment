@@ -9,6 +9,7 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  TableSortLabel,
   IconButton,
   Chip,
   Typography,
@@ -20,6 +21,8 @@ import {
   Select,
   MenuItem,
   Popover,
+  Alert,
+  Snackbar,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -31,6 +34,9 @@ import {
   GridOn as GridIcon,
 } from '@mui/icons-material';
 import TableSkeleton from '../../../components/common/TableSkeleton';
+import ConfirmDialog from '../../../components/feedback/ConfirmDialog';
+import { COLORS } from '../../../constants/colors';
+import { getPurchaseReturnsApi } from '../../../generated/api/client';
 
 interface PurchaseReturn {
   id: string;
@@ -45,11 +51,17 @@ interface PurchaseReturn {
   createdAt: string;
 }
 
+type Order = 'asc' | 'desc';
+type OrderBy = keyof PurchaseReturn;
+
 const PurchaseReturnListPage: React.FC = () => {
   const navigate = useNavigate();
   const [returns, setReturns] = useState<PurchaseReturn[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deleting, setDeleting] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [error, setError] = useState<string>('');
+  const [successMessage, setSuccessMessage] = useState<string>('');
   const [filterAnchorEl, setFilterAnchorEl] = useState<HTMLButtonElement | null>(null);
   const [filters, setFilters] = useState({
     company: '',
@@ -58,27 +70,67 @@ const PurchaseReturnListPage: React.FC = () => {
     dateTo: '',
     status: '',
   });
+  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; id: string | null }>({
+    open: false,
+    id: null,
+  });
 
-  // Load returns from localStorage
+  // Sorting state
+  const [orderBy, setOrderBy] = useState<OrderBy>('date');
+  const [order, setOrder] = useState<Order>('desc');
+
+  // Load returns from API with localStorage fallback
   useEffect(() => {
-    const loadReturns = () => {
+    const loadReturns = async () => {
       try {
-        const savedReturns = localStorage.getItem('purchaseReturns');
-        if (savedReturns) {
-          setReturns(JSON.parse(savedReturns));
+        const purchaseReturnsApi = getPurchaseReturnsApi();
+        const response = await purchaseReturnsApi.getAll();
+        if (response.data?.data) {
+          const apiReturns = response.data.data.map((ret) => ({
+            id: String(ret.id),
+            billNumber: ret.billNumber,
+            companyName: ret.companyName || '',
+            vendorName: ret.vendorName || '',
+            item: ret.item || '',
+            quantity: ret.quantity || 0,
+            netAmount: ret.netAmount || 0,
+            status: ret.status as 'Active' | 'Completed' | 'Pending',
+            date: ret.date,
+            createdAt: ret.createdAt || '',
+          }));
+          setReturns(apiReturns);
+          // Sync to localStorage for offline access
+          localStorage.setItem('purchaseReturns', JSON.stringify(apiReturns));
         }
-      } catch (error) {
-        console.error('Error loading purchase returns:', error);
+      } catch (err) {
+        console.error('Error loading purchase returns from API, using localStorage fallback:', err);
+        // Fallback to localStorage
+        try {
+          const savedReturns = localStorage.getItem('purchaseReturns');
+          if (savedReturns) {
+            setReturns(JSON.parse(savedReturns));
+          }
+        } catch (localErr) {
+          console.error('Error loading from localStorage:', localErr);
+          setError('Failed to load purchase returns. Please try again.');
+        }
       } finally {
         setLoading(false);
       }
     };
-    setTimeout(loadReturns, 500);
+    loadReturns();
   }, []);
 
-  // Filter returns
-  const filteredReturns = useMemo(() => {
-    return returns.filter((returnItem) => {
+  // Handle sort
+  const handleSort = useCallback((property: OrderBy) => {
+    const isAsc = orderBy === property && order === 'asc';
+    setOrder(isAsc ? 'desc' : 'asc');
+    setOrderBy(property);
+  }, [orderBy, order]);
+
+  // Filter and sort returns
+  const filteredAndSortedReturns = useMemo(() => {
+    const filtered = returns.filter((returnItem) => {
       const matchesSearch =
         !searchTerm ||
         returnItem.billNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -92,7 +144,31 @@ const PurchaseReturnListPage: React.FC = () => {
 
       return matchesSearch && matchesCompany && matchesVendor && matchesStatus;
     });
-  }, [returns, searchTerm, filters]);
+
+    // Sort the filtered results
+    return [...filtered].sort((a, b) => {
+      let aValue: string | number = a[orderBy];
+      let bValue: string | number = b[orderBy];
+
+      // Handle numeric sorting
+      if (orderBy === 'quantity' || orderBy === 'netAmount') {
+        aValue = Number(aValue) || 0;
+        bValue = Number(bValue) || 0;
+      } else {
+        // Handle string sorting
+        aValue = String(aValue || '').toLowerCase();
+        bValue = String(bValue || '').toLowerCase();
+      }
+
+      if (aValue < bValue) {
+        return order === 'asc' ? -1 : 1;
+      }
+      if (aValue > bValue) {
+        return order === 'asc' ? 1 : -1;
+      }
+      return 0;
+    });
+  }, [returns, searchTerm, filters, orderBy, order]);
 
   const handleAddReturn = useCallback(() => {
     navigate('/purchase/return/add');
@@ -102,13 +178,45 @@ const PurchaseReturnListPage: React.FC = () => {
     navigate(`/purchase/return/update/${id}`);
   }, [navigate]);
 
-  const handleDeleteReturn = useCallback((id: string) => {
-    if (window.confirm('Are you sure you want to delete this return?')) {
-      const updatedReturns = returns.filter((r) => r.id !== id);
-      setReturns(updatedReturns);
-      localStorage.setItem('purchaseReturns', JSON.stringify(updatedReturns));
+  const handleDeleteClick = useCallback((id: string) => {
+    setDeleteDialog({ open: true, id });
+  }, []);
+
+  const handleDeleteConfirm = useCallback(async () => {
+    if (deleteDialog.id) {
+      setDeleting(true);
+      try {
+        // Try API delete first
+        const purchaseReturnsApi = getPurchaseReturnsApi();
+        await purchaseReturnsApi.delete(Number(deleteDialog.id));
+
+        // Update local state
+        const updatedReturns = returns.filter((r) => r.id !== deleteDialog.id);
+        setReturns(updatedReturns);
+        localStorage.setItem('purchaseReturns', JSON.stringify(updatedReturns));
+        setSuccessMessage('Purchase return deleted successfully!');
+      } catch (err) {
+        console.error('Error deleting purchase return from API, using localStorage fallback:', err);
+        // Fallback to localStorage only
+        try {
+          const updatedReturns = returns.filter((r) => r.id !== deleteDialog.id);
+          setReturns(updatedReturns);
+          localStorage.setItem('purchaseReturns', JSON.stringify(updatedReturns));
+          setSuccessMessage('Purchase return deleted successfully!');
+        } catch (localErr) {
+          console.error('Error deleting from localStorage:', localErr);
+          setError('Failed to delete purchase return. Please try again.');
+        }
+      } finally {
+        setDeleting(false);
+      }
     }
-  }, [returns]);
+    setDeleteDialog({ open: false, id: null });
+  }, [returns, deleteDialog.id]);
+
+  const handleDeleteCancel = useCallback(() => {
+    setDeleteDialog({ open: false, id: null });
+  }, []);
 
   const handleFilterClick = (event: React.MouseEvent<HTMLButtonElement>) => {
     setFilterAnchorEl(event.currentTarget);
@@ -222,9 +330,9 @@ const PurchaseReturnListPage: React.FC = () => {
           startIcon={<AddIcon />}
           onClick={handleAddReturn}
           sx={{
-            bgcolor: '#FF6B35',
+            bgcolor: COLORS.primary,
             textTransform: 'none',
-            '&:hover': { bgcolor: '#E55A2B' },
+            '&:hover': { bgcolor: COLORS.primaryHover },
           }}
         >
           Return Purchase Invoice
@@ -239,7 +347,7 @@ const PurchaseReturnListPage: React.FC = () => {
         anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
         transformOrigin={{ vertical: 'top', horizontal: 'left' }}
       >
-        <Box sx={{ p: 2, width: 350, border: '2px solid #FF6B35', borderRadius: 1 }}>
+        <Box sx={{ p: 2, width: 350, border: `2px solid ${COLORS.primary}`, borderRadius: 1 }}>
           <FormControl fullWidth size="small" sx={{ mb: 2 }}>
             <InputLabel>Select Company</InputLabel>
             <Select
@@ -329,9 +437,9 @@ const PurchaseReturnListPage: React.FC = () => {
               size="small"
               onClick={handleFilterClose}
               sx={{
-                bgcolor: '#FF6B35',
+                bgcolor: COLORS.primary,
                 textTransform: 'none',
-                '&:hover': { bgcolor: '#E55A2B' },
+                '&:hover': { bgcolor: COLORS.primaryHover },
               }}
             >
               Apply Filter
@@ -343,22 +451,118 @@ const PurchaseReturnListPage: React.FC = () => {
       {/* Table */}
       <Card sx={{ boxShadow: 'none', border: '1px solid #E5E7EB' }}>
         <TableContainer>
-          <Table>
+          <Table aria-label="Purchase returns list">
             <TableHead>
               <TableRow sx={{ bgcolor: '#F9FAFB' }}>
-                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Bill Number</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Company</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Vendor</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Item</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Quantity</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Net Amount</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Status</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Date</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Actions</TableCell>
+                <TableCell
+                  scope="col"
+                  sx={{ fontWeight: 600, color: '#374151' }}
+                  aria-sort={orderBy === 'billNumber' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'billNumber'}
+                    direction={orderBy === 'billNumber' ? order : 'asc'}
+                    onClick={() => handleSort('billNumber')}
+                  >
+                    Bill Number
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell
+                  scope="col"
+                  sx={{ fontWeight: 600, color: '#374151' }}
+                  aria-sort={orderBy === 'companyName' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'companyName'}
+                    direction={orderBy === 'companyName' ? order : 'asc'}
+                    onClick={() => handleSort('companyName')}
+                  >
+                    Company
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell
+                  scope="col"
+                  sx={{ fontWeight: 600, color: '#374151' }}
+                  aria-sort={orderBy === 'vendorName' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'vendorName'}
+                    direction={orderBy === 'vendorName' ? order : 'asc'}
+                    onClick={() => handleSort('vendorName')}
+                  >
+                    Vendor
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell
+                  scope="col"
+                  sx={{ fontWeight: 600, color: '#374151' }}
+                  aria-sort={orderBy === 'item' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'item'}
+                    direction={orderBy === 'item' ? order : 'asc'}
+                    onClick={() => handleSort('item')}
+                  >
+                    Item
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell
+                  scope="col"
+                  sx={{ fontWeight: 600, color: '#374151' }}
+                  aria-sort={orderBy === 'quantity' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'quantity'}
+                    direction={orderBy === 'quantity' ? order : 'asc'}
+                    onClick={() => handleSort('quantity')}
+                  >
+                    Quantity
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell
+                  scope="col"
+                  sx={{ fontWeight: 600, color: '#374151' }}
+                  aria-sort={orderBy === 'netAmount' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'netAmount'}
+                    direction={orderBy === 'netAmount' ? order : 'asc'}
+                    onClick={() => handleSort('netAmount')}
+                  >
+                    Net Amount
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell
+                  scope="col"
+                  sx={{ fontWeight: 600, color: '#374151' }}
+                  aria-sort={orderBy === 'status' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'status'}
+                    direction={orderBy === 'status' ? order : 'asc'}
+                    onClick={() => handleSort('status')}
+                  >
+                    Status
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell
+                  scope="col"
+                  sx={{ fontWeight: 600, color: '#374151' }}
+                  aria-sort={orderBy === 'date' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'date'}
+                    direction={orderBy === 'date' ? order : 'asc'}
+                    onClick={() => handleSort('date')}
+                  >
+                    Date
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell scope="col" sx={{ fontWeight: 600, color: '#374151' }}>Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {filteredReturns.length === 0 ? (
+              {filteredAndSortedReturns.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={9} align="center" sx={{ py: 8 }}>
                     <Typography color="text.secondary">
@@ -367,7 +571,7 @@ const PurchaseReturnListPage: React.FC = () => {
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredReturns.map((returnItem) => (
+                filteredAndSortedReturns.map((returnItem) => (
                   <TableRow key={returnItem.id} hover>
                     <TableCell>{returnItem.billNumber}</TableCell>
                     <TableCell>{returnItem.companyName}</TableCell>
@@ -401,13 +605,16 @@ const PurchaseReturnListPage: React.FC = () => {
                         size="small"
                         onClick={() => handleEditReturn(returnItem.id)}
                         sx={{ color: '#10B981' }}
+                        aria-label={`Edit return ${returnItem.billNumber}`}
                       >
                         <EditIcon fontSize="small" />
                       </IconButton>
                       <IconButton
                         size="small"
-                        onClick={() => handleDeleteReturn(returnItem.id)}
-                        sx={{ color: '#EF4444' }}
+                        onClick={() => handleDeleteClick(returnItem.id)}
+                        sx={{ color: COLORS.error }}
+                        disabled={deleting}
+                        aria-label={`Delete return ${returnItem.billNumber}`}
                       >
                         <DeleteIcon fontSize="small" />
                       </IconButton>
@@ -419,6 +626,45 @@ const PurchaseReturnListPage: React.FC = () => {
           </Table>
         </TableContainer>
       </Card>
+
+      {/* Success Snackbar */}
+      <Snackbar
+        open={!!successMessage}
+        autoHideDuration={4000}
+        onClose={() => setSuccessMessage('')}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert
+          onClose={() => setSuccessMessage('')}
+          severity="success"
+          sx={{ width: '100%' }}
+        >
+          {successMessage}
+        </Alert>
+      </Snackbar>
+
+      {/* Error Snackbar */}
+      <Snackbar
+        open={!!error}
+        autoHideDuration={6000}
+        onClose={() => setError('')}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert onClose={() => setError('')} severity="error" sx={{ width: '100%' }}>
+          {error}
+        </Alert>
+      </Snackbar>
+
+      <ConfirmDialog
+        open={deleteDialog.open}
+        title="Delete Return"
+        message="Are you sure you want to delete this return? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        confirmColor="error"
+        onConfirm={handleDeleteConfirm}
+        onCancel={handleDeleteCancel}
+      />
     </Box>
   );
 };

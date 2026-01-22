@@ -31,29 +31,29 @@ import {
 } from '@mui/icons-material';
 import PageHeader from '../../../components/common/PageHeader';
 import FormSection from '../../../components/common/FormSection';
-
-interface LineItem {
-  id: string;
-  item: string;
-  quantity: number;
-  rate: number;
-  amount: number;
-}
-
-interface SalesInvoiceFormData {
-  companyId: number | '';
-  customerId: string;
-  invoiceNumber: string;
-  date: string;
-  dueDate: string;
-  paymentMethod: string;
-  accountNumber: string;
-  remarks: string;
-  status: 'Paid' | 'Overdue' | 'Pending';
-  taxId: string;
-  paidAmount: number;
-  discount: number;
-}
+import InvoiceFormSkeleton from '../../../components/common/InvoiceFormSkeleton';
+import { useCompanies } from '../../../hooks';
+import {
+  getSalesInvoicesApi,
+  getCustomersApi,
+  getTaxesApi,
+  getItemsApi,
+} from '../../../generated/api/client';
+import type {
+  LineItem,
+  SalesInvoiceFormData,
+  CompanyOption,
+  CustomerOption,
+  TaxOption,
+  ItemOption,
+  RawCompanyData,
+  RawCustomerData,
+  RawTaxData,
+  RawInventoryItemData,
+  RawSalesInvoiceData,
+  InvoiceStatus,
+  SelectChangeValue,
+} from '../../../types/invoice.types';
 
 const PAYMENT_METHODS = ['Hand in Cash', 'Bank Transfer (Online)', 'Cheque'];
 
@@ -61,6 +61,7 @@ const AddSalesInvoicePage: React.FC = () => {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const isEditMode = Boolean(id);
+  const { companies: companiesData } = useCompanies();
 
   const [formData, setFormData] = useState<SalesInvoiceFormData>({
     companyId: '',
@@ -79,99 +80,190 @@ const AddSalesInvoicePage: React.FC = () => {
   const [lineItems, setLineItems] = useState<LineItem[]>([
     { id: '1', item: '', quantity: 0, rate: 0, amount: 0 },
   ]);
-  const [companies, setCompanies] = useState<Array<{ id: number; name: string }>>([]);
-  const [customers, setCustomers] = useState<Array<{ id: string; name: string }>>([]);
-  const [taxes, setTaxes] = useState<Array<{ id: string; name: string; percentage: number }>>([]);
-  const [items, setItems] = useState<Array<{ id: string; name: string; rate: number }>>([]);
+  const [customers, setCustomers] = useState<CustomerOption[]>([]);
+  const [taxes, setTaxes] = useState<TaxOption[]>([]);
+  const [items, setItems] = useState<ItemOption[]>([]);
   const [receiptImage, setReceiptImage] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+
+  // Derive companies from hook data - use c.name as the hook normalizes to 'name' field
+  const companies: CompanyOption[] = (companiesData || []).map((c: RawCompanyData) => ({ id: c.id, name: c.name }));
 
   // Check if payment method requires image upload and account number
   const requiresImageAndAccount = formData.paymentMethod === 'Bank Transfer (Online)' || formData.paymentMethod === 'Cheque';
 
-  // Generate invoice number
-  const generateInvoiceNumber = useCallback(() => {
-    const savedInvoices = localStorage.getItem('salesInvoices');
-    const invoices = savedInvoices ? JSON.parse(savedInvoices) : [];
-    const nextNumber = invoices.length + 1;
-    return `SI-${String(nextNumber).padStart(6, '0')}`;
+  // Generate invoice number from API or fallback to localStorage
+  const generateInvoiceNumber = useCallback(async () => {
+    try {
+      const api = getSalesInvoicesApi();
+      const response = await api.getNextNumber();
+      return response.data.nextNumber;
+    } catch (err) {
+      console.error('Error fetching next invoice number from API, using fallback:', err);
+      // Fallback to localStorage
+      const savedInvoices = localStorage.getItem('salesInvoices');
+      const invoices: RawSalesInvoiceData[] = savedInvoices ? JSON.parse(savedInvoices) : [];
+      const nextNumber = invoices.length + 1;
+      return `SI-${String(nextNumber).padStart(6, '0')}`;
+    }
   }, []);
 
-  // Load data
+  // Load data from API with localStorage fallback
   useEffect(() => {
-    try {
-      const savedCompanies = localStorage.getItem('companies');
-      if (savedCompanies) {
-        const parsed = JSON.parse(savedCompanies);
-        setCompanies(parsed.map((c: any) => ({ id: c.id, name: c.companyName })));
-      }
+    const loadData = async () => {
+      setIsLoading(true);
+      try {
+        // Load customers from API
+        try {
+          const customersApi = getCustomersApi();
+          const customersResponse = await customersApi.getAll();
+          if (customersResponse.data?.data) {
+            setCustomers(customersResponse.data.data.map((c) => ({
+              id: String(c.id),
+              name: c.name,
+            })));
+          }
+        } catch (err) {
+          console.error('Error loading customers from API, using localStorage fallback:', err);
+          const savedCustomers = localStorage.getItem('customers');
+          if (savedCustomers) {
+            const parsed: RawCustomerData[] = JSON.parse(savedCustomers);
+            setCustomers(parsed.map((c) => ({ id: c.id, name: c.customerName || c.name || '' })));
+          }
+        }
 
-      const savedCustomers = localStorage.getItem('customers');
-      if (savedCustomers) {
-        const parsed = JSON.parse(savedCustomers);
-        setCustomers(parsed.map((c: any) => ({ id: c.id, name: c.customerName || c.name })));
-      }
+        // Load taxes from API
+        try {
+          const taxesApi = getTaxesApi();
+          const taxesResponse = await taxesApi.getAll();
+          if (taxesResponse.data) {
+            setTaxes(taxesResponse.data.map((t) => ({
+              id: String(t.id),
+              name: t.name,
+              percentage: t.rate,
+            })));
+          }
+        } catch (err) {
+          console.error('Error loading taxes from API, using localStorage fallback:', err);
+          const savedTaxes = localStorage.getItem('taxes');
+          if (savedTaxes) {
+            const parsed: RawTaxData[] = JSON.parse(savedTaxes);
+            setTaxes(parsed.map((t) => ({
+              id: t.id,
+              name: t.taxName,
+              percentage: t.taxPercentage,
+            })));
+          }
+        }
 
-      const savedTaxes = localStorage.getItem('taxes');
-      if (savedTaxes) {
-        const parsed = JSON.parse(savedTaxes);
-        setTaxes(parsed.map((t: any) => ({
-          id: t.id,
-          name: t.taxName,
-          percentage: t.taxPercentage,
-        })));
-      }
+        // Load items from API
+        try {
+          const itemsApi = getItemsApi();
+          const itemsResponse = await itemsApi.v1ApiItemsGet(true);
+          if (itemsResponse.data) {
+            setItems(itemsResponse.data.map((i: any) => ({
+              id: String(i.id),
+              name: i.itemName || '',
+              rate: i.salePrice || i.unitPrice || 0,
+            })));
+          }
+        } catch (err) {
+          console.error('Error loading items from API, using localStorage fallback:', err);
+          const savedItems = localStorage.getItem('inventoryItems');
+          if (savedItems) {
+            const parsed: RawInventoryItemData[] = JSON.parse(savedItems);
+            setItems(parsed.map((i) => ({
+              id: i.id,
+              name: i.itemName || i.name || '',
+              rate: i.salePrice || i.rate || 0,
+            })));
+          }
+        }
 
-      const savedItems = localStorage.getItem('inventoryItems');
-      if (savedItems) {
-        const parsed = JSON.parse(savedItems);
-        setItems(parsed.map((i: any) => ({
-          id: i.id,
-          name: i.itemName || i.name,
-          rate: i.salePrice || i.rate || 0,
-        })));
-      }
+        // Generate invoice number for new invoices
+        if (!isEditMode) {
+          const invoiceNumber = await generateInvoiceNumber();
+          setFormData((prev) => ({ ...prev, invoiceNumber }));
+        }
 
-      // Generate invoice number for new invoices
-      if (!isEditMode) {
-        setFormData((prev) => ({ ...prev, invoiceNumber: generateInvoiceNumber() }));
-      }
-
-      // Load existing invoice for edit mode
-      if (isEditMode && id) {
-        const savedInvoices = localStorage.getItem('salesInvoices');
-        if (savedInvoices) {
-          const invoices = JSON.parse(savedInvoices);
-          const invoice = invoices.find((i: any) => i.id === id);
-          if (invoice) {
-            setFormData({
-              companyId: invoice.companyId || '',
-              customerId: invoice.customerId || '',
-              invoiceNumber: invoice.invoiceNumber,
-              date: invoice.date,
-              dueDate: invoice.dueDate || '',
-              paymentMethod: invoice.paymentMethod || '',
-              accountNumber: invoice.accountNumber || '',
-              remarks: invoice.remarks || '',
-              status: invoice.status,
-              taxId: invoice.taxId || '',
-              paidAmount: invoice.paidAmount || 0,
-              discount: invoice.discount || 0,
-            });
-            if (invoice.lineItems) {
-              setLineItems(invoice.lineItems);
+        // Load existing invoice for edit mode
+        if (isEditMode && id) {
+          try {
+            const api = getSalesInvoicesApi();
+            const response = await api.getById(Number(id));
+            const invoice = response.data;
+            if (invoice) {
+              setFormData({
+                companyId: invoice.companyId || '',
+                customerId: String(invoice.customerId) || '',
+                invoiceNumber: invoice.invoiceNumber,
+                date: invoice.date,
+                dueDate: invoice.dueDate || '',
+                paymentMethod: invoice.paymentMethod || '',
+                accountNumber: invoice.accountNumber || '',
+                remarks: invoice.remarks || '',
+                status: invoice.status === 'paid' ? 'Paid' : invoice.status === 'overdue' ? 'Overdue' : 'Pending',
+                taxId: '',
+                paidAmount: invoice.paidAmount || 0,
+                discount: invoice.discount || 0,
+              });
+              if (invoice.lines) {
+                setLineItems(invoice.lines.map((l) => ({
+                  id: String(l.id || Date.now()),
+                  item: l.itemName || '',
+                  quantity: l.quantity,
+                  rate: l.unitPrice,
+                  amount: l.lineTotal,
+                })));
+              }
+              if (invoice.receiptImage) {
+                setReceiptImage(invoice.receiptImage);
+              }
             }
-            if (invoice.receiptImage) {
-              setReceiptImage(invoice.receiptImage);
+          } catch (err) {
+            console.error('Error loading invoice from API, using localStorage fallback:', err);
+            // Fallback to localStorage
+            const savedInvoices = localStorage.getItem('salesInvoices');
+            if (savedInvoices) {
+              const invoices: RawSalesInvoiceData[] = JSON.parse(savedInvoices);
+              const invoice = invoices.find((i) => i.id === id);
+              if (invoice) {
+                setFormData({
+                  companyId: invoice.companyId || '',
+                  customerId: invoice.customerId || '',
+                  invoiceNumber: invoice.invoiceNumber,
+                  date: invoice.date,
+                  dueDate: invoice.dueDate || '',
+                  paymentMethod: invoice.paymentMethod || '',
+                  accountNumber: invoice.accountNumber || '',
+                  remarks: invoice.remarks || '',
+                  status: invoice.status,
+                  taxId: invoice.taxId || '',
+                  paidAmount: invoice.paidAmount || 0,
+                  discount: invoice.discount || 0,
+                });
+                if (invoice.lineItems) {
+                  setLineItems(invoice.lineItems);
+                }
+                if (invoice.receiptImage) {
+                  setReceiptImage(invoice.receiptImage);
+                }
+              }
             }
           }
         }
+      } catch (err: unknown) {
+        console.error('Error loading data:', err);
+        setError('Failed to load data. Please try again.');
+      } finally {
+        setIsLoading(false);
       }
-    } catch (err) {
-      console.error('Error loading data:', err);
-    }
+    };
+
+    loadData();
   }, [isEditMode, id, generateInvoiceNumber]);
 
   const handleInputChange = useCallback(
@@ -182,15 +274,15 @@ const AddSalesInvoicePage: React.FC = () => {
     []
   );
 
-  const handleSelectChange = useCallback((name: string, value: any) => {
+  const handleSelectChange = useCallback((name: string, value: SelectChangeValue) => {
     setFormData((prev) => ({ ...prev, [name]: value }));
   }, []);
 
-  const handleStatusChange = useCallback((status: 'Paid' | 'Overdue' | 'Pending') => {
+  const handleStatusChange = useCallback((status: InvoiceStatus) => {
     setFormData((prev) => ({ ...prev, status }));
   }, []);
 
-  const handleLineItemChange = useCallback((id: string, field: string, value: any) => {
+  const handleLineItemChange = useCallback((id: string, field: string, value: string | number) => {
     setLineItems((prev) =>
       prev.map((item) => {
         if (item.id === id) {
@@ -264,64 +356,108 @@ const AddSalesInvoicePage: React.FC = () => {
     setError('');
 
     try {
-      const invoices = JSON.parse(localStorage.getItem('salesInvoices') || '[]');
+      const api = getSalesInvoicesApi();
       const company = companies.find((c) => c.id === formData.companyId);
       const customer = customers.find((c) => c.id === formData.customerId);
-      const firstItem = lineItems.find((l) => l.item)?.item || '';
-      const totalQuantity = lineItems.reduce((sum, l) => sum + (l.quantity || 0), 0);
 
-      const invoiceData = {
-        id: isEditMode ? id : String(Date.now()),
-        companyId: formData.companyId,
-        companyName: company?.name || 'GST Gas',
-        customerId: formData.customerId,
-        customerName: customer?.name || '',
-        invoiceNumber: formData.invoiceNumber,
+      // Prepare API request data
+      const apiData = {
         date: formData.date,
-        dueDate: formData.dueDate,
-        paymentMethod: formData.paymentMethod,
-        accountNumber: formData.accountNumber,
-        remarks: formData.remarks,
-        item: firstItem,
-        quantity: totalQuantity,
-        grossAmount,
-        netAmount: subtotal,
-        taxAmount,
+        dueDate: formData.dueDate || undefined,
+        customerId: Number(formData.customerId),
         discount: formData.discount,
         paidAmount: formData.paidAmount,
-        balance,
-        status: formData.status,
-        lineItems,
-        receiptImage,
-        createdAt: isEditMode ? undefined : new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        paymentMethod: formData.paymentMethod || undefined,
+        accountNumber: formData.accountNumber || undefined,
+        remarks: formData.remarks || undefined,
+        companyId: formData.companyId ? Number(formData.companyId) : 1,
+        lines: lineItems.filter(l => l.item).map((l) => ({
+          itemId: Number(items.find(i => i.name === l.item)?.id) || 0,
+          description: l.item,
+          quantity: l.quantity,
+          unitPrice: l.rate,
+          taxId: formData.taxId ? Number(formData.taxId) : undefined,
+          taxAmount: selectedTax ? (l.amount * selectedTax.percentage) / 100 : 0,
+          lineTotal: l.amount,
+        })),
+        receiptImage: receiptImage || undefined,
       };
 
-      if (isEditMode) {
-        const index = invoices.findIndex((i: any) => i.id === id);
-        if (index !== -1) {
-          invoices[index] = { ...invoices[index], ...invoiceData };
+      try {
+        if (isEditMode && id) {
+          await api.update(Number(id), {
+            ...apiData,
+            status: formData.status === 'Paid' ? 'paid' : formData.status === 'Overdue' ? 'overdue' : 'draft',
+          });
+        } else {
+          await api.create(apiData);
         }
-      } else {
-        invoices.push(invoiceData);
+        setSuccessMessage(isEditMode ? 'Invoice updated successfully!' : 'Invoice created successfully!');
+      } catch (apiErr) {
+        console.error('API call failed, saving to localStorage as fallback:', apiErr);
+        // Fallback to localStorage
+        const invoices: RawSalesInvoiceData[] = JSON.parse(localStorage.getItem('salesInvoices') || '[]');
+        const firstItem = lineItems.find((l) => l.item)?.item || '';
+        const totalQuantity = lineItems.reduce((sum, l) => sum + (l.quantity || 0), 0);
+
+        const invoiceData = {
+          id: isEditMode ? id : String(Date.now()),
+          companyId: formData.companyId,
+          companyName: company?.name || 'GST Gas',
+          customerId: formData.customerId,
+          customerName: customer?.name || '',
+          invoiceNumber: formData.invoiceNumber,
+          date: formData.date,
+          dueDate: formData.dueDate,
+          paymentMethod: formData.paymentMethod,
+          accountNumber: formData.accountNumber,
+          remarks: formData.remarks,
+          item: firstItem,
+          quantity: totalQuantity,
+          grossAmount,
+          netAmount: subtotal,
+          taxAmount,
+          discount: formData.discount,
+          paidAmount: formData.paidAmount,
+          balance,
+          status: formData.status,
+          lineItems,
+          receiptImage,
+          createdAt: isEditMode ? undefined : new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+
+        if (isEditMode) {
+          const index = invoices.findIndex((i) => i.id === id);
+          if (index !== -1) {
+            invoices[index] = { ...invoices[index], ...invoiceData };
+          }
+        } else {
+          invoices.push(invoiceData as RawSalesInvoiceData);
+        }
+
+        localStorage.setItem('salesInvoices', JSON.stringify(invoices));
+        setSuccessMessage(isEditMode ? 'Invoice updated successfully (offline)!' : 'Invoice created successfully (offline)!');
       }
 
-      localStorage.setItem('salesInvoices', JSON.stringify(invoices));
-
-      setSuccessMessage(isEditMode ? 'Invoice updated successfully!' : 'Invoice created successfully!');
       setTimeout(() => {
         navigate('/sales/invoice');
       }, 1500);
-    } catch (err) {
+    } catch (err: unknown) {
       console.error('Error saving invoice:', err);
       setError('Failed to save invoice. Please try again.');
       setIsSubmitting(false);
     }
-  }, [formData, companies, customers, lineItems, grossAmount, subtotal, taxAmount, balance, receiptImage, navigate, isEditMode, id, requiresImageAndAccount]);
+  }, [formData, companies, customers, lineItems, grossAmount, subtotal, taxAmount, balance, receiptImage, navigate, isEditMode, id, requiresImageAndAccount, items, selectedTax]);
 
   const handleCancel = useCallback(() => {
     navigate('/sales/invoice');
   }, [navigate]);
+
+  // Show skeleton while loading
+  if (isLoading) {
+    return <InvoiceFormSkeleton />;
+  }
 
   return (
     <Box sx={{ p: 3, maxWidth: 1400, mx: 'auto', bgcolor: '#F9FAFB', minHeight: '100vh' }}>
@@ -340,11 +476,10 @@ const AddSalesInvoicePage: React.FC = () => {
                 <FormControl fullWidth size="small">
                   <Select
                     value={formData.companyId}
-                    onChange={(e) => handleSelectChange('companyId', e.target.value)}
+                    onChange={(e) => handleSelectChange('companyId', e.target.value as SelectChangeValue)}
                     displayEmpty
                     sx={{ bgcolor: 'white' }}
                   >
-                    <MenuItem value="">EST Gas</MenuItem>
                     {companies.map((comp) => (
                       <MenuItem key={comp.id} value={comp.id}>{comp.name}</MenuItem>
                     ))}
@@ -372,7 +507,7 @@ const AddSalesInvoicePage: React.FC = () => {
                 <FormControl fullWidth size="small">
                   <Select
                     value={formData.customerId}
-                    onChange={(e) => handleSelectChange('customerId', e.target.value)}
+                    onChange={(e) => handleSelectChange('customerId', e.target.value as SelectChangeValue)}
                     displayEmpty
                     sx={{ bgcolor: 'white' }}
                   >
@@ -420,7 +555,7 @@ const AddSalesInvoicePage: React.FC = () => {
                 <FormControl fullWidth size="small">
                   <Select
                     value={formData.paymentMethod}
-                    onChange={(e) => handleSelectChange('paymentMethod', e.target.value)}
+                    onChange={(e) => handleSelectChange('paymentMethod', e.target.value as SelectChangeValue)}
                     displayEmpty
                     sx={{ bgcolor: 'white' }}
                   >
@@ -485,7 +620,7 @@ const AddSalesInvoicePage: React.FC = () => {
                         <FormControl fullWidth size="small">
                           <Select
                             value={item.item}
-                            onChange={(e) => handleLineItemChange(item.id, 'item', e.target.value)}
+                            onChange={(e) => handleLineItemChange(item.id, 'item', e.target.value as string)}
                             displayEmpty
                             sx={{ bgcolor: 'white' }}
                           >
@@ -575,7 +710,7 @@ const AddSalesInvoicePage: React.FC = () => {
                 <FormControl size="small" sx={{ minWidth: 120 }}>
                   <Select
                     value={formData.taxId}
-                    onChange={(e) => handleSelectChange('taxId', e.target.value)}
+                    onChange={(e) => handleSelectChange('taxId', e.target.value as SelectChangeValue)}
                     displayEmpty
                     sx={{ bgcolor: 'white' }}
                   >
@@ -661,10 +796,10 @@ const AddSalesInvoicePage: React.FC = () => {
           <FormSection title="Status" icon={<CircleIcon />} sx={{ mb: 3 }}>
             <Divider sx={{ mb: 2, mt: -1 }} />
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-              {['Paid', 'Overdue', 'Pending'].map((status) => (
+              {(['Paid', 'Overdue', 'Pending'] as const).map((status) => (
                 <Box
                   key={status}
-                  onClick={() => handleStatusChange(status as 'Paid' | 'Overdue' | 'Pending')}
+                  onClick={() => handleStatusChange(status)}
                   sx={{
                     display: 'flex',
                     alignItems: 'center',

@@ -32,6 +32,8 @@ import {
 } from '@mui/icons-material';
 import PageHeader from '../../../components/common/PageHeader';
 import FormSection from '../../../components/common/FormSection';
+import { useCompanies } from '../../../hooks';
+import { getJournalEntriesApi } from '../../../generated/api/client';
 
 interface LineItem {
   id: string;
@@ -90,14 +92,31 @@ const AddJournalEntryPage: React.FC = () => {
     { id: '2', accountName: 'Assets', debit: '0', credit: '2400582.0' },
   ]);
 
-  const [companies, setCompanies] = useState<Array<{ id: number; name: string }>>([]);
+  const { companies: rawCompanies, refetch: refetchCompanies } = useCompanies();
+  const companies = rawCompanies.map((c) => ({ id: c.id, name: c.name }));
+
+  // Refetch companies on mount to ensure fresh data
+  useEffect(() => {
+    refetchCompanies();
+  }, [refetchCompanies]);
   const [chequeImage, setChequeImage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
 
   // Generate auto journal number
-  const generateJournalNumber = useCallback(() => {
+  const generateJournalNumber = useCallback(async () => {
+    try {
+      const api = getJournalEntriesApi();
+      const response = await api.getAll({ limit: 1 });
+      if (response.success && response.data) {
+        const nextNumber = (response.data.total || 0) + 1;
+        return `JE-${String(nextNumber).padStart(6, '0')}`;
+      }
+    } catch (err) {
+      console.error('Error generating journal number from API, falling back to localStorage:', err);
+    }
+    // Fallback to localStorage
     const savedEntries = localStorage.getItem('journalEntries');
     const entries = savedEntries ? JSON.parse(savedEntries) : [];
     const nextNumber = entries.length + 1;
@@ -107,49 +126,75 @@ const AddJournalEntryPage: React.FC = () => {
   // Check if memo is required (when reference type is Tax Adjustment or Opening Balance)
   const isMemoRequired = formData.referenceType === 'Tax Adjustment' || formData.referenceType === 'Opening Balance';
 
-  // Load companies and existing entry if editing
+  // Load existing entry if editing
   useEffect(() => {
-    try {
-      const savedCompanies = localStorage.getItem('companies');
-      if (savedCompanies) {
-        const parsed = JSON.parse(savedCompanies);
-        setCompanies(parsed.map((c: { id: number; companyName: string }) => ({
-          id: c.id,
-          name: c.companyName,
-        })));
-      }
-
-      if (isEditMode && id) {
-        const savedEntries = localStorage.getItem('journalEntries');
-        if (savedEntries) {
-          const entries = JSON.parse(savedEntries);
-          const entry = entries.find((e: { id: string }) => e.id === id);
-          if (entry) {
-            setFormData({
-              companyId: entry.companyId || '',
-              journalNumber: entry.journalNumber || '',
-              date: entry.date || '',
-              memo: entry.memo || '',
-              paymentMethod: entry.paymentMethod || '',
-              referenceType: entry.referenceType || '',
-              accountType: entry.accountType || '',
-              status: entry.status || 'Draft',
-            });
-            if (entry.lineItems) {
-              setLineItems(entry.lineItems);
+    const loadData = async () => {
+      try {
+        if (isEditMode && id) {
+          // Try to load from API first
+          try {
+            const api = getJournalEntriesApi();
+            const response = await api.getById(parseInt(id, 10));
+            if (response.success && response.data) {
+              const entry = response.data;
+              setFormData({
+                companyId: entry.companyId || '',
+                journalNumber: entry.entryNumber || '',
+                date: entry.date || '',
+                memo: entry.description || '',
+                paymentMethod: '',
+                referenceType: entry.reference || '',
+                accountType: '',
+                status: entry.status === 'draft' ? 'Draft' : entry.status === 'posted' ? 'Approved' : 'Pending',
+              });
+              if (entry.lines) {
+                setLineItems(entry.lines.map((line) => ({
+                  id: String(line.id || Date.now()),
+                  accountName: line.accountName || '',
+                  debit: String(line.debit || 0),
+                  credit: String(line.credit || 0),
+                })));
+              }
+              return;
             }
-            if (entry.chequeImage) {
-              setChequeImage(entry.chequeImage);
+          } catch (apiErr) {
+            console.error('Error loading entry from API, falling back to localStorage:', apiErr);
+          }
+
+          // Fallback to localStorage
+          const savedEntries = localStorage.getItem('journalEntries');
+          if (savedEntries) {
+            const entries = JSON.parse(savedEntries);
+            const entry = entries.find((e: { id: string }) => e.id === id);
+            if (entry) {
+              setFormData({
+                companyId: entry.companyId || '',
+                journalNumber: entry.journalNumber || '',
+                date: entry.date || '',
+                memo: entry.memo || '',
+                paymentMethod: entry.paymentMethod || '',
+                referenceType: entry.referenceType || '',
+                accountType: entry.accountType || '',
+                status: entry.status || 'Draft',
+              });
+              if (entry.lineItems) {
+                setLineItems(entry.lineItems);
+              }
+              if (entry.chequeImage) {
+                setChequeImage(entry.chequeImage);
+              }
             }
           }
+        } else {
+          // Auto-generate journal number for new entries
+          const journalNumber = await generateJournalNumber();
+          setFormData((prev) => ({ ...prev, journalNumber }));
         }
-      } else {
-        // Auto-generate journal number for new entries
-        setFormData((prev) => ({ ...prev, journalNumber: generateJournalNumber() }));
+      } catch (err) {
+        console.error('Error loading data:', err);
       }
-    } catch (err) {
-      console.error('Error loading data:', err);
-    }
+    };
+    loadData();
   }, [id, isEditMode, generateJournalNumber]);
 
   const handleInputChange = useCallback((field: keyof JournalEntryFormData, value: string | number) => {
@@ -276,7 +321,6 @@ const AddJournalEntryPage: React.FC = () => {
                       displayEmpty
                       sx={{ bgcolor: 'white' }}
                     >
-                      <MenuItem value="">EST Gas</MenuItem>
                       {companies.map((company) => (
                         <MenuItem key={company.id} value={company.id}>
                           {company.name}

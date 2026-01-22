@@ -25,6 +25,8 @@ const DangerZone: React.FC<DangerZoneProps> = ({
         border: '2px solid #EF5350',
         bgcolor: 'rgba(239, 83, 80, 0.02)',
       }}
+      role="region"
+      aria-labelledby="danger-zone-title"
     >
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2 }}>
         <Box
@@ -37,15 +39,16 @@ const DangerZone: React.FC<DangerZoneProps> = ({
             alignItems: 'center',
             justifyContent: 'center',
           }}
+          aria-hidden="true"
         >
           <WarningIcon sx={{ color: '#EF5350', fontSize: 24 }} />
         </Box>
-        <Typography variant="h6" sx={{ fontWeight: 600, color: '#EF5350' }}>
+        <Typography variant="h6" sx={{ fontWeight: 600, color: '#EF5350' }} id="danger-zone-title">
           Danger Zone
         </Typography>
       </Box>
 
-      <Alert severity="warning" sx={{ mb: 2 }}>
+      <Alert severity="warning" sx={{ mb: 2 }} id="danger-zone-warning">
         These actions are permanent and cannot be undone. Please proceed with
         caution.
       </Alert>
@@ -55,6 +58,8 @@ const DangerZone: React.FC<DangerZoneProps> = ({
         variant="contained"
         onClick={onDelete}
         disabled={isDeleting}
+        aria-label={`Delete this ${itemName.toLowerCase()}`}
+        aria-describedby="danger-zone-warning"
         sx={{
           bgcolor: 'rgba(239, 83, 80, 0.15)',
           color: '#EF5350',

@@ -4887,3 +4887,816 @@ export class UsersApi extends BaseAPI {
     }
 
 }
+
+/**
+ *
+ * @export
+ * @interface CreatePartyRequest
+ */
+export interface CreatePartyRequest {
+    /**
+     *
+     * @type {string}
+     * @memberof CreatePartyRequest
+     */
+    partyName: string;
+    /**
+     *
+     * @type {string}
+     * @memberof CreatePartyRequest
+     */
+    partyType: CreatePartyRequestPartyTypeEnum;
+    /**
+     *
+     * @type {string}
+     * @memberof CreatePartyRequest
+     */
+    ntnNumber: string;
+    /**
+     *
+     * @type {string}
+     * @memberof CreatePartyRequest
+     */
+    taxOffice?: string;
+    /**
+     *
+     * @type {string}
+     * @memberof CreatePartyRequest
+     */
+    salesTaxNumber: string;
+    /**
+     *
+     * @type {string}
+     * @memberof CreatePartyRequest
+     */
+    address?: string;
+    /**
+     *
+     * @type {string}
+     * @memberof CreatePartyRequest
+     */
+    contactName: string;
+    /**
+     *
+     * @type {string}
+     * @memberof CreatePartyRequest
+     */
+    contactCnic: string;
+    /**
+     *
+     * @type {string}
+     * @memberof CreatePartyRequest
+     */
+    contactEmail?: string;
+    /**
+     *
+     * @type {string}
+     * @memberof CreatePartyRequest
+     */
+    contactNumber: string;
+    /**
+     *
+     * @type {string}
+     * @memberof CreatePartyRequest
+     */
+    principalActivity?: string;
+    /**
+     *
+     * @type {number}
+     * @memberof CreatePartyRequest
+     */
+    companyId?: number;
+}
+
+/**
+ * @export
+ * @enum {string}
+ */
+export enum CreatePartyRequestPartyTypeEnum {
+    Customer = 'Customer',
+    Vendor = 'Vendor'
+}
+
+/**
+ *
+ * @export
+ * @interface UpdatePartyRequest
+ */
+export interface UpdatePartyRequest {
+    /**
+     *
+     * @type {string}
+     * @memberof UpdatePartyRequest
+     */
+    partyName?: string;
+    /**
+     *
+     * @type {string}
+     * @memberof UpdatePartyRequest
+     */
+    partyType?: UpdatePartyRequestPartyTypeEnum;
+    /**
+     *
+     * @type {string}
+     * @memberof UpdatePartyRequest
+     */
+    ntnNumber?: string;
+    /**
+     *
+     * @type {string}
+     * @memberof UpdatePartyRequest
+     */
+    taxOffice?: string;
+    /**
+     *
+     * @type {string}
+     * @memberof UpdatePartyRequest
+     */
+    salesTaxNumber?: string;
+    /**
+     *
+     * @type {string}
+     * @memberof UpdatePartyRequest
+     */
+    address?: string;
+    /**
+     *
+     * @type {string}
+     * @memberof UpdatePartyRequest
+     */
+    contactName?: string;
+    /**
+     *
+     * @type {string}
+     * @memberof UpdatePartyRequest
+     */
+    contactCnic?: string;
+    /**
+     *
+     * @type {string}
+     * @memberof UpdatePartyRequest
+     */
+    contactEmail?: string;
+    /**
+     *
+     * @type {string}
+     * @memberof UpdatePartyRequest
+     */
+    contactNumber?: string;
+    /**
+     *
+     * @type {string}
+     * @memberof UpdatePartyRequest
+     */
+    principalActivity?: string;
+    /**
+     *
+     * @type {number}
+     * @memberof UpdatePartyRequest
+     */
+    companyId?: number;
+    /**
+     *
+     * @type {boolean}
+     * @memberof UpdatePartyRequest
+     */
+    isActive?: boolean;
+}
+
+/**
+ * @export
+ * @enum {string}
+ */
+export enum UpdatePartyRequestPartyTypeEnum {
+    Customer = 'Customer',
+    Vendor = 'Vendor'
+}
+
+/**
+ *
+ * @export
+ * @interface Party
+ */
+export interface Party {
+    /**
+     *
+     * @type {number}
+     * @memberof Party
+     */
+    id?: number;
+    /**
+     *
+     * @type {string}
+     * @memberof Party
+     */
+    partyName?: string;
+    /**
+     *
+     * @type {string}
+     * @memberof Party
+     */
+    partyType?: PartyPartyTypeEnum;
+    /**
+     *
+     * @type {string}
+     * @memberof Party
+     */
+    ntnNumber?: string;
+    /**
+     *
+     * @type {string}
+     * @memberof Party
+     */
+    taxOffice?: string;
+    /**
+     *
+     * @type {string}
+     * @memberof Party
+     */
+    salesTaxNumber?: string;
+    /**
+     *
+     * @type {string}
+     * @memberof Party
+     */
+    address?: string;
+    /**
+     *
+     * @type {string}
+     * @memberof Party
+     */
+    contactName?: string;
+    /**
+     *
+     * @type {string}
+     * @memberof Party
+     */
+    contactCnic?: string;
+    /**
+     *
+     * @type {string}
+     * @memberof Party
+     */
+    contactEmail?: string;
+    /**
+     *
+     * @type {string}
+     * @memberof Party
+     */
+    contactNumber?: string;
+    /**
+     *
+     * @type {string}
+     * @memberof Party
+     */
+    principalActivity?: string;
+    /**
+     *
+     * @type {number}
+     * @memberof Party
+     */
+    companyId?: number;
+    /**
+     *
+     * @type {string}
+     * @memberof Party
+     */
+    companyName?: string;
+    /**
+     *
+     * @type {boolean}
+     * @memberof Party
+     */
+    isActive?: boolean;
+    /**
+     *
+     * @type {Date}
+     * @memberof Party
+     */
+    createdAt?: Date;
+    /**
+     *
+     * @type {Date}
+     * @memberof Party
+     */
+    updatedAt?: Date;
+}
+
+/**
+ * @export
+ * @enum {string}
+ */
+export enum PartyPartyTypeEnum {
+    Customer = 'Customer',
+    Vendor = 'Vendor'
+}
+
+/**
+ *
+ * @export
+ * @interface PartiesResponse
+ */
+export interface PartiesResponse {
+    /**
+     *
+     * @type {boolean}
+     * @memberof PartiesResponse
+     */
+    success?: boolean;
+    /**
+     *
+     * @type {string}
+     * @memberof PartiesResponse
+     */
+    message?: string;
+    /**
+     *
+     * @type {PartiesResponseData}
+     * @memberof PartiesResponse
+     */
+    data?: PartiesResponseData;
+}
+
+/**
+ *
+ * @export
+ * @interface PartiesResponseData
+ */
+export interface PartiesResponseData {
+    /**
+     *
+     * @type {Array<Party>}
+     * @memberof PartiesResponseData
+     */
+    data?: Array<Party>;
+    /**
+     *
+     * @type {number}
+     * @memberof PartiesResponseData
+     */
+    total?: number;
+    /**
+     *
+     * @type {number}
+     * @memberof PartiesResponseData
+     */
+    limit?: number;
+    /**
+     *
+     * @type {number}
+     * @memberof PartiesResponseData
+     */
+    offset?: number;
+}
+
+/**
+ *
+ * @export
+ * @interface PartyResponse
+ */
+export interface PartyResponse {
+    /**
+     *
+     * @type {boolean}
+     * @memberof PartyResponse
+     */
+    success?: boolean;
+    /**
+     *
+     * @type {string}
+     * @memberof PartyResponse
+     */
+    message?: string;
+    /**
+     *
+     * @type {Party}
+     * @memberof PartyResponse
+     */
+    data?: Party;
+}
+
+/**
+ * PartiesApi - fetch parameter creator
+ * @export
+ */
+export const PartiesApiFetchParamCreator = function (configuration?: Configuration) {
+    return {
+        /**
+         * Retrieve all parties (requires party:read permission)
+         * @summary Get all parties
+         * @param {boolean} [isActive] Filter by active status
+         * @param {string} [partyType] Filter by party type (Customer or Vendor)
+         * @param {number} [companyId] Filter by company ID
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        v1ApiPartiesGet(isActive?: boolean, partyType?: string, companyId?: number, options: any = {}): FetchArgs {
+            const localVarPath = `/v1/api/parties`;
+            const localVarUrlObj = url.parse(localVarPath, true);
+            const localVarRequestOptions = Object.assign({ method: 'GET' }, options);
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication bearerAuth required
+
+            if (isActive !== undefined) {
+                localVarQueryParameter['isActive'] = isActive;
+            }
+
+            if (partyType !== undefined) {
+                localVarQueryParameter['partyType'] = partyType;
+            }
+
+            if (companyId !== undefined) {
+                localVarQueryParameter['companyId'] = companyId;
+            }
+
+            localVarUrlObj.query = Object.assign({}, localVarUrlObj.query, localVarQueryParameter, options.query);
+            // fix override query string Detail: https://stackoverflow.com/a/7517673/1077943
+            localVarUrlObj.search = null;
+            localVarRequestOptions.headers = Object.assign({}, localVarHeaderParameter, options.headers);
+
+            return {
+                url: url.format(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * Soft delete a party by setting isActive to false (requires party:delete permission)
+         * @summary Delete party by ID (soft delete)
+         * @param {number} id Party ID
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        v1ApiPartiesIdDelete(id: number, options: any = {}): FetchArgs {
+            // verify required parameter 'id' is not null or undefined
+            if (id === null || id === undefined) {
+                throw new RequiredError('id','Required parameter id was null or undefined when calling v1ApiPartiesIdDelete.');
+            }
+            const localVarPath = `/v1/api/parties/{id}`
+                .replace(`{${"id"}}`, encodeURIComponent(String(id)));
+            const localVarUrlObj = url.parse(localVarPath, true);
+            const localVarRequestOptions = Object.assign({ method: 'DELETE' }, options);
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication bearerAuth required
+
+            localVarUrlObj.query = Object.assign({}, localVarUrlObj.query, localVarQueryParameter, options.query);
+            // fix override query string Detail: https://stackoverflow.com/a/7517673/1077943
+            localVarUrlObj.search = null;
+            localVarRequestOptions.headers = Object.assign({}, localVarHeaderParameter, options.headers);
+
+            return {
+                url: url.format(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * Retrieve a single party by ID (requires party:read permission)
+         * @summary Get party by ID
+         * @param {number} id Party ID
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        v1ApiPartiesIdGet(id: number, options: any = {}): FetchArgs {
+            // verify required parameter 'id' is not null or undefined
+            if (id === null || id === undefined) {
+                throw new RequiredError('id','Required parameter id was null or undefined when calling v1ApiPartiesIdGet.');
+            }
+            const localVarPath = `/v1/api/parties/{id}`
+                .replace(`{${"id"}}`, encodeURIComponent(String(id)));
+            const localVarUrlObj = url.parse(localVarPath, true);
+            const localVarRequestOptions = Object.assign({ method: 'GET' }, options);
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication bearerAuth required
+
+            localVarUrlObj.query = Object.assign({}, localVarUrlObj.query, localVarQueryParameter, options.query);
+            // fix override query string Detail: https://stackoverflow.com/a/7517673/1077943
+            localVarUrlObj.search = null;
+            localVarRequestOptions.headers = Object.assign({}, localVarHeaderParameter, options.headers);
+
+            return {
+                url: url.format(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * Update party details (requires party:update permission)
+         * @summary Update party by ID
+         * @param {UpdatePartyRequest} body
+         * @param {number} id Party ID
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        v1ApiPartiesIdPut(body: UpdatePartyRequest, id: number, options: any = {}): FetchArgs {
+            // verify required parameter 'body' is not null or undefined
+            if (body === null || body === undefined) {
+                throw new RequiredError('body','Required parameter body was null or undefined when calling v1ApiPartiesIdPut.');
+            }
+            // verify required parameter 'id' is not null or undefined
+            if (id === null || id === undefined) {
+                throw new RequiredError('id','Required parameter id was null or undefined when calling v1ApiPartiesIdPut.');
+            }
+            const localVarPath = `/v1/api/parties/{id}`
+                .replace(`{${"id"}}`, encodeURIComponent(String(id)));
+            const localVarUrlObj = url.parse(localVarPath, true);
+            const localVarRequestOptions = Object.assign({ method: 'PUT' }, options);
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication bearerAuth required
+
+            localVarHeaderParameter['Content-Type'] = 'application/json';
+
+            localVarUrlObj.query = Object.assign({}, localVarUrlObj.query, localVarQueryParameter, options.query);
+            // fix override query string Detail: https://stackoverflow.com/a/7517673/1077943
+            localVarUrlObj.search = null;
+            localVarRequestOptions.headers = Object.assign({}, localVarHeaderParameter, options.headers);
+            const needsSerialization = (<any>"UpdatePartyRequest" !== "string") || localVarRequestOptions.headers['Content-Type'] === 'application/json';
+            localVarRequestOptions.body =  needsSerialization ? JSON.stringify(body || {}) : (body || "");
+
+            return {
+                url: url.format(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * Create a new party (requires party:create permission)
+         * @summary Create a new party
+         * @param {CreatePartyRequest} body
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        v1ApiPartiesPost(body: CreatePartyRequest, options: any = {}): FetchArgs {
+            // verify required parameter 'body' is not null or undefined
+            if (body === null || body === undefined) {
+                throw new RequiredError('body','Required parameter body was null or undefined when calling v1ApiPartiesPost.');
+            }
+            const localVarPath = `/v1/api/parties`;
+            const localVarUrlObj = url.parse(localVarPath, true);
+            const localVarRequestOptions = Object.assign({ method: 'POST' }, options);
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication bearerAuth required
+
+            localVarHeaderParameter['Content-Type'] = 'application/json';
+
+            localVarUrlObj.query = Object.assign({}, localVarUrlObj.query, localVarQueryParameter, options.query);
+            // fix override query string Detail: https://stackoverflow.com/a/7517673/1077943
+            localVarUrlObj.search = null;
+            localVarRequestOptions.headers = Object.assign({}, localVarHeaderParameter, options.headers);
+            const needsSerialization = (<any>"CreatePartyRequest" !== "string") || localVarRequestOptions.headers['Content-Type'] === 'application/json';
+            localVarRequestOptions.body =  needsSerialization ? JSON.stringify(body || {}) : (body || "");
+
+            return {
+                url: url.format(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+    }
+};
+
+/**
+ * PartiesApi - functional programming interface
+ * @export
+ */
+export const PartiesApiFp = function(configuration?: Configuration) {
+    return {
+        /**
+         * Retrieve all parties (requires party:read permission)
+         * @summary Get all parties
+         * @param {boolean} [isActive] Filter by active status
+         * @param {string} [partyType] Filter by party type (Customer or Vendor)
+         * @param {number} [companyId] Filter by company ID
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        v1ApiPartiesGet(isActive?: boolean, partyType?: string, companyId?: number, options?: any): (fetch?: FetchAPI, basePath?: string) => Promise<PartiesResponse> {
+            const localVarFetchArgs = PartiesApiFetchParamCreator(configuration).v1ApiPartiesGet(isActive, partyType, companyId, options);
+            return (fetch: FetchAPI = isomorphicFetch, basePath: string = BASE_PATH) => {
+                return fetch(basePath + localVarFetchArgs.url, localVarFetchArgs.options).then((response) => {
+                    if (response.status >= 200 && response.status < 300) {
+                        return response.json();
+                    } else {
+                        throw response;
+                    }
+                });
+            };
+        },
+        /**
+         * Soft delete a party by setting isActive to false (requires party:delete permission)
+         * @summary Delete party by ID (soft delete)
+         * @param {number} id Party ID
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        v1ApiPartiesIdDelete(id: number, options?: any): (fetch?: FetchAPI, basePath?: string) => Promise<PartyResponse> {
+            const localVarFetchArgs = PartiesApiFetchParamCreator(configuration).v1ApiPartiesIdDelete(id, options);
+            return (fetch: FetchAPI = isomorphicFetch, basePath: string = BASE_PATH) => {
+                return fetch(basePath + localVarFetchArgs.url, localVarFetchArgs.options).then((response) => {
+                    if (response.status >= 200 && response.status < 300) {
+                        return response.json();
+                    } else {
+                        throw response;
+                    }
+                });
+            };
+        },
+        /**
+         * Retrieve a single party by ID (requires party:read permission)
+         * @summary Get party by ID
+         * @param {number} id Party ID
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        v1ApiPartiesIdGet(id: number, options?: any): (fetch?: FetchAPI, basePath?: string) => Promise<PartyResponse> {
+            const localVarFetchArgs = PartiesApiFetchParamCreator(configuration).v1ApiPartiesIdGet(id, options);
+            return (fetch: FetchAPI = isomorphicFetch, basePath: string = BASE_PATH) => {
+                return fetch(basePath + localVarFetchArgs.url, localVarFetchArgs.options).then((response) => {
+                    if (response.status >= 200 && response.status < 300) {
+                        return response.json();
+                    } else {
+                        throw response;
+                    }
+                });
+            };
+        },
+        /**
+         * Update party details (requires party:update permission)
+         * @summary Update party by ID
+         * @param {UpdatePartyRequest} body
+         * @param {number} id Party ID
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        v1ApiPartiesIdPut(body: UpdatePartyRequest, id: number, options?: any): (fetch?: FetchAPI, basePath?: string) => Promise<PartyResponse> {
+            const localVarFetchArgs = PartiesApiFetchParamCreator(configuration).v1ApiPartiesIdPut(body, id, options);
+            return (fetch: FetchAPI = isomorphicFetch, basePath: string = BASE_PATH) => {
+                return fetch(basePath + localVarFetchArgs.url, localVarFetchArgs.options).then((response) => {
+                    if (response.status >= 200 && response.status < 300) {
+                        return response.json();
+                    } else {
+                        throw response;
+                    }
+                });
+            };
+        },
+        /**
+         * Create a new party (requires party:create permission)
+         * @summary Create a new party
+         * @param {CreatePartyRequest} body
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        v1ApiPartiesPost(body: CreatePartyRequest, options?: any): (fetch?: FetchAPI, basePath?: string) => Promise<PartyResponse> {
+            const localVarFetchArgs = PartiesApiFetchParamCreator(configuration).v1ApiPartiesPost(body, options);
+            return (fetch: FetchAPI = isomorphicFetch, basePath: string = BASE_PATH) => {
+                return fetch(basePath + localVarFetchArgs.url, localVarFetchArgs.options).then((response) => {
+                    if (response.status >= 200 && response.status < 300) {
+                        return response.json();
+                    } else {
+                        throw response;
+                    }
+                });
+            };
+        },
+    }
+};
+
+/**
+ * PartiesApi - factory interface
+ * @export
+ */
+export const PartiesApiFactory = function (configuration?: Configuration, fetch?: FetchAPI, basePath?: string) {
+    return {
+        /**
+         * Retrieve all parties (requires party:read permission)
+         * @summary Get all parties
+         * @param {boolean} [isActive] Filter by active status
+         * @param {string} [partyType] Filter by party type (Customer or Vendor)
+         * @param {number} [companyId] Filter by company ID
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        v1ApiPartiesGet(isActive?: boolean, partyType?: string, companyId?: number, options?: any) {
+            return PartiesApiFp(configuration).v1ApiPartiesGet(isActive, partyType, companyId, options)(fetch, basePath);
+        },
+        /**
+         * Soft delete a party by setting isActive to false (requires party:delete permission)
+         * @summary Delete party by ID (soft delete)
+         * @param {number} id Party ID
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        v1ApiPartiesIdDelete(id: number, options?: any) {
+            return PartiesApiFp(configuration).v1ApiPartiesIdDelete(id, options)(fetch, basePath);
+        },
+        /**
+         * Retrieve a single party by ID (requires party:read permission)
+         * @summary Get party by ID
+         * @param {number} id Party ID
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        v1ApiPartiesIdGet(id: number, options?: any) {
+            return PartiesApiFp(configuration).v1ApiPartiesIdGet(id, options)(fetch, basePath);
+        },
+        /**
+         * Update party details (requires party:update permission)
+         * @summary Update party by ID
+         * @param {UpdatePartyRequest} body
+         * @param {number} id Party ID
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        v1ApiPartiesIdPut(body: UpdatePartyRequest, id: number, options?: any) {
+            return PartiesApiFp(configuration).v1ApiPartiesIdPut(body, id, options)(fetch, basePath);
+        },
+        /**
+         * Create a new party (requires party:create permission)
+         * @summary Create a new party
+         * @param {CreatePartyRequest} body
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        v1ApiPartiesPost(body: CreatePartyRequest, options?: any) {
+            return PartiesApiFp(configuration).v1ApiPartiesPost(body, options)(fetch, basePath);
+        },
+    };
+};
+
+/**
+ * PartiesApi - object-oriented interface
+ * @export
+ * @class PartiesApi
+ * @extends {BaseAPI}
+ */
+export class PartiesApi extends BaseAPI {
+    /**
+     * Retrieve all parties (requires party:read permission)
+     * @summary Get all parties
+     * @param {boolean} [isActive] Filter by active status
+     * @param {string} [partyType] Filter by party type (Customer or Vendor)
+     * @param {number} [companyId] Filter by company ID
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof PartiesApi
+     */
+    public v1ApiPartiesGet(isActive?: boolean, partyType?: string, companyId?: number, options?: any) {
+        return PartiesApiFp(this.configuration).v1ApiPartiesGet(isActive, partyType, companyId, options)(this.fetch, this.basePath);
+    }
+
+    /**
+     * Soft delete a party by setting isActive to false (requires party:delete permission)
+     * @summary Delete party by ID (soft delete)
+     * @param {number} id Party ID
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof PartiesApi
+     */
+    public v1ApiPartiesIdDelete(id: number, options?: any) {
+        return PartiesApiFp(this.configuration).v1ApiPartiesIdDelete(id, options)(this.fetch, this.basePath);
+    }
+
+    /**
+     * Retrieve a single party by ID (requires party:read permission)
+     * @summary Get party by ID
+     * @param {number} id Party ID
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof PartiesApi
+     */
+    public v1ApiPartiesIdGet(id: number, options?: any) {
+        return PartiesApiFp(this.configuration).v1ApiPartiesIdGet(id, options)(this.fetch, this.basePath);
+    }
+
+    /**
+     * Update party details (requires party:update permission)
+     * @summary Update party by ID
+     * @param {UpdatePartyRequest} body
+     * @param {number} id Party ID
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof PartiesApi
+     */
+    public v1ApiPartiesIdPut(body: UpdatePartyRequest, id: number, options?: any) {
+        return PartiesApiFp(this.configuration).v1ApiPartiesIdPut(body, id, options)(this.fetch, this.basePath);
+    }
+
+    /**
+     * Create a new party (requires party:create permission)
+     * @summary Create a new party
+     * @param {CreatePartyRequest} body
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof PartiesApi
+     */
+    public v1ApiPartiesPost(body: CreatePartyRequest, options?: any) {
+        return PartiesApiFp(this.configuration).v1ApiPartiesPost(body, options)(this.fetch, this.basePath);
+    }
+
+}

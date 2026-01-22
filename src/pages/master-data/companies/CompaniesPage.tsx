@@ -14,6 +14,7 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  TableSortLabel,
   Typography,
   Avatar,
   FormControl,
@@ -35,6 +36,8 @@ import { preloadRoute } from '../../../utils/routePreloader';
 import TableSkeleton from '../../../components/common/TableSkeleton';
 import LazyImage from '../../../components/common/LazyImage';
 import FilterManager, { type FilterField } from '../../../components/common/FilterManager';
+import ConfirmDialog from '../../../components/feedback/ConfirmDialog';
+import { COLORS } from '../../../constants/colors';
 import { getCompaniesApi } from '../../../generated/api/client';
 import type { Company as ApiCompany } from '../../../generated/api/api';
 
@@ -76,10 +79,16 @@ const CompaniesPage: React.FC = () => {
   const [successMessage, setSuccessMessage] = useState<string>('');
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [orderBy, setOrderBy] = useState<string>('companyName');
+  const [order, setOrder] = useState<'asc' | 'desc'>('asc');
 
   // State for filter popup
   const [filterAnchorEl, setFilterAnchorEl] = useState<HTMLButtonElement | null>(null);
   const filterOpen = Boolean(filterAnchorEl);
+  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; id: number | null }>({
+    open: false,
+    id: null,
+  });
 
   // Debounce search for better performance
   const debouncedSearch = useDebounce(searchTerm, 300);
@@ -134,10 +143,10 @@ const CompaniesPage: React.FC = () => {
 
     try {
       const companiesApi = getCompaniesApi();
-      const response = await companiesApi.v1ApiCompaniesGet();
+      const { data: response } = await companiesApi.v1ApiCompaniesGet();
 
       // Transform API response to match our local interface
-      const transformedCompanies: Company[] = (response as any).data.map((company: ApiCompany) => ({
+      const transformedCompanies: Company[] = (response as ApiCompany[]).map((company: ApiCompany) => ({
         id: company.id!,
         companyName: company.name || '',
         industry: 'Gas & Fuel', // Default since API doesn't have industry field
@@ -155,44 +164,15 @@ const CompaniesPage: React.FC = () => {
 
       // Also save to localStorage as backup
       localStorage.setItem('companies', JSON.stringify(transformedCompanies));
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error loading companies:', err);
       setError('Failed to load companies. Loading from local storage...');
 
       // Fallback to localStorage
       const savedCompanies = localStorage.getItem('companies');
+
       if (savedCompanies) {
         setCompanies(JSON.parse(savedCompanies));
-      } else {
-        // Initialize with sample data as last resort
-        const sampleData: Company[] = [
-          {
-            id: 1,
-            companyName: 'Petrozen Gases and Fuels PTV',
-            industry: 'Gas & Fuel',
-            user: '124',
-            status: 'Active',
-            subscriptionEnd: '2025-12-31',
-          },
-          {
-            id: 2,
-            companyName: 'EST Gas Distribution Ltd',
-            industry: 'Gas & Fuel',
-            user: '89',
-            status: 'Active',
-            subscriptionEnd: '2025-09-30',
-          },
-          {
-            id: 3,
-            companyName: 'Rana Gas Corporation',
-            industry: 'Gas & Fuel',
-            user: '56',
-            status: 'Inactive',
-            subscriptionEnd: '2024-12-31',
-          },
-        ];
-        setCompanies(sampleData);
-        localStorage.setItem('companies', JSON.stringify(sampleData));
       }
     } finally {
       setIsLoading(false);
@@ -203,7 +183,14 @@ const CompaniesPage: React.FC = () => {
     loadCompanies();
   }, [loadCompanies]);
 
-  // Memoized filtering for better performance
+  // Sort handler
+  const handleSort = useCallback((property: string) => {
+    const isAsc = orderBy === property && order === 'asc';
+    setOrder(isAsc ? 'desc' : 'asc');
+    setOrderBy(property);
+  }, [orderBy, order]);
+
+  // Memoized filtering and sorting for better performance
   const filteredCompanies = useMemo(() => {
     let filtered = companies;
 
@@ -224,8 +211,43 @@ const CompaniesPage: React.FC = () => {
       filtered = filtered.filter((company) => company.status === selectedStatus);
     }
 
-    return filtered;
-  }, [debouncedSearch, selectedIndustry, selectedStatus, companies]);
+    // Sort the filtered results
+    const sorted = [...filtered].sort((a, b) => {
+      let aValue: string | number = '';
+      let bValue: string | number = '';
+
+      switch (orderBy) {
+        case 'companyName':
+          aValue = a.companyName.toLowerCase();
+          bValue = b.companyName.toLowerCase();
+          break;
+        case 'industry':
+          aValue = a.industry.toLowerCase();
+          bValue = b.industry.toLowerCase();
+          break;
+        case 'user':
+          aValue = a.user.toLowerCase();
+          bValue = b.user.toLowerCase();
+          break;
+        case 'status':
+          aValue = a.status;
+          bValue = b.status;
+          break;
+        case 'subscriptionEnd':
+          aValue = new Date(a.subscriptionEnd).getTime();
+          bValue = new Date(b.subscriptionEnd).getTime();
+          break;
+        default:
+          return 0;
+      }
+
+      if (aValue < bValue) return order === 'asc' ? -1 : 1;
+      if (aValue > bValue) return order === 'asc' ? 1 : -1;
+      return 0;
+    });
+
+    return sorted;
+  }, [debouncedSearch, selectedIndustry, selectedStatus, companies, orderBy, order]);
 
   // Paginated companies
   const paginatedCompanies = useMemo(() => {
@@ -248,24 +270,33 @@ const CompaniesPage: React.FC = () => {
   }, [navigate]);
 
   // Memoized delete handler with API
-  const handleDelete = useCallback(async (id: number) => {
-    if (window.confirm('Are you sure you want to delete this company?')) {
+  const handleDeleteClick = useCallback((id: number) => {
+    setDeleteDialog({ open: true, id });
+  }, []);
+
+  const handleDeleteConfirm = useCallback(async () => {
+    if (deleteDialog.id) {
       try {
         const companiesApi = getCompaniesApi();
-        await companiesApi.v1ApiCompaniesIdDelete(id);
+        await companiesApi.v1ApiCompaniesIdDelete(deleteDialog.id);
 
         // Update local state
-        const updatedCompanies = companies.filter((company) => company.id !== id);
+        const updatedCompanies = companies.filter((company) => company.id !== deleteDialog.id);
         setCompanies(updatedCompanies);
         localStorage.setItem('companies', JSON.stringify(updatedCompanies));
 
         setSuccessMessage('Company deleted successfully');
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error('Error deleting company:', err);
         setError('Failed to delete company. Please try again.');
       }
     }
-  }, [companies]);
+    setDeleteDialog({ open: false, id: null });
+  }, [companies, deleteDialog.id]);
+
+  const handleDeleteCancel = useCallback(() => {
+    setDeleteDialog({ open: false, id: null });
+  }, []);
 
   // Preload Add Company page on button hover
   const handleAddButtonHover = useCallback(() => {
@@ -398,9 +429,9 @@ const CompaniesPage: React.FC = () => {
               borderRadius: 2,
               textTransform: 'none',
               px: 3,
-              bgcolor: '#FF6B35',
+              bgcolor: COLORS.primary,
               '&:hover': {
-                bgcolor: '#FF8E53',
+                bgcolor: COLORS.primaryHover,
               },
             }}
           >
@@ -424,16 +455,71 @@ const CompaniesPage: React.FC = () => {
       {/* Table */}
       <Card>
         <TableContainer>
-          <Table>
+          <Table aria-label="Companies list">
             <TableHead>
               <TableRow>
-                <TableCell>Logo</TableCell>
-                <TableCell>Company Name</TableCell>
-                <TableCell>Industry</TableCell>
-                <TableCell>User</TableCell>
-                <TableCell>Status</TableCell>
-                <TableCell>Subscription End</TableCell>
-                <TableCell align="right">Actions</TableCell>
+                <TableCell scope="col">Logo</TableCell>
+                <TableCell
+                  scope="col"
+                  aria-sort={orderBy === 'companyName' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'companyName'}
+                    direction={orderBy === 'companyName' ? order : 'asc'}
+                    onClick={() => handleSort('companyName')}
+                  >
+                    Company Name
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell
+                  scope="col"
+                  aria-sort={orderBy === 'industry' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'industry'}
+                    direction={orderBy === 'industry' ? order : 'asc'}
+                    onClick={() => handleSort('industry')}
+                  >
+                    Industry
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell
+                  scope="col"
+                  aria-sort={orderBy === 'user' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'user'}
+                    direction={orderBy === 'user' ? order : 'asc'}
+                    onClick={() => handleSort('user')}
+                  >
+                    User
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell
+                  scope="col"
+                  aria-sort={orderBy === 'status' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'status'}
+                    direction={orderBy === 'status' ? order : 'asc'}
+                    onClick={() => handleSort('status')}
+                  >
+                    Status
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell
+                  scope="col"
+                  aria-sort={orderBy === 'subscriptionEnd' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'subscriptionEnd'}
+                    direction={orderBy === 'subscriptionEnd' ? order : 'asc'}
+                    onClick={() => handleSort('subscriptionEnd')}
+                  >
+                    Subscription End
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell scope="col" align="right">Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -472,7 +558,7 @@ const CompaniesPage: React.FC = () => {
                             height: 40,
                           }}
                         >
-                          🍎
+                          {company.companyName.charAt(0).toUpperCase()}
                         </Avatar>
                       )}
                     </TableCell>
@@ -518,6 +604,7 @@ const CompaniesPage: React.FC = () => {
                         size="small"
                         onClick={() => handleEdit(company.id)}
                         sx={{ mr: 1 }}
+                        aria-label={`Edit ${company.companyName}`}
                       >
                         <EditIcon fontSize="small" />
                       </IconButton>
@@ -525,9 +612,10 @@ const CompaniesPage: React.FC = () => {
                         size="small"
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleDelete(company.id);
+                          handleDeleteClick(company.id);
                         }}
-                        sx={{ color: 'error.main' }}
+                        sx={{ color: COLORS.error }}
+                        aria-label={`Delete ${company.companyName}`}
                       >
                         <DeleteIcon fontSize="small" />
                       </IconButton>
@@ -550,6 +638,7 @@ const CompaniesPage: React.FC = () => {
             onRowsPerPageChange={handleChangeRowsPerPage}
             rowsPerPageOptions={[5, 10, 25, 50]}
             sx={{ borderTop: '1px solid #E0E0E0' }}
+            aria-label="Companies table pagination"
           />
         )}
       </Card>
@@ -577,6 +666,17 @@ const CompaniesPage: React.FC = () => {
           {error}
         </Alert>
       </Snackbar>
+
+      <ConfirmDialog
+        open={deleteDialog.open}
+        title="Delete Company"
+        message="Are you sure you want to delete this company? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        confirmColor="error"
+        onConfirm={handleDeleteConfirm}
+        onCancel={handleDeleteCancel}
+      />
     </Box>
   );
 };

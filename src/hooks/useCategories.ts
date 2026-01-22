@@ -1,29 +1,57 @@
-import { useState, useEffect } from 'react'
-import { Category } from '../types'
+import { useState, useEffect, useCallback } from 'react';
+import { Category } from '../types';
+import { getCategoriesApi } from '../generated/api/client';
 
-export const useCategories = () => {
-  const [categories, setCategories] = useState<Category[]>([])
-
-  useEffect(() => {
-    const loadCategories = () => {
-      const stored = localStorage.getItem('erp_categories')
-      setCategories(stored ? JSON.parse(stored) : [])
-    }
-
-    loadCategories()
-    // Listen for storage changes to sync across tabs
-    window.addEventListener('storage', loadCategories)
-    
-    // Custom event for same-tab updates
-    const handleStorageChange = () => loadCategories()
-    window.addEventListener('categoriesUpdated', handleStorageChange)
-
-    return () => {
-      window.removeEventListener('storage', loadCategories)
-      window.removeEventListener('categoriesUpdated', handleStorageChange)
-    }
-  }, [])
-
-  return { categories }
+// Type for API category response
+interface ApiCategoryResponse {
+  id?: number;
+  categoryName?: string;
+  description?: string;
+  isActive?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
+export const useCategories = () => {
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadCategories = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const categoriesApi = getCategoriesApi();
+      const response = await categoriesApi.v1ApiCategoriesGet(true);
+      if (response.data) {
+        setCategories(
+          response.data.map((c: ApiCategoryResponse) => ({
+            id: c.id,
+            name: c.categoryName,
+            categoryName: c.categoryName,
+            description: c.description,
+            isActive: c.isActive,
+            createdAt: c.createdAt,
+            updatedAt: c.updatedAt,
+          }))
+        );
+      }
+    } catch (err: unknown) {
+      console.error('Error loading categories:', err);
+      setError('Failed to load categories');
+      setCategories([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadCategories();
+  }, [loadCategories]);
+
+  const refetch = useCallback(() => {
+    loadCategories();
+  }, [loadCategories]);
+
+  return { categories, loading, error, refetch };
+};

@@ -9,6 +9,7 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  TableSortLabel,
   IconButton,
   Chip,
   Typography,
@@ -20,6 +21,8 @@ import {
   Select,
   MenuItem,
   Popover,
+  Snackbar,
+  Alert,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -29,22 +32,21 @@ import {
   FilterList as FilterIcon,
   Print as PrintIcon,
   GridOn as GridIcon,
+  CheckCircle as CompleteIcon,
+  Cancel as VoidIcon,
 } from '@mui/icons-material';
 import TableSkeleton from '../../../components/common/TableSkeleton';
 import ConfirmDialog from '../../../components/common/ConfirmDialog';
 import { COLORS } from '../../../constants/colors';
+import {
+  getBankDepositsApi,
+  BankDeposit,
+  BankDepositStatus,
+  BankDepositFilters,
+} from '../../../generated/api/client';
 
-interface BankDeposit {
-  id: string;
-  companyId?: number;
-  companyName: string;
-  date: string;
-  bankAccount: string;
-  depositNumber: string;
-  totalAmount: number;
-  status: 'Submit' | 'Reject';
-  createdAt: string;
-}
+type Order = 'asc' | 'desc';
+type BankDepositOrderBy = 'companyName' | 'date' | 'depositNumber' | 'reference' | 'amount' | 'status';
 
 const BankDepositListPage: React.FC = () => {
   const navigate = useNavigate();
@@ -59,71 +61,210 @@ const BankDepositListPage: React.FC = () => {
     number: '',
     bankAccount: '',
     depositNumber: '',
-    status: '',
+    status: '' as BankDepositStatus | '',
   });
-  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; id: string | null }>({
+  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; id: number | null }>({
     open: false,
     id: null,
   });
+  const [snackbar, setSnackbar] = useState<{
+    open: boolean;
+    message: string;
+    severity: 'success' | 'error' | 'info' | 'warning';
+  }>({
+    open: false,
+    message: '',
+    severity: 'success',
+  });
 
-  // Load deposits from localStorage
-  useEffect(() => {
-    const loadDeposits = () => {
-      try {
-        const savedDeposits = localStorage.getItem('bankDeposits');
-        if (savedDeposits) {
-          setDeposits(JSON.parse(savedDeposits));
-        }
-      } catch (error) {
-        console.error('Error loading deposits:', error);
-      } finally {
-        setLoading(false);
+  // Sorting state
+  const [orderBy, setOrderBy] = useState<BankDepositOrderBy>('date');
+  const [order, setOrder] = useState<Order>('desc');
+
+  // Load deposits from API
+  const loadDeposits = useCallback(async () => {
+    setLoading(true);
+    try {
+      const api = getBankDepositsApi();
+      const apiFilters: BankDepositFilters = {
+        isActive: true,
+      };
+
+      if (filters.status) {
+        apiFilters.status = filters.status as BankDepositStatus;
       }
-    };
-    setTimeout(loadDeposits, 500);
-  }, []);
+      if (filters.dateFrom) {
+        apiFilters.dateFrom = filters.dateFrom;
+      }
+      if (filters.dateTo) {
+        apiFilters.dateTo = filters.dateTo;
+      }
 
-  // Filter deposits
+      const response = await api.getAll(apiFilters);
+      if (response.success && response.data) {
+        setDeposits(response.data.data || []);
+      }
+    } catch (error) {
+      console.error('Error loading deposits:', error);
+      setSnackbar({
+        open: true,
+        message: error instanceof Error ? error.message : 'Failed to load bank deposits',
+        severity: 'error',
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, [filters.status, filters.dateFrom, filters.dateTo]);
+
+  useEffect(() => {
+    loadDeposits();
+  }, [loadDeposits]);
+
+  // Handle sort
+  const handleSort = useCallback((property: BankDepositOrderBy) => {
+    setOrder((prevOrder) => (orderBy === property && prevOrder === 'asc' ? 'desc' : 'asc'));
+    setOrderBy(property);
+  }, [orderBy]);
+
+  // Filter and sort deposits locally for search and other filters
   const filteredDeposits = useMemo(() => {
-    return deposits.filter((deposit) => {
+    const filtered = deposits.filter((deposit) => {
       const matchesSearch =
         !searchTerm ||
-        deposit.companyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (deposit.companyName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
         deposit.depositNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        deposit.bankAccount.toLowerCase().includes(searchTerm.toLowerCase());
+        (deposit.reference || '').toLowerCase().includes(searchTerm.toLowerCase());
 
       const matchesCompany = !filters.company || deposit.companyName === filters.company;
-      const matchesStatus = !filters.status || deposit.status === filters.status;
-      const matchesBankAccount = !filters.bankAccount || deposit.bankAccount === filters.bankAccount;
+      const matchesBankAccount = !filters.bankAccount || String(deposit.bankAccountId) === filters.bankAccount;
 
-      return matchesSearch && matchesCompany && matchesStatus && matchesBankAccount;
+      return matchesSearch && matchesCompany && matchesBankAccount;
     });
-  }, [deposits, searchTerm, filters]);
+
+    // Sort the filtered deposits
+    const sortedDeposits = [...filtered].sort((a, b) => {
+      let aValue: string | number = '';
+      let bValue: string | number = '';
+
+      switch (orderBy) {
+        case 'companyName':
+          aValue = a.companyName || '';
+          bValue = b.companyName || '';
+          break;
+        case 'date':
+          aValue = new Date(a.date).getTime();
+          bValue = new Date(b.date).getTime();
+          break;
+        case 'depositNumber':
+          aValue = a.depositNumber || '';
+          bValue = b.depositNumber || '';
+          break;
+        case 'reference':
+          aValue = a.reference || '';
+          bValue = b.reference || '';
+          break;
+        case 'amount':
+          aValue = a.amount;
+          bValue = b.amount;
+          break;
+        case 'status':
+          aValue = a.status;
+          bValue = b.status;
+          break;
+        default:
+          return 0;
+      }
+
+      if (typeof aValue === 'string' && typeof bValue === 'string') {
+        return order === 'asc'
+          ? aValue.localeCompare(bValue)
+          : bValue.localeCompare(aValue);
+      }
+
+      if (order === 'asc') {
+        return aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
+      }
+      return aValue > bValue ? -1 : aValue < bValue ? 1 : 0;
+    });
+
+    return sortedDeposits;
+  }, [deposits, searchTerm, filters.company, filters.bankAccount, orderBy, order]);
 
   const handleAddDeposit = useCallback(() => {
     navigate('/account/bank-deposit/add');
   }, [navigate]);
 
-  const handleEditDeposit = useCallback((id: string) => {
+  const handleEditDeposit = useCallback((id: number) => {
     navigate(`/account/bank-deposit/update/${id}`);
   }, [navigate]);
 
-  const handleDeleteClick = useCallback((id: string) => {
+  const handleDeleteClick = useCallback((id: number) => {
     setDeleteDialog({ open: true, id });
   }, []);
 
-  const handleDeleteConfirm = useCallback(() => {
+  const handleDeleteConfirm = useCallback(async () => {
     if (deleteDialog.id) {
-      const updatedDeposits = deposits.filter((d) => d.id !== deleteDialog.id);
-      setDeposits(updatedDeposits);
-      localStorage.setItem('bankDeposits', JSON.stringify(updatedDeposits));
+      try {
+        const api = getBankDepositsApi();
+        await api.delete(deleteDialog.id);
+        setSnackbar({
+          open: true,
+          message: 'Bank deposit deleted successfully',
+          severity: 'success',
+        });
+        loadDeposits();
+      } catch (error) {
+        setSnackbar({
+          open: true,
+          message: error instanceof Error ? error.message : 'Failed to delete bank deposit',
+          severity: 'error',
+        });
+      }
     }
     setDeleteDialog({ open: false, id: null });
-  }, [deposits, deleteDialog.id]);
+  }, [deleteDialog.id, loadDeposits]);
 
   const handleDeleteCancel = useCallback(() => {
     setDeleteDialog({ open: false, id: null });
   }, []);
+
+  const handleCompleteDeposit = useCallback(async (id: number) => {
+    try {
+      const api = getBankDepositsApi();
+      await api.complete(id);
+      setSnackbar({
+        open: true,
+        message: 'Bank deposit completed successfully',
+        severity: 'success',
+      });
+      loadDeposits();
+    } catch (error) {
+      setSnackbar({
+        open: true,
+        message: error instanceof Error ? error.message : 'Failed to complete bank deposit',
+        severity: 'error',
+      });
+    }
+  }, [loadDeposits]);
+
+  const handleVoidDeposit = useCallback(async (id: number) => {
+    try {
+      const api = getBankDepositsApi();
+      await api.void(id);
+      setSnackbar({
+        open: true,
+        message: 'Bank deposit voided successfully',
+        severity: 'success',
+      });
+      loadDeposits();
+    } catch (error) {
+      setSnackbar({
+        open: true,
+        message: error instanceof Error ? error.message : 'Failed to void bank deposit',
+        severity: 'error',
+      });
+    }
+  }, [loadDeposits]);
 
   const handleFilterClick = (event: React.MouseEvent<HTMLButtonElement>) => {
     setFilterAnchorEl(event.currentTarget);
@@ -131,6 +272,11 @@ const BankDepositListPage: React.FC = () => {
 
   const handleFilterClose = () => {
     setFilterAnchorEl(null);
+  };
+
+  const handleApplyFilters = () => {
+    loadDeposits();
+    handleFilterClose();
   };
 
   const handleClearFilters = () => {
@@ -145,18 +291,47 @@ const BankDepositListPage: React.FC = () => {
     });
   };
 
+  const handleSnackbarClose = () => {
+    setSnackbar({ ...snackbar, open: false });
+  };
+
   const filterOpen = Boolean(filterAnchorEl);
 
   // Get unique values for filters
   const companyNames = useMemo(() => {
     const names = new Set(deposits.map((d) => d.companyName).filter(Boolean));
-    return Array.from(names);
+    return Array.from(names) as string[];
   }, [deposits]);
 
-  const bankAccounts = useMemo(() => {
-    const accounts = new Set(deposits.map((d) => d.bankAccount).filter(Boolean));
+  const bankAccountIds = useMemo(() => {
+    const accounts = new Set(deposits.map((d) => String(d.bankAccountId)).filter(Boolean));
     return Array.from(accounts);
   }, [deposits]);
+
+  const getStatusColor = (status: BankDepositStatus) => {
+    switch (status) {
+      case 'completed':
+        return { bg: 'rgba(16, 185, 129, 0.1)', color: '#10B981', border: '#10B981' };
+      case 'pending':
+        return { bg: 'rgba(245, 158, 11, 0.1)', color: '#F59E0B', border: '#F59E0B' };
+      case 'void':
+        return { bg: 'rgba(239, 68, 68, 0.1)', color: '#EF4444', border: '#EF4444' };
+      default:
+        return { bg: 'rgba(107, 114, 128, 0.1)', color: '#6B7280', border: '#6B7280' };
+    }
+  };
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString();
+  };
+
+  const formatAmount = (amount: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'PKR',
+      minimumFractionDigits: 2,
+    }).format(amount);
+  };
 
   if (loading) {
     return (
@@ -264,7 +439,7 @@ const BankDepositListPage: React.FC = () => {
               onChange={(e) => setFilters({ ...filters, company: e.target.value })}
               label="Company"
             >
-              <MenuItem value="">ERP</MenuItem>
+              <MenuItem value="">All</MenuItem>
               {companyNames.map((name) => (
                 <MenuItem key={name} value={name}>{name}</MenuItem>
               ))}
@@ -272,15 +447,6 @@ const BankDepositListPage: React.FC = () => {
           </FormControl>
 
           <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
-            <TextField
-              label="Date Range To"
-              type="date"
-              size="small"
-              value={filters.dateTo}
-              onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })}
-              InputLabelProps={{ shrink: true }}
-              sx={{ flex: 1 }}
-            />
             <TextField
               label="From"
               type="date"
@@ -290,18 +456,16 @@ const BankDepositListPage: React.FC = () => {
               InputLabelProps={{ shrink: true }}
               sx={{ flex: 1 }}
             />
+            <TextField
+              label="To"
+              type="date"
+              size="small"
+              value={filters.dateTo}
+              onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })}
+              InputLabelProps={{ shrink: true }}
+              sx={{ flex: 1 }}
+            />
           </Box>
-
-          <FormControl fullWidth size="small" sx={{ mb: 2 }}>
-            <InputLabel>Number</InputLabel>
-            <Select
-              value={filters.number}
-              onChange={(e) => setFilters({ ...filters, number: e.target.value })}
-              label="Number"
-            >
-              <MenuItem value="">All</MenuItem>
-            </Select>
-          </FormControl>
 
           <FormControl fullWidth size="small" sx={{ mb: 2 }}>
             <InputLabel>Bank Account</InputLabel>
@@ -311,20 +475,9 @@ const BankDepositListPage: React.FC = () => {
               label="Bank Account"
             >
               <MenuItem value="">All</MenuItem>
-              {bankAccounts.map((account) => (
-                <MenuItem key={account} value={account}>{account}</MenuItem>
+              {bankAccountIds.map((account) => (
+                <MenuItem key={account} value={account}>Account #{account}</MenuItem>
               ))}
-            </Select>
-          </FormControl>
-
-          <FormControl fullWidth size="small" sx={{ mb: 2 }}>
-            <InputLabel>Deposit Number</InputLabel>
-            <Select
-              value={filters.depositNumber}
-              onChange={(e) => setFilters({ ...filters, depositNumber: e.target.value })}
-              label="Deposit Number"
-            >
-              <MenuItem value="">All</MenuItem>
             </Select>
           </FormControl>
 
@@ -332,28 +485,17 @@ const BankDepositListPage: React.FC = () => {
             <InputLabel>Status</InputLabel>
             <Select
               value={filters.status}
-              onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+              onChange={(e) => setFilters({ ...filters, status: e.target.value as BankDepositStatus | '' })}
               label="Status"
             >
               <MenuItem value="">All</MenuItem>
-              <MenuItem value="Submit">Submit</MenuItem>
-              <MenuItem value="Reject">Reject</MenuItem>
+              <MenuItem value="pending">Pending</MenuItem>
+              <MenuItem value="completed">Completed</MenuItem>
+              <MenuItem value="void">Void</MenuItem>
             </Select>
           </FormControl>
 
           <Box sx={{ display: 'flex', gap: 1 }}>
-            <Button
-              variant="outlined"
-              size="small"
-              startIcon={<FilterIcon />}
-              sx={{
-                borderColor: '#10B981',
-                color: '#10B981',
-                textTransform: 'none',
-              }}
-            >
-              Save Filter
-            </Button>
             <Button
               variant="text"
               size="small"
@@ -362,10 +504,11 @@ const BankDepositListPage: React.FC = () => {
             >
               Clear Filter
             </Button>
+            <Box sx={{ flexGrow: 1 }} />
             <Button
               variant="contained"
               size="small"
-              onClick={handleFilterClose}
+              onClick={handleApplyFilters}
               sx={{
                 bgcolor: '#FF6B35',
                 textTransform: 'none',
@@ -381,16 +524,88 @@ const BankDepositListPage: React.FC = () => {
       {/* Table */}
       <Card sx={{ boxShadow: 'none', border: '1px solid #E5E7EB' }}>
         <TableContainer>
-          <Table>
+          <Table aria-label="Bank deposits list">
             <TableHead>
               <TableRow sx={{ bgcolor: '#F9FAFB' }}>
-                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Company</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Date</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Bank Account</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Deposit Number</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Total Amount</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Status</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Actions</TableCell>
+                <TableCell
+                  scope="col"
+                  sx={{ fontWeight: 600, color: '#374151' }}
+                  aria-sort={orderBy === 'companyName' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'companyName'}
+                    direction={orderBy === 'companyName' ? order : 'asc'}
+                    onClick={() => handleSort('companyName')}
+                  >
+                    Company
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell
+                  scope="col"
+                  sx={{ fontWeight: 600, color: '#374151' }}
+                  aria-sort={orderBy === 'date' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'date'}
+                    direction={orderBy === 'date' ? order : 'asc'}
+                    onClick={() => handleSort('date')}
+                  >
+                    Date
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell
+                  scope="col"
+                  sx={{ fontWeight: 600, color: '#374151' }}
+                  aria-sort={orderBy === 'depositNumber' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'depositNumber'}
+                    direction={orderBy === 'depositNumber' ? order : 'asc'}
+                    onClick={() => handleSort('depositNumber')}
+                  >
+                    Deposit Number
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell
+                  scope="col"
+                  sx={{ fontWeight: 600, color: '#374151' }}
+                  aria-sort={orderBy === 'reference' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'reference'}
+                    direction={orderBy === 'reference' ? order : 'asc'}
+                    onClick={() => handleSort('reference')}
+                  >
+                    Reference
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell
+                  scope="col"
+                  sx={{ fontWeight: 600, color: '#374151' }}
+                  aria-sort={orderBy === 'amount' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'amount'}
+                    direction={orderBy === 'amount' ? order : 'asc'}
+                    onClick={() => handleSort('amount')}
+                  >
+                    Amount
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell
+                  scope="col"
+                  sx={{ fontWeight: 600, color: '#374151' }}
+                  aria-sort={orderBy === 'status' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'status'}
+                    direction={orderBy === 'status' ? order : 'asc'}
+                    onClick={() => handleSort('status')}
+                  >
+                    Status
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell scope="col" sx={{ fontWeight: 600, color: '#374151' }}>Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -403,45 +618,78 @@ const BankDepositListPage: React.FC = () => {
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredDeposits.map((deposit) => (
-                  <TableRow key={deposit.id} hover>
-                    <TableCell>{deposit.companyName}</TableCell>
-                    <TableCell>{deposit.date}</TableCell>
-                    <TableCell>{deposit.bankAccount}</TableCell>
-                    <TableCell>{deposit.depositNumber}</TableCell>
-                    <TableCell>{deposit.totalAmount.toFixed(1)} PKR</TableCell>
-                    <TableCell>
-                      <Chip
-                        label={deposit.status}
-                        size="small"
-                        sx={{
-                          bgcolor: deposit.status === 'Submit'
-                            ? 'rgba(16, 185, 129, 0.1)'
-                            : 'rgba(239, 68, 68, 0.1)',
-                          color: deposit.status === 'Submit' ? '#10B981' : '#EF4444',
-                          fontWeight: 500,
-                          border: `1px solid ${deposit.status === 'Submit' ? '#10B981' : '#EF4444'}`,
-                        }}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <IconButton
-                        size="small"
-                        onClick={() => handleEditDeposit(deposit.id)}
-                        sx={{ color: '#10B981' }}
-                      >
-                        <EditIcon fontSize="small" />
-                      </IconButton>
-                      <IconButton
-                        size="small"
-                        onClick={() => handleDeleteClick(deposit.id)}
-                        sx={{ color: COLORS.error }}
-                      >
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
-                    </TableCell>
-                  </TableRow>
-                ))
+                filteredDeposits.map((deposit) => {
+                  const statusColors = getStatusColor(deposit.status);
+                  return (
+                    <TableRow key={deposit.id} hover>
+                      <TableCell>{deposit.companyName || 'N/A'}</TableCell>
+                      <TableCell>{formatDate(deposit.date)}</TableCell>
+                      <TableCell>{deposit.depositNumber}</TableCell>
+                      <TableCell>{deposit.reference || '-'}</TableCell>
+                      <TableCell>{formatAmount(deposit.amount)}</TableCell>
+                      <TableCell>
+                        <Chip
+                          label={deposit.status.charAt(0).toUpperCase() + deposit.status.slice(1)}
+                          size="small"
+                          sx={{
+                            bgcolor: statusColors.bg,
+                            color: statusColors.color,
+                            fontWeight: 500,
+                            border: `1px solid ${statusColors.border}`,
+                          }}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        {deposit.status === 'pending' && (
+                          <>
+                            <IconButton
+                              size="small"
+                              onClick={() => handleCompleteDeposit(deposit.id)}
+                              sx={{ color: '#10B981' }}
+                              aria-label={`Complete deposit ${deposit.depositNumber}`}
+                            >
+                              <CompleteIcon fontSize="small" />
+                            </IconButton>
+                            <IconButton
+                              size="small"
+                              onClick={() => handleEditDeposit(deposit.id)}
+                              sx={{ color: '#3B82F6' }}
+                              aria-label={`Edit deposit ${deposit.depositNumber}`}
+                            >
+                              <EditIcon fontSize="small" />
+                            </IconButton>
+                            <IconButton
+                              size="small"
+                              onClick={() => handleVoidDeposit(deposit.id)}
+                              sx={{ color: '#F59E0B' }}
+                              aria-label={`Void deposit ${deposit.depositNumber}`}
+                            >
+                              <VoidIcon fontSize="small" />
+                            </IconButton>
+                            <IconButton
+                              size="small"
+                              onClick={() => handleDeleteClick(deposit.id)}
+                              sx={{ color: COLORS.error }}
+                              aria-label={`Delete deposit ${deposit.depositNumber}`}
+                            >
+                              <DeleteIcon fontSize="small" />
+                            </IconButton>
+                          </>
+                        )}
+                        {deposit.status === 'completed' && (
+                          <IconButton
+                            size="small"
+                            onClick={() => handleVoidDeposit(deposit.id)}
+                            sx={{ color: '#F59E0B' }}
+                            aria-label={`Void deposit ${deposit.depositNumber}`}
+                          >
+                            <VoidIcon fontSize="small" />
+                          </IconButton>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
               )}
             </TableBody>
           </Table>
@@ -458,6 +706,17 @@ const BankDepositListPage: React.FC = () => {
         onConfirm={handleDeleteConfirm}
         onCancel={handleDeleteCancel}
       />
+
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={handleSnackbarClose}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert onClose={handleSnackbarClose} severity={snackbar.severity} sx={{ width: '100%' }}>
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };

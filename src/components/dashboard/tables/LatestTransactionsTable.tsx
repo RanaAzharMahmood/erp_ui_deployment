@@ -99,11 +99,12 @@ const LatestTransactionsTable: React.FC<LatestTransactionsTableProps> = ({ data 
         </Typography>
       </Box>
       <TableContainer sx={{ flex: 1, overflow: 'auto' }}>
-        <Table size="small" stickyHeader sx={{ minWidth: isMobile ? 500 : 'auto' }}>
+        <Table size="small" stickyHeader sx={{ minWidth: isMobile ? 500 : 'auto' }} aria-label="Latest transactions">
           <TableHead>
             <TableRow>
               {!isMobile && (
                 <TableCell
+                  scope="col"
                   sx={{
                     bgcolor: COLORS.table.headerBg,
                     color: COLORS.text.secondary,
@@ -118,6 +119,7 @@ const LatestTransactionsTable: React.FC<LatestTransactionsTableProps> = ({ data 
                 </TableCell>
               )}
               <TableCell
+                scope="col"
                 sx={{
                   bgcolor: COLORS.table.headerBg,
                   color: COLORS.text.secondary,
@@ -131,6 +133,7 @@ const LatestTransactionsTable: React.FC<LatestTransactionsTableProps> = ({ data 
                 Customer
               </TableCell>
               <TableCell
+                scope="col"
                 sx={{
                   bgcolor: COLORS.table.headerBg,
                   color: COLORS.text.secondary,
@@ -144,6 +147,7 @@ const LatestTransactionsTable: React.FC<LatestTransactionsTableProps> = ({ data 
                 Date
               </TableCell>
               <TableCell
+                scope="col"
                 sx={{
                   bgcolor: COLORS.table.headerBg,
                   color: COLORS.text.secondary,
@@ -157,6 +161,7 @@ const LatestTransactionsTable: React.FC<LatestTransactionsTableProps> = ({ data 
                 Type
               </TableCell>
               <TableCell
+                scope="col"
                 align="right"
                 sx={{
                   bgcolor: COLORS.table.headerBg,
@@ -171,6 +176,7 @@ const LatestTransactionsTable: React.FC<LatestTransactionsTableProps> = ({ data 
                 Amount
               </TableCell>
               <TableCell
+                scope="col"
                 sx={{
                   bgcolor: COLORS.table.headerBg,
                   color: COLORS.text.secondary,

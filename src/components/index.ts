@@ -16,3 +16,9 @@ export * from './forms';
 
 // Navigation components
 export * from './navigation';
+
+// Category components
+export * from './categories';
+
+// Customer components
+export * from './customers';

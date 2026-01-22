@@ -9,6 +9,7 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  TableSortLabel,
   IconButton,
   Chip,
   Typography,
@@ -20,6 +21,8 @@ import {
   Select,
   MenuItem,
   Popover,
+  Alert,
+  Snackbar,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -31,6 +34,9 @@ import {
   GridOn as GridIcon,
 } from '@mui/icons-material';
 import TableSkeleton from '../../../components/common/TableSkeleton';
+import ConfirmDialog from '../../../components/feedback/ConfirmDialog';
+import { COLORS } from '../../../constants/colors';
+import { getSalesInvoicesApi } from '../../../generated/api/client';
 
 interface SalesInvoice {
   id: string;
@@ -45,11 +51,17 @@ interface SalesInvoice {
   createdAt: string;
 }
 
+type Order = 'asc' | 'desc';
+type OrderBy = keyof SalesInvoice;
+
 const SalesInvoiceListPage: React.FC = () => {
   const navigate = useNavigate();
   const [invoices, setInvoices] = useState<SalesInvoice[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deleting, setDeleting] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [error, setError] = useState<string>('');
+  const [successMessage, setSuccessMessage] = useState<string>('');
   const [filterAnchorEl, setFilterAnchorEl] = useState<HTMLButtonElement | null>(null);
   const [filters, setFilters] = useState({
     company: '',
@@ -58,27 +70,67 @@ const SalesInvoiceListPage: React.FC = () => {
     dateTo: '',
     status: '',
   });
+  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; id: string | null }>({
+    open: false,
+    id: null,
+  });
 
-  // Load invoices from localStorage
+  // Sorting state
+  const [orderBy, setOrderBy] = useState<OrderBy>('date');
+  const [order, setOrder] = useState<Order>('desc');
+
+  // Load invoices from API with localStorage fallback
   useEffect(() => {
-    const loadInvoices = () => {
+    const loadInvoices = async () => {
       try {
-        const savedInvoices = localStorage.getItem('salesInvoices');
-        if (savedInvoices) {
-          setInvoices(JSON.parse(savedInvoices));
+        const salesInvoicesApi = getSalesInvoicesApi();
+        const response = await salesInvoicesApi.getAll();
+        if (response.data?.data) {
+          const apiInvoices = response.data.data.map((inv) => ({
+            id: String(inv.id),
+            invoiceNumber: inv.invoiceNumber,
+            companyName: inv.companyName || '',
+            customerName: inv.customerName || '',
+            item: inv.item || '',
+            quantity: inv.quantity || 0,
+            netAmount: inv.netAmount || 0,
+            status: inv.status as 'Active' | 'Paid' | 'Overdue' | 'Pending',
+            date: inv.date,
+            createdAt: inv.createdAt || '',
+          }));
+          setInvoices(apiInvoices);
+          // Sync to localStorage for offline access
+          localStorage.setItem('salesInvoices', JSON.stringify(apiInvoices));
         }
-      } catch (error) {
-        console.error('Error loading sales invoices:', error);
+      } catch (err) {
+        console.error('Error loading sales invoices from API, using localStorage fallback:', err);
+        // Fallback to localStorage
+        try {
+          const savedInvoices = localStorage.getItem('salesInvoices');
+          if (savedInvoices) {
+            setInvoices(JSON.parse(savedInvoices));
+          }
+        } catch (localErr) {
+          console.error('Error loading from localStorage:', localErr);
+          setError('Failed to load sales invoices. Please try again.');
+        }
       } finally {
         setLoading(false);
       }
     };
-    setTimeout(loadInvoices, 500);
+    loadInvoices();
   }, []);
 
-  // Filter invoices
-  const filteredInvoices = useMemo(() => {
-    return invoices.filter((invoice) => {
+  // Handle sort
+  const handleSort = useCallback((property: OrderBy) => {
+    const isAsc = orderBy === property && order === 'asc';
+    setOrder(isAsc ? 'desc' : 'asc');
+    setOrderBy(property);
+  }, [orderBy, order]);
+
+  // Filter and sort invoices
+  const filteredAndSortedInvoices = useMemo(() => {
+    const filtered = invoices.filter((invoice) => {
       const matchesSearch =
         !searchTerm ||
         invoice.invoiceNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -92,7 +144,31 @@ const SalesInvoiceListPage: React.FC = () => {
 
       return matchesSearch && matchesCompany && matchesCustomer && matchesStatus;
     });
-  }, [invoices, searchTerm, filters]);
+
+    // Sort the filtered results
+    return [...filtered].sort((a, b) => {
+      let aValue: string | number = a[orderBy];
+      let bValue: string | number = b[orderBy];
+
+      // Handle numeric sorting
+      if (orderBy === 'quantity' || orderBy === 'netAmount') {
+        aValue = Number(aValue) || 0;
+        bValue = Number(bValue) || 0;
+      } else {
+        // Handle string sorting
+        aValue = String(aValue || '').toLowerCase();
+        bValue = String(bValue || '').toLowerCase();
+      }
+
+      if (aValue < bValue) {
+        return order === 'asc' ? -1 : 1;
+      }
+      if (aValue > bValue) {
+        return order === 'asc' ? 1 : -1;
+      }
+      return 0;
+    });
+  }, [invoices, searchTerm, filters, orderBy, order]);
 
   const handleAddInvoice = useCallback(() => {
     navigate('/sales/invoice/add');
@@ -102,13 +178,45 @@ const SalesInvoiceListPage: React.FC = () => {
     navigate(`/sales/invoice/update/${id}`);
   }, [navigate]);
 
-  const handleDeleteInvoice = useCallback((id: string) => {
-    if (window.confirm('Are you sure you want to delete this invoice?')) {
-      const updatedInvoices = invoices.filter((i) => i.id !== id);
-      setInvoices(updatedInvoices);
-      localStorage.setItem('salesInvoices', JSON.stringify(updatedInvoices));
+  const handleDeleteClick = useCallback((id: string) => {
+    setDeleteDialog({ open: true, id });
+  }, []);
+
+  const handleDeleteConfirm = useCallback(async () => {
+    if (deleteDialog.id) {
+      setDeleting(true);
+      try {
+        // Try API delete first
+        const salesInvoicesApi = getSalesInvoicesApi();
+        await salesInvoicesApi.delete(Number(deleteDialog.id));
+
+        // Update local state
+        const updatedInvoices = invoices.filter((i) => i.id !== deleteDialog.id);
+        setInvoices(updatedInvoices);
+        localStorage.setItem('salesInvoices', JSON.stringify(updatedInvoices));
+        setSuccessMessage('Sales invoice deleted successfully!');
+      } catch (err) {
+        console.error('Error deleting sales invoice from API, using localStorage fallback:', err);
+        // Fallback to localStorage only
+        try {
+          const updatedInvoices = invoices.filter((i) => i.id !== deleteDialog.id);
+          setInvoices(updatedInvoices);
+          localStorage.setItem('salesInvoices', JSON.stringify(updatedInvoices));
+          setSuccessMessage('Sales invoice deleted successfully!');
+        } catch (localErr) {
+          console.error('Error deleting from localStorage:', localErr);
+          setError('Failed to delete sales invoice. Please try again.');
+        }
+      } finally {
+        setDeleting(false);
+      }
     }
-  }, [invoices]);
+    setDeleteDialog({ open: false, id: null });
+  }, [invoices, deleteDialog.id]);
+
+  const handleDeleteCancel = useCallback(() => {
+    setDeleteDialog({ open: false, id: null });
+  }, []);
 
   const handleFilterClick = (event: React.MouseEvent<HTMLButtonElement>) => {
     setFilterAnchorEl(event.currentTarget);
@@ -222,9 +330,9 @@ const SalesInvoiceListPage: React.FC = () => {
           startIcon={<AddIcon />}
           onClick={handleAddInvoice}
           sx={{
-            bgcolor: '#FF6B35',
+            bgcolor: COLORS.primary,
             textTransform: 'none',
-            '&:hover': { bgcolor: '#E55A2B' },
+            '&:hover': { bgcolor: COLORS.primaryHover },
           }}
         >
           Add Sales Invoice
@@ -239,7 +347,7 @@ const SalesInvoiceListPage: React.FC = () => {
         anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
         transformOrigin={{ vertical: 'top', horizontal: 'left' }}
       >
-        <Box sx={{ p: 2, width: 350, border: '2px solid #FF6B35', borderRadius: 1 }}>
+        <Box sx={{ p: 2, width: 350, border: `2px solid ${COLORS.primary}`, borderRadius: 1 }}>
           <FormControl fullWidth size="small" sx={{ mb: 2 }}>
             <InputLabel>Select Company</InputLabel>
             <Select
@@ -270,20 +378,20 @@ const SalesInvoiceListPage: React.FC = () => {
 
           <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
             <TextField
-              label="Date Range To"
-              type="date"
-              size="small"
-              value={filters.dateTo}
-              onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })}
-              InputLabelProps={{ shrink: true }}
-              sx={{ flex: 1 }}
-            />
-            <TextField
-              label="From"
+              label="Date Range From"
               type="date"
               size="small"
               value={filters.dateFrom}
               onChange={(e) => setFilters({ ...filters, dateFrom: e.target.value })}
+              InputLabelProps={{ shrink: true }}
+              sx={{ flex: 1 }}
+            />
+            <TextField
+              label="To"
+              type="date"
+              size="small"
+              value={filters.dateTo}
+              onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })}
               InputLabelProps={{ shrink: true }}
               sx={{ flex: 1 }}
             />
@@ -330,9 +438,9 @@ const SalesInvoiceListPage: React.FC = () => {
               size="small"
               onClick={handleFilterClose}
               sx={{
-                bgcolor: '#FF6B35',
+                bgcolor: COLORS.primary,
                 textTransform: 'none',
-                '&:hover': { bgcolor: '#E55A2B' },
+                '&:hover': { bgcolor: COLORS.primaryHover },
               }}
             >
               Apply Filter
@@ -344,22 +452,118 @@ const SalesInvoiceListPage: React.FC = () => {
       {/* Table */}
       <Card sx={{ boxShadow: 'none', border: '1px solid #E5E7EB' }}>
         <TableContainer>
-          <Table>
+          <Table aria-label="Sales invoices list">
             <TableHead>
               <TableRow sx={{ bgcolor: '#F9FAFB' }}>
-                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Invoice Number</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Company</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Customer</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Item</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Quantity</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Net Amount</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Status</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Date</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Actions</TableCell>
+                <TableCell
+                  scope="col"
+                  sx={{ fontWeight: 600, color: '#374151' }}
+                  aria-sort={orderBy === 'invoiceNumber' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'invoiceNumber'}
+                    direction={orderBy === 'invoiceNumber' ? order : 'asc'}
+                    onClick={() => handleSort('invoiceNumber')}
+                  >
+                    Invoice Number
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell
+                  scope="col"
+                  sx={{ fontWeight: 600, color: '#374151' }}
+                  aria-sort={orderBy === 'companyName' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'companyName'}
+                    direction={orderBy === 'companyName' ? order : 'asc'}
+                    onClick={() => handleSort('companyName')}
+                  >
+                    Company
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell
+                  scope="col"
+                  sx={{ fontWeight: 600, color: '#374151' }}
+                  aria-sort={orderBy === 'customerName' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'customerName'}
+                    direction={orderBy === 'customerName' ? order : 'asc'}
+                    onClick={() => handleSort('customerName')}
+                  >
+                    Customer
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell
+                  scope="col"
+                  sx={{ fontWeight: 600, color: '#374151' }}
+                  aria-sort={orderBy === 'item' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'item'}
+                    direction={orderBy === 'item' ? order : 'asc'}
+                    onClick={() => handleSort('item')}
+                  >
+                    Item
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell
+                  scope="col"
+                  sx={{ fontWeight: 600, color: '#374151' }}
+                  aria-sort={orderBy === 'quantity' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'quantity'}
+                    direction={orderBy === 'quantity' ? order : 'asc'}
+                    onClick={() => handleSort('quantity')}
+                  >
+                    Quantity
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell
+                  scope="col"
+                  sx={{ fontWeight: 600, color: '#374151' }}
+                  aria-sort={orderBy === 'netAmount' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'netAmount'}
+                    direction={orderBy === 'netAmount' ? order : 'asc'}
+                    onClick={() => handleSort('netAmount')}
+                  >
+                    Net Amount
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell
+                  scope="col"
+                  sx={{ fontWeight: 600, color: '#374151' }}
+                  aria-sort={orderBy === 'status' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'status'}
+                    direction={orderBy === 'status' ? order : 'asc'}
+                    onClick={() => handleSort('status')}
+                  >
+                    Status
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell
+                  scope="col"
+                  sx={{ fontWeight: 600, color: '#374151' }}
+                  aria-sort={orderBy === 'date' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'date'}
+                    direction={orderBy === 'date' ? order : 'asc'}
+                    onClick={() => handleSort('date')}
+                  >
+                    Date
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell scope="col" sx={{ fontWeight: 600, color: '#374151' }}>Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {filteredInvoices.length === 0 ? (
+              {filteredAndSortedInvoices.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={9} align="center" sx={{ py: 8 }}>
                     <Typography color="text.secondary">
@@ -368,7 +572,7 @@ const SalesInvoiceListPage: React.FC = () => {
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredInvoices.map((invoice) => (
+                filteredAndSortedInvoices.map((invoice) => (
                   <TableRow key={invoice.id} hover>
                     <TableCell>{invoice.invoiceNumber}</TableCell>
                     <TableCell>{invoice.companyName}</TableCell>
@@ -407,14 +611,17 @@ const SalesInvoiceListPage: React.FC = () => {
                       <IconButton
                         size="small"
                         onClick={() => handleEditInvoice(invoice.id)}
-                        sx={{ color: '#10B981' }}
+                        sx={{ color: '#4CAF50' }}
+                        aria-label={`Edit invoice ${invoice.invoiceNumber}`}
                       >
                         <EditIcon fontSize="small" />
                       </IconButton>
                       <IconButton
                         size="small"
-                        onClick={() => handleDeleteInvoice(invoice.id)}
-                        sx={{ color: '#EF4444' }}
+                        onClick={() => handleDeleteClick(invoice.id)}
+                        sx={{ color: COLORS.error }}
+                        aria-label={`Delete invoice ${invoice.invoiceNumber}`}
+                        disabled={deleting}
                       >
                         <DeleteIcon fontSize="small" />
                       </IconButton>
@@ -426,6 +633,45 @@ const SalesInvoiceListPage: React.FC = () => {
           </Table>
         </TableContainer>
       </Card>
+
+      {/* Success Snackbar */}
+      <Snackbar
+        open={!!successMessage}
+        autoHideDuration={4000}
+        onClose={() => setSuccessMessage('')}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert
+          onClose={() => setSuccessMessage('')}
+          severity="success"
+          sx={{ width: '100%' }}
+        >
+          {successMessage}
+        </Alert>
+      </Snackbar>
+
+      {/* Error Snackbar */}
+      <Snackbar
+        open={!!error}
+        autoHideDuration={6000}
+        onClose={() => setError('')}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert onClose={() => setError('')} severity="error" sx={{ width: '100%' }}>
+          {error}
+        </Alert>
+      </Snackbar>
+
+      <ConfirmDialog
+        open={deleteDialog.open}
+        title="Delete Invoice"
+        message="Are you sure you want to delete this invoice? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        confirmColor="error"
+        onConfirm={handleDeleteConfirm}
+        onCancel={handleDeleteCancel}
+      />
     </Box>
   );
 };

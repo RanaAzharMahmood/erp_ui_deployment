@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -14,12 +14,16 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  TablePagination,
+  TableSortLabel,
   TextField,
   Typography,
   InputAdornment,
   FormControl,
   InputLabel,
   SelectChangeEvent,
+  Alert,
+  Snackbar,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -27,157 +31,133 @@ import {
   Edit as EditIcon,
   Delete as DeleteIcon,
 } from '@mui/icons-material';
+import TableSkeleton from '../../../components/common/TableSkeleton';
+import ConfirmDialog from '../../../components/feedback/ConfirmDialog';
+import { COLORS } from '../../../constants/colors';
+import { customerApi, CustomerData } from '../../../services/customerApi';
+import { useCompanies } from '../../../hooks';
 
+// Interface for frontend customer display (maps API data to display format)
 interface Customer {
   id: string;
   name: string;
   email: string;
-  cnic: string;
-  contactNumber: string;
-  principalActivity: string;
+  phone: string;
   companyName: string;
-  ntnNumber: string;
-  salesTaxNumber: string;
-  taxOffice: string;
+  companyId: number;
   address: string;
-  status: 'Active' | 'Prospect' | 'Inactive';
+  city: string;
+  state: string;
+  country: string;
+  postalCode: string;
+  taxId: string;
+  creditLimit: number;
+  paymentTerms: string;
+  notes: string;
+  status: 'Active' | 'Inactive';
   createdAt: string;
 }
 
-const COMPANIES = ['Est Gas', 'Petrozen', 'Rana Gas', 'Qubyte Gas'];
-const STATUSES = ['All', 'Active', 'Prospect', 'Inactive'];
+const STATUSES = ['All', 'Active', 'Inactive'];
 
 const CustomersPage: React.FC = () => {
   const navigate = useNavigate();
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [filteredCustomers, setFilteredCustomers] = useState<Customer[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCompany, setSelectedCompany] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('All');
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [orderBy, setOrderBy] = useState<string>('name');
+  const [order, setOrder] = useState<'asc' | 'desc'>('asc');
+  const [error, setError] = useState<string>('');
+  const [successMessage, setSuccessMessage] = useState<string>('');
+  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; id: string | null }>({
+    open: false,
+    id: null,
+  });
+  const { companies, refetch: refetchCompanies } = useCompanies();
+  const [selectedCompany, setSelectedCompany] = useState('');
 
-  // Load customers from localStorage
-  useEffect(() => {
-    const savedCustomers = localStorage.getItem('customers');
-    if (savedCustomers) {
-      const parsedCustomers = JSON.parse(savedCustomers);
-      setCustomers(parsedCustomers);
-      setFilteredCustomers(parsedCustomers);
-    } else {
-      // Initialize with sample data
-      const sampleData: Customer[] = [
-        {
-          id: '1',
-          name: 'John Harry',
-          email: 'Example@example.com',
-          cnic: '00000-0000000-0',
-          contactNumber: '+92 000 0000000',
-          principalActivity: 'Sales Agent',
-          companyName: 'Est Gas',
-          ntnNumber: '1234567',
-          salesTaxNumber: 'STR-9087',
-          taxOffice: 'Lahore',
-          address: '',
-          status: 'Active',
-          createdAt: '2025-12-31',
-        },
-        {
-          id: '2',
-          name: 'John Harry',
-          email: 'Example@example.com',
-          cnic: '00000-0000000-0',
-          contactNumber: '+92 000 0000000',
-          principalActivity: 'Sales Agent',
-          companyName: 'Petrozen',
-          ntnNumber: '1234567',
-          salesTaxNumber: 'STR-9087',
-          taxOffice: 'Lahore',
-          address: '',
-          status: 'Active',
-          createdAt: '2025-12-31',
-        },
-        {
-          id: '3',
-          name: 'John Harry',
-          email: 'Example@example.com',
-          cnic: '00000-0000000-0',
-          contactNumber: '+92 000 0000000',
-          principalActivity: 'Sales Agent',
-          companyName: 'Est Gas',
-          ntnNumber: '1234567',
-          salesTaxNumber: 'STR-9087',
-          taxOffice: 'Lahore',
-          address: '',
-          status: 'Active',
-          createdAt: '2025-12-31',
-        },
-        {
-          id: '4',
-          name: 'John Harry',
-          email: 'Example@example.com',
-          cnic: '00000-0000000-0',
-          contactNumber: '+92 000 0000000',
-          principalActivity: 'Sales Agent',
-          companyName: 'Rana Gas',
-          ntnNumber: '1234567',
-          salesTaxNumber: 'STR-9087',
-          taxOffice: 'Lahore',
-          address: '',
-          status: 'Active',
-          createdAt: '2025-12-31',
-        },
-        {
-          id: '5',
-          name: 'John Harry',
-          email: 'Example@example.com',
-          cnic: '00000-0000000-0',
-          contactNumber: '+92 000 0000000',
-          principalActivity: 'Sales Agent',
-          companyName: 'Qubyte Gas',
-          ntnNumber: '1234567',
-          salesTaxNumber: 'STR-9087',
-          taxOffice: 'Lahore',
-          address: '',
-          status: 'Active',
-          createdAt: '2025-12-31',
-        },
-        {
-          id: '6',
-          name: 'John Harry',
-          email: 'Example@example.com',
-          cnic: '00000-0000000-0',
-          contactNumber: '+92 000 0000000',
-          principalActivity: 'Sales Agent',
-          companyName: 'Est Gas',
-          ntnNumber: '1234567',
-          salesTaxNumber: 'STR-9087',
-          taxOffice: 'Lahore',
-          address: '',
-          status: 'Active',
-          createdAt: '2025-12-31',
-        },
-      ];
-      setCustomers(sampleData);
-      setFilteredCustomers(sampleData);
-      localStorage.setItem('customers', JSON.stringify(sampleData));
+  // Transform API customer data to frontend format
+  const transformCustomerData = (apiCustomer: CustomerData): Customer => ({
+    id: String(apiCustomer.id),
+    name: apiCustomer.name,
+    email: apiCustomer.email,
+    phone: apiCustomer.phone || '',
+    companyName: apiCustomer.companyName || '',
+    companyId: apiCustomer.companyId,
+    address: apiCustomer.address || '',
+    city: apiCustomer.city || '',
+    state: apiCustomer.state || '',
+    country: apiCustomer.country || '',
+    postalCode: apiCustomer.postalCode || '',
+    taxId: apiCustomer.taxId || '',
+    creditLimit: apiCustomer.creditLimit || 0,
+    paymentTerms: apiCustomer.paymentTerms || '',
+    notes: apiCustomer.notes || '',
+    status: apiCustomer.isActive ? 'Active' : 'Inactive',
+    createdAt: apiCustomer.createdAt,
+  });
+
+  // Load customers from API
+  const loadCustomers = useCallback(async () => {
+    setIsLoading(true);
+    setError('');
+
+    try {
+      const response = await customerApi.getCustomers();
+      const transformedCustomers = response.data.data.map(transformCustomerData);
+      setCustomers(transformedCustomers);
+
+      // Also save to localStorage as backup
+      localStorage.setItem('customers', JSON.stringify(transformedCustomers));
+    } catch (err: unknown) {
+      console.error('Error loading customers:', err);
+      setError('Failed to load customers. Loading from local storage...');
+
+      // Fallback to localStorage
+      const savedCustomers = localStorage.getItem('customers');
+      if (savedCustomers) {
+        try {
+          setCustomers(JSON.parse(savedCustomers));
+        } catch {
+          setCustomers([]);
+        }
+      }
+    } finally {
+      setIsLoading(false);
     }
   }, []);
 
-  // Filter customers
   useEffect(() => {
+    loadCustomers();
+  }, [loadCustomers]);
+
+  // Sort handler
+  const handleSort = useCallback((property: string) => {
+    const isAsc = orderBy === property && order === 'asc';
+    setOrder(isAsc ? 'desc' : 'asc');
+    setOrderBy(property);
+  }, [orderBy, order]);
+
+  // Filter and sort customers
+  const filteredCustomers = useMemo(() => {
     let filtered = customers;
 
     if (searchTerm) {
+      const searchLower = searchTerm.toLowerCase();
       filtered = filtered.filter(
         (customer) =>
-          customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          customer.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          customer.companyName.toLowerCase().includes(searchTerm.toLowerCase())
+          customer.name.toLowerCase().includes(searchLower) ||
+          customer.email.toLowerCase().includes(searchLower) ||
+          customer.companyName.toLowerCase().includes(searchLower)
       );
     }
 
     if (selectedCompany) {
       filtered = filtered.filter(
-        (customer) => customer.companyName === selectedCompany
+        (customer) => String(customer.companyId) === selectedCompany
       );
     }
 
@@ -185,16 +165,98 @@ const CustomersPage: React.FC = () => {
       filtered = filtered.filter((customer) => customer.status === selectedStatus);
     }
 
-    setFilteredCustomers(filtered);
-  }, [searchTerm, selectedCompany, selectedStatus, customers]);
+    // Sort the filtered results
+    const sorted = [...filtered].sort((a, b) => {
+      let aValue: string | number = '';
+      let bValue: string | number = '';
 
-  const handleDelete = (id: string) => {
-    if (window.confirm('Are you sure you want to delete this customer?')) {
-      const updatedCustomers = customers.filter((customer) => customer.id !== id);
-      setCustomers(updatedCustomers);
-      localStorage.setItem('customers', JSON.stringify(updatedCustomers));
+      switch (orderBy) {
+        case 'name':
+          aValue = a.name.toLowerCase();
+          bValue = b.name.toLowerCase();
+          break;
+        case 'email':
+          aValue = a.email.toLowerCase();
+          bValue = b.email.toLowerCase();
+          break;
+        case 'companyName':
+          aValue = a.companyName.toLowerCase();
+          bValue = b.companyName.toLowerCase();
+          break;
+        case 'status':
+          aValue = a.status;
+          bValue = b.status;
+          break;
+        case 'createdAt':
+          aValue = new Date(a.createdAt).getTime();
+          bValue = new Date(b.createdAt).getTime();
+          break;
+        default:
+          return 0;
+      }
+
+      if (aValue < bValue) return order === 'asc' ? -1 : 1;
+      if (aValue > bValue) return order === 'asc' ? 1 : -1;
+      return 0;
+    });
+
+    return sorted;
+  }, [customers, searchTerm, selectedCompany, selectedStatus, orderBy, order]);
+
+  // Paginated customers
+  const paginatedCustomers = useMemo(() => {
+    return filteredCustomers.slice(
+      page * rowsPerPage,
+      page * rowsPerPage + rowsPerPage
+    );
+  }, [filteredCustomers, page, rowsPerPage]);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setPage(0);
+  }, [searchTerm, selectedCompany, selectedStatus]);
+
+  const handleChangePage = useCallback((_event: unknown, newPage: number) => {
+    setPage(newPage);
+  }, []);
+
+  const handleChangeRowsPerPage = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setPage(0);
+  }, []);
+
+  const handleDeleteClick = useCallback((id: string) => {
+    setDeleteDialog({ open: true, id });
+  }, []);
+
+  const handleDeleteConfirm = useCallback(async () => {
+    if (!deleteDialog.id) {
+      setDeleteDialog({ open: false, id: null });
+      return;
     }
-  };
+
+    try {
+      await customerApi.deleteCustomer(Number(deleteDialog.id));
+
+      // Remove from local state
+      setCustomers((prev) => prev.filter((customer) => customer.id !== deleteDialog.id));
+
+      // Update localStorage
+      const updatedCustomers = customers.filter((customer) => customer.id !== deleteDialog.id);
+      localStorage.setItem('customers', JSON.stringify(updatedCustomers));
+
+      setSuccessMessage('Customer deleted successfully!');
+    } catch (err: unknown) {
+      console.error('Error deleting customer:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Failed to delete customer. Please try again.';
+      setError(errorMessage);
+    }
+    setDeleteDialog({ open: false, id: null });
+  }, [customers, deleteDialog.id]);
+
+  const handleDeleteCancel = useCallback(() => {
+    setDeleteDialog({ open: false, id: null });
+  }, []);
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -204,6 +266,11 @@ const CustomersPage: React.FC = () => {
       day: 'numeric',
     });
   };
+
+  // Refetch companies when component mounts to ensure fresh data
+  useEffect(() => {
+    refetchCompanies();
+  }, [refetchCompanies]);
 
   return (
     <Box sx={{ p: 3 }}>
@@ -219,7 +286,7 @@ const CustomersPage: React.FC = () => {
         }}
       >
         <Typography variant="h4" sx={{ fontWeight: 600 }}>
-          Customer
+          Customers
         </Typography>
         <Button
           variant="contained"
@@ -229,9 +296,9 @@ const CustomersPage: React.FC = () => {
             borderRadius: 2,
             textTransform: 'none',
             px: 3,
-            bgcolor: '#FF6B35',
+            bgcolor: COLORS.primary,
             '&:hover': {
-              bgcolor: '#FF8E53',
+              bgcolor: COLORS.primaryHover,
             },
           }}
         >
@@ -250,16 +317,16 @@ const CustomersPage: React.FC = () => {
         }}
       >
         <FormControl size="small" sx={{ minWidth: 200 }}>
-          <InputLabel>Select Companies</InputLabel>
+          <InputLabel>Select Company</InputLabel>
           <Select
             value={selectedCompany}
-            label="Select Companies"
+            label="Select Company"
             onChange={(e: SelectChangeEvent) => setSelectedCompany(e.target.value)}
           >
             <MenuItem value="">All Companies</MenuItem>
-            {COMPANIES.map((company) => (
-              <MenuItem key={company} value={company}>
-                {company}
+            {companies.map((company) => (
+              <MenuItem key={company.id} value={String(company.id)}>
+                {company.name}
               </MenuItem>
             ))}
           </Select>
@@ -282,7 +349,7 @@ const CustomersPage: React.FC = () => {
 
         <TextField
           size="small"
-          placeholder="Search"
+          placeholder="Search by name, email or company"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           sx={{ minWidth: 300, flexGrow: 1 }}
@@ -299,27 +366,85 @@ const CustomersPage: React.FC = () => {
       {/* Table */}
       <Card>
         <TableContainer>
-          <Table>
+          <Table aria-label="Customers list">
             <TableHead>
               <TableRow>
-                <TableCell>Customer Name</TableCell>
-                <TableCell>Company</TableCell>
-                <TableCell>Status</TableCell>
-                <TableCell>Created at</TableCell>
-                <TableCell align="right">Actions</TableCell>
+                <TableCell
+                  scope="col"
+                  aria-sort={orderBy === 'name' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'name'}
+                    direction={orderBy === 'name' ? order : 'asc'}
+                    onClick={() => handleSort('name')}
+                  >
+                    Customer Name
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell
+                  scope="col"
+                  aria-sort={orderBy === 'email' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'email'}
+                    direction={orderBy === 'email' ? order : 'asc'}
+                    onClick={() => handleSort('email')}
+                  >
+                    Email
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell
+                  scope="col"
+                  aria-sort={orderBy === 'companyName' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'companyName'}
+                    direction={orderBy === 'companyName' ? order : 'asc'}
+                    onClick={() => handleSort('companyName')}
+                  >
+                    Company
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell
+                  scope="col"
+                  aria-sort={orderBy === 'status' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'status'}
+                    direction={orderBy === 'status' ? order : 'asc'}
+                    onClick={() => handleSort('status')}
+                  >
+                    Status
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell
+                  scope="col"
+                  aria-sort={orderBy === 'createdAt' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'createdAt'}
+                    direction={orderBy === 'createdAt' ? order : 'asc'}
+                    onClick={() => handleSort('createdAt')}
+                  >
+                    Created at
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell scope="col" align="right">Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {filteredCustomers.length === 0 ? (
+              {isLoading ? (
+                <TableSkeleton rows={5} columns={6} />
+              ) : filteredCustomers.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} align="center" sx={{ py: 8 }}>
+                  <TableCell colSpan={6} align="center" sx={{ py: 8 }}>
                     <Typography variant="body1" color="text.secondary">
-                      No customers found
+                      No customers found. Try adjusting your filters.
                     </Typography>
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredCustomers.map((customer) => (
+                paginatedCustomers.map((customer) => (
                   <TableRow key={customer.id} hover>
                     <TableCell>
                       <Box>
@@ -327,30 +452,22 @@ const CustomersPage: React.FC = () => {
                           {customer.name}
                         </Typography>
                         <Typography variant="caption" color="text.secondary">
-                          {customer.email}
+                          {customer.phone || 'No phone'}
                         </Typography>
                       </Box>
                     </TableCell>
                     <TableCell>
-                      <Typography variant="body2">{customer.companyName}</Typography>
+                      <Typography variant="body2">{customer.email}</Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2">{customer.companyName || 'N/A'}</Typography>
                     </TableCell>
                     <TableCell>
                       <Chip
                         label={customer.status}
                         size="small"
+                        color={customer.status === 'Active' ? 'success' : 'default'}
                         sx={{
-                          bgcolor:
-                            customer.status === 'Active'
-                              ? 'rgba(76, 175, 80, 0.1)'
-                              : customer.status === 'Prospect'
-                              ? 'rgba(33, 150, 243, 0.1)'
-                              : 'rgba(158, 158, 158, 0.1)',
-                          color:
-                            customer.status === 'Active'
-                              ? 'success.main'
-                              : customer.status === 'Prospect'
-                              ? 'primary.main'
-                              : 'text.secondary',
                           fontWeight: 500,
                           borderRadius: '16px',
                         }}
@@ -365,14 +482,16 @@ const CustomersPage: React.FC = () => {
                       <IconButton
                         size="small"
                         onClick={() => navigate(`/customer/update/${customer.id}`)}
-                        sx={{ mr: 1 }}
+                        sx={{ mr: 1, color: '#4CAF50' }}
+                        aria-label={`Edit ${customer.name}`}
                       >
                         <EditIcon fontSize="small" />
                       </IconButton>
                       <IconButton
                         size="small"
-                        onClick={() => handleDelete(customer.id)}
-                        sx={{ color: 'error.main' }}
+                        onClick={() => handleDeleteClick(customer.id)}
+                        sx={{ color: COLORS.error }}
+                        aria-label={`Delete ${customer.name}`}
                       >
                         <DeleteIcon fontSize="small" />
                       </IconButton>
@@ -383,7 +502,61 @@ const CustomersPage: React.FC = () => {
             </TableBody>
           </Table>
         </TableContainer>
+
+        {/* Pagination */}
+        {!isLoading && filteredCustomers.length > 0 && (
+          <TablePagination
+            component="div"
+            count={filteredCustomers.length}
+            page={page}
+            onPageChange={handleChangePage}
+            rowsPerPage={rowsPerPage}
+            onRowsPerPageChange={handleChangeRowsPerPage}
+            rowsPerPageOptions={[5, 10, 25, 50]}
+            sx={{ borderTop: '1px solid #E0E0E0' }}
+            aria-label="Customers table pagination"
+          />
+        )}
       </Card>
+
+      {/* Success Snackbar */}
+      <Snackbar
+        open={!!successMessage}
+        autoHideDuration={4000}
+        onClose={() => setSuccessMessage('')}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert
+          onClose={() => setSuccessMessage('')}
+          severity="success"
+          sx={{ width: '100%' }}
+        >
+          {successMessage}
+        </Alert>
+      </Snackbar>
+
+      {/* Error Snackbar */}
+      <Snackbar
+        open={!!error}
+        autoHideDuration={6000}
+        onClose={() => setError('')}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert onClose={() => setError('')} severity="error" sx={{ width: '100%' }}>
+          {error}
+        </Alert>
+      </Snackbar>
+
+      <ConfirmDialog
+        open={deleteDialog.open}
+        title="Delete Customer"
+        message="Are you sure you want to delete this customer? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        confirmColor="error"
+        onConfirm={handleDeleteConfirm}
+        onCancel={handleDeleteCancel}
+      />
     </Box>
   );
 };

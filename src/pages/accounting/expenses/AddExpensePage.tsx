@@ -31,6 +31,8 @@ import {
 } from '@mui/icons-material';
 import PageHeader from '../../../components/common/PageHeader';
 import FormSection from '../../../components/common/FormSection';
+import { useCompanies } from '../../../hooks';
+import { getTaxesApi } from '../../../generated/api/client';
 
 interface LineItem {
   id: string;
@@ -70,34 +72,51 @@ const AddExpensePage: React.FC = () => {
   const [lineItems, setLineItems] = useState<LineItem[]>([
     { id: '1', expenseName: '', amount: 0 },
   ]);
-  const [companies, setCompanies] = useState<Array<{ id: number; name: string }>>([]);
+  const { companies: rawCompanies, refetch: refetchCompanies } = useCompanies();
+  const companies = rawCompanies.map((c) => ({ id: c.id, name: c.name }));
+
+  // Refetch companies on mount to ensure fresh data
+  useEffect(() => {
+    refetchCompanies();
+  }, [refetchCompanies]);
   const [taxes, setTaxes] = useState<Array<{ id: string; name: string; percentage: number }>>([]);
   const [chequeImage, setChequeImage] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
 
-  // Load companies and taxes
+  // Load taxes from API with localStorage fallback
   useEffect(() => {
-    try {
-      const savedCompanies = localStorage.getItem('companies');
-      if (savedCompanies) {
-        const parsed = JSON.parse(savedCompanies);
-        setCompanies(parsed.map((c: any) => ({ id: c.id, name: c.companyName })));
+    const loadTaxes = async () => {
+      try {
+        const api = getTaxesApi();
+        const response = await api.getAll({ isActive: true });
+        if (response.success && response.data) {
+          setTaxes(response.data.map((t) => ({
+            id: String(t.id),
+            name: t.name,
+            percentage: t.rate,
+          })));
+        }
+      } catch (err) {
+        console.error('Error loading taxes from API, falling back to localStorage:', err);
+        // Fallback to localStorage
+        try {
+          const savedTaxes = localStorage.getItem('taxes');
+          if (savedTaxes) {
+            const parsed = JSON.parse(savedTaxes);
+            setTaxes(parsed.map((t: any) => ({
+              id: t.id,
+              name: t.taxName,
+              percentage: t.taxPercentage,
+            })));
+          }
+        } catch (localErr) {
+          console.error('Error loading data from localStorage:', localErr);
+        }
       }
-
-      const savedTaxes = localStorage.getItem('taxes');
-      if (savedTaxes) {
-        const parsed = JSON.parse(savedTaxes);
-        setTaxes(parsed.map((t: any) => ({
-          id: t.id,
-          name: t.taxName,
-          percentage: t.taxPercentage,
-        })));
-      }
-    } catch (err) {
-      console.error('Error loading data:', err);
-    }
+    };
+    loadTaxes();
   }, []);
 
   const handleInputChange = useCallback(
@@ -226,7 +245,6 @@ const AddExpensePage: React.FC = () => {
                     displayEmpty
                     sx={{ bgcolor: 'white' }}
                   >
-                    <MenuItem value="">EST Gas</MenuItem>
                     {companies.map((comp) => (
                       <MenuItem key={comp.id} value={comp.id}>{comp.name}</MenuItem>
                     ))}

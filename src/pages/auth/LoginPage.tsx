@@ -162,6 +162,9 @@ const LoginPage: React.FC = () => {
           {error && (
             <Alert
               severity="error"
+              id="login-error"
+              role="alert"
+              aria-live="polite"
               sx={{
                 mb: 3,
                 borderRadius: '8px',
@@ -172,16 +175,26 @@ const LoginPage: React.FC = () => {
           )}
 
           {/* Login Form */}
-          <Box component="form" onSubmit={handleSubmit} noValidate>
+          <Box
+            component="form"
+            onSubmit={handleSubmit}
+            noValidate
+            aria-label="Login form"
+            role="form"
+          >
             {/* Email Field */}
             <Box sx={{ mb: 3 }}>
               <Typography
+                component="label"
+                htmlFor="email"
                 variant="body2"
+                id="email-label"
                 sx={{
                   fontSize: '14px',
                   fontWeight: 500,
                   color: '#1A1A1A',
                   mb: 1,
+                  display: 'block',
                 }}
               >
                 Email
@@ -197,6 +210,13 @@ const LoginPage: React.FC = () => {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 disabled={loading}
+                error={!!error && !email}
+                inputProps={{
+                  'aria-required': true,
+                  'aria-invalid': !!error && !email,
+                  'aria-labelledby': 'email-label',
+                  'aria-describedby': error ? 'login-error' : undefined,
+                }}
                 sx={{
                   '& .MuiOutlinedInput-root': {
                     borderRadius: '8px',
@@ -221,12 +241,16 @@ const LoginPage: React.FC = () => {
             {/* Password Field */}
             <Box sx={{ mb: 2 }}>
               <Typography
+                component="label"
+                htmlFor="password"
                 variant="body2"
+                id="password-label"
                 sx={{
                   fontSize: '14px',
                   fontWeight: 500,
                   color: '#1A1A1A',
                   mb: 1,
+                  display: 'block',
                 }}
               >
                 Password
@@ -242,6 +266,13 @@ const LoginPage: React.FC = () => {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 disabled={loading}
+                error={!!error && !password}
+                inputProps={{
+                  'aria-required': true,
+                  'aria-invalid': !!error && !password,
+                  'aria-labelledby': 'password-label',
+                  'aria-describedby': error ? 'login-error' : undefined,
+                }}
                 sx={{
                   '& .MuiOutlinedInput-root': {
                     borderRadius: '8px',
@@ -270,6 +301,9 @@ const LoginPage: React.FC = () => {
                   <Checkbox
                     checked={rememberMe}
                     onChange={(e) => setRememberMe(e.target.checked)}
+                    inputProps={{
+                      'aria-label': 'Remember me on this device',
+                    }}
                     sx={{
                       color: '#CCCCCC',
                       '&.Mui-checked': {

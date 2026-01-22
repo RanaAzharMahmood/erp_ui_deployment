@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -14,12 +14,16 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  TablePagination,
+  TableSortLabel,
   TextField,
   Typography,
   InputAdornment,
   FormControl,
   InputLabel,
   SelectChangeEvent,
+  Alert,
+  Snackbar,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -27,174 +31,185 @@ import {
   Edit as EditIcon,
   Delete as DeleteIcon,
 } from '@mui/icons-material';
+import TableSkeleton from '../../../components/common/TableSkeleton';
+import ConfirmDialog from '../../../components/feedback/ConfirmDialog';
+import { COLORS } from '../../../constants/colors';
+import { useDebounce } from '../../../hooks/useDebounce';
+import { vendorService, type Vendor } from '../../../services';
 
-interface Vendor {
-  id: string;
-  name: string;
-  email: string;
-  cnic: string;
-  contactNumber: string;
-  principalActivity: string;
-  companyName: string;
-  ntnNumber: string;
-  salesTaxNumber: string;
-  taxOffice: string;
-  address: string;
-  status: 'Active' | 'Prospect' | 'Inactive';
-  createdAt: string;
-}
-
-const COMPANIES = ['Est Gas', 'Petrozen', 'Rana Gas', 'Qubyte Gas'];
-const STATUSES = ['All', 'Active', 'Prospect', 'Inactive'];
+const STATUSES = ['All', 'Active', 'Inactive'];
 
 const VendorsPage: React.FC = () => {
   const navigate = useNavigate();
   const [vendors, setVendors] = useState<Vendor[]>([]);
-  const [filteredVendors, setFilteredVendors] = useState<Vendor[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCompany, setSelectedCompany] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('All');
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [totalCount, setTotalCount] = useState(0);
+  const [orderBy, setOrderBy] = useState<string>('name');
+  const [order, setOrder] = useState<'asc' | 'desc'>('asc');
+  const [error, setError] = useState<string>('');
+  const [successMessage, setSuccessMessage] = useState<string>('');
+  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; id: number | null }>({
+    open: false,
+    id: null,
+  });
 
-  // Load vendors from localStorage
-  useEffect(() => {
-    const savedVendors = localStorage.getItem('vendors');
-    if (savedVendors) {
-      const parsedVendors = JSON.parse(savedVendors);
-      setVendors(parsedVendors);
-      setFilteredVendors(parsedVendors);
-    } else {
-      // Initialize with sample data
-      const sampleData: Vendor[] = [
-        {
-          id: '1',
-          name: 'John Harry',
-          email: 'Example@example.com',
-          cnic: '00000-0000000-0',
-          contactNumber: '+92 000 0000000',
-          principalActivity: 'Sales Agent',
-          companyName: 'Est Gas',
-          ntnNumber: '1234567',
-          salesTaxNumber: 'STR-9087',
-          taxOffice: 'Lahore',
-          address: '',
-          status: 'Active',
-          createdAt: '2025-12-31',
-        },
-        {
-          id: '2',
-          name: 'John Harry',
-          email: 'Example@example.com',
-          cnic: '00000-0000000-0',
-          contactNumber: '+92 000 0000000',
-          principalActivity: 'Sales Agent',
-          companyName: 'Petrozen',
-          ntnNumber: '1234567',
-          salesTaxNumber: 'STR-9087',
-          taxOffice: 'Lahore',
-          address: '',
-          status: 'Active',
-          createdAt: '2025-12-31',
-        },
-        {
-          id: '3',
-          name: 'John Harry',
-          email: 'Example@example.com',
-          cnic: '00000-0000000-0',
-          contactNumber: '+92 000 0000000',
-          principalActivity: 'Sales Agent',
-          companyName: 'Est Gas',
-          ntnNumber: '1234567',
-          salesTaxNumber: 'STR-9087',
-          taxOffice: 'Lahore',
-          address: '',
-          status: 'Inactive',
-          createdAt: '2025-12-31',
-        },
-        {
-          id: '4',
-          name: 'John Harry',
-          email: 'Example@example.com',
-          cnic: '00000-0000000-0',
-          contactNumber: '+92 000 0000000',
-          principalActivity: 'Sales Agent',
-          companyName: 'Rana Gas',
-          ntnNumber: '1234567',
-          salesTaxNumber: 'STR-9087',
-          taxOffice: 'Lahore',
-          address: '',
-          status: 'Active',
-          createdAt: '2025-12-31',
-        },
-        {
-          id: '5',
-          name: 'John Harry',
-          email: 'Example@example.com',
-          cnic: '00000-0000000-0',
-          contactNumber: '+92 000 0000000',
-          principalActivity: 'Sales Agent',
-          companyName: 'Qubyte Gas',
-          ntnNumber: '1234567',
-          salesTaxNumber: 'STR-9087',
-          taxOffice: 'Lahore',
-          address: '',
-          status: 'Active',
-          createdAt: '2025-12-31',
-        },
-        {
-          id: '6',
-          name: 'John Harry',
-          email: 'Example@example.com',
-          cnic: '00000-0000000-0',
-          contactNumber: '+92 000 0000000',
-          principalActivity: 'Sales Agent',
-          companyName: 'Est Gas',
-          ntnNumber: '1234567',
-          salesTaxNumber: 'STR-9087',
-          taxOffice: 'Lahore',
-          address: '',
-          status: 'Active',
-          createdAt: '2025-12-31',
-        },
-      ];
-      setVendors(sampleData);
-      setFilteredVendors(sampleData);
-      localStorage.setItem('vendors', JSON.stringify(sampleData));
+  // Debounce search for better performance
+  const debouncedSearch = useDebounce(searchTerm, 300);
+
+  // Load vendors from API
+  const loadVendors = useCallback(async () => {
+    setIsLoading(true);
+    setError('');
+
+    try {
+      const filters: {
+        isActive?: boolean;
+        search?: string;
+        limit: number;
+        offset: number;
+      } = {
+        limit: rowsPerPage,
+        offset: page * rowsPerPage,
+      };
+
+      if (selectedStatus !== 'All') {
+        filters.isActive = selectedStatus === 'Active';
+      }
+
+      if (debouncedSearch) {
+        filters.search = debouncedSearch;
+      }
+
+      const response = await vendorService.getAll(filters);
+
+      setVendors(response.data);
+      setTotalCount(response.pagination.total);
+
+      // Save to localStorage as backup
+      localStorage.setItem('vendors', JSON.stringify(response.data));
+    } catch (err: unknown) {
+      console.error('Error loading vendors:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load vendors';
+      setError(`${errorMessage}. Loading from local storage...`);
+
+      // Fallback to localStorage
+      const savedVendors = localStorage.getItem('vendors');
+      if (savedVendors) {
+        const parsedVendors = JSON.parse(savedVendors);
+        setVendors(parsedVendors);
+        setTotalCount(parsedVendors.length);
+      } else {
+        // Initialize with empty array
+        setVendors([]);
+        setTotalCount(0);
+      }
+    } finally {
+      setIsLoading(false);
     }
+  }, [debouncedSearch, selectedStatus, page, rowsPerPage]);
+
+  useEffect(() => {
+    loadVendors();
+  }, [loadVendors]);
+
+  // Sort handler
+  const handleSort = useCallback((property: string) => {
+    const isAsc = orderBy === property && order === 'asc';
+    setOrder(isAsc ? 'desc' : 'asc');
+    setOrderBy(property);
+  }, [orderBy, order]);
+
+  // Memoized filtered and sorted vendors for client-side filtering when using localStorage fallback
+  const filteredVendors = useMemo(() => {
+    // Sort the vendors
+    const sorted = [...vendors].sort((a, b) => {
+      let aValue: string | number = '';
+      let bValue: string | number = '';
+
+      switch (orderBy) {
+        case 'name':
+          aValue = a.name.toLowerCase();
+          bValue = b.name.toLowerCase();
+          break;
+        case 'email':
+          aValue = (a.email || '').toLowerCase();
+          bValue = (b.email || '').toLowerCase();
+          break;
+        case 'phone':
+          aValue = (a.phone || '').toLowerCase();
+          bValue = (b.phone || '').toLowerCase();
+          break;
+        case 'city':
+          aValue = (a.city || '').toLowerCase();
+          bValue = (b.city || '').toLowerCase();
+          break;
+        case 'status':
+          aValue = a.isActive ? 'Active' : 'Inactive';
+          bValue = b.isActive ? 'Active' : 'Inactive';
+          break;
+        case 'createdAt':
+          aValue = new Date(a.createdAt).getTime();
+          bValue = new Date(b.createdAt).getTime();
+          break;
+        default:
+          return 0;
+      }
+
+      if (aValue < bValue) return order === 'asc' ? -1 : 1;
+      if (aValue > bValue) return order === 'asc' ? 1 : -1;
+      return 0;
+    });
+
+    return sorted;
+  }, [vendors, orderBy, order]);
+
+  // Paginated vendors - for client-side pagination when using localStorage fallback
+  const paginatedVendors = useMemo(() => {
+    // When using API, pagination is handled server-side
+    return filteredVendors;
+  }, [filteredVendors]);
+
+  const handleChangePage = useCallback((_event: unknown, newPage: number) => {
+    setPage(newPage);
   }, []);
 
-  // Filter vendors
-  useEffect(() => {
-    let filtered = vendors;
+  const handleChangeRowsPerPage = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setPage(0);
+  }, []);
 
-    if (searchTerm) {
-      filtered = filtered.filter(
-        (vendor) =>
-          vendor.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          vendor.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          vendor.companyName.toLowerCase().includes(searchTerm.toLowerCase())
-      );
+  const handleDeleteClick = useCallback((id: number) => {
+    setDeleteDialog({ open: true, id });
+  }, []);
+
+  const handleDeleteConfirm = useCallback(async () => {
+    if (deleteDialog.id) {
+      try {
+        await vendorService.delete(deleteDialog.id);
+
+        // Update local state
+        const updatedVendors = vendors.filter((vendor) => vendor.id !== deleteDialog.id);
+        setVendors(updatedVendors);
+        setTotalCount((prev) => prev - 1);
+        localStorage.setItem('vendors', JSON.stringify(updatedVendors));
+
+        setSuccessMessage('Vendor deleted successfully');
+      } catch (err: unknown) {
+        console.error('Error deleting vendor:', err);
+        const errorMessage = err instanceof Error ? err.message : 'Failed to delete vendor';
+        setError(errorMessage);
+      }
     }
+    setDeleteDialog({ open: false, id: null });
+  }, [vendors, deleteDialog.id]);
 
-    if (selectedCompany) {
-      filtered = filtered.filter(
-        (vendor) => vendor.companyName === selectedCompany
-      );
-    }
-
-    if (selectedStatus !== 'All') {
-      filtered = filtered.filter((vendor) => vendor.status === selectedStatus);
-    }
-
-    setFilteredVendors(filtered);
-  }, [searchTerm, selectedCompany, selectedStatus, vendors]);
-
-  const handleDelete = (id: string) => {
-    if (window.confirm('Are you sure you want to delete this vendor?')) {
-      const updatedVendors = vendors.filter((vendor) => vendor.id !== id);
-      setVendors(updatedVendors);
-      localStorage.setItem('vendors', JSON.stringify(updatedVendors));
-    }
-  };
+  const handleDeleteCancel = useCallback(() => {
+    setDeleteDialog({ open: false, id: null });
+  }, []);
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -203,6 +218,10 @@ const VendorsPage: React.FC = () => {
       month: 'short',
       day: 'numeric',
     });
+  };
+
+  const getStatusFromIsActive = (isActive: boolean): string => {
+    return isActive ? 'Active' : 'Inactive';
   };
 
   return (
@@ -219,7 +238,7 @@ const VendorsPage: React.FC = () => {
         }}
       >
         <Typography variant="h4" sx={{ fontWeight: 600 }}>
-          Vendor
+          Vendors
         </Typography>
         <Button
           variant="contained"
@@ -229,9 +248,9 @@ const VendorsPage: React.FC = () => {
             borderRadius: 2,
             textTransform: 'none',
             px: 3,
-            bgcolor: '#FF6B35',
+            bgcolor: COLORS.primary,
             '&:hover': {
-              bgcolor: '#FF8E53',
+              bgcolor: COLORS.primaryHover,
             },
           }}
         >
@@ -249,28 +268,15 @@ const VendorsPage: React.FC = () => {
           alignItems: 'center',
         }}
       >
-        <FormControl size="small" sx={{ minWidth: 200 }}>
-          <InputLabel>Select Companies</InputLabel>
-          <Select
-            value={selectedCompany}
-            label="Select Companies"
-            onChange={(e: SelectChangeEvent) => setSelectedCompany(e.target.value)}
-          >
-            <MenuItem value="">All Companies</MenuItem>
-            {COMPANIES.map((company) => (
-              <MenuItem key={company} value={company}>
-                {company}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-
         <FormControl size="small" sx={{ minWidth: 150 }}>
           <InputLabel>Status</InputLabel>
           <Select
             value={selectedStatus}
             label="Status"
-            onChange={(e: SelectChangeEvent) => setSelectedStatus(e.target.value)}
+            onChange={(e: SelectChangeEvent) => {
+              setSelectedStatus(e.target.value);
+              setPage(0);
+            }}
           >
             {STATUSES.map((status) => (
               <MenuItem key={status} value={status}>
@@ -282,9 +288,12 @@ const VendorsPage: React.FC = () => {
 
         <TextField
           size="small"
-          placeholder="Search"
+          placeholder="Search vendors..."
           value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
+          onChange={(e) => {
+            setSearchTerm(e.target.value);
+            setPage(0);
+          }}
           sx={{ minWidth: 300, flexGrow: 1 }}
           InputProps={{
             startAdornment: (
@@ -299,58 +308,134 @@ const VendorsPage: React.FC = () => {
       {/* Table */}
       <Card>
         <TableContainer>
-          <Table>
+          <Table aria-label="Vendors list">
             <TableHead>
               <TableRow>
-                <TableCell>Vendor Name</TableCell>
-                <TableCell>Company</TableCell>
-                <TableCell>Status</TableCell>
-                <TableCell>Created at</TableCell>
-                <TableCell align="right">Actions</TableCell>
+                <TableCell
+                  scope="col"
+                  aria-sort={orderBy === 'name' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'name'}
+                    direction={orderBy === 'name' ? order : 'asc'}
+                    onClick={() => handleSort('name')}
+                  >
+                    Vendor Name
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell
+                  scope="col"
+                  aria-sort={orderBy === 'email' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'email'}
+                    direction={orderBy === 'email' ? order : 'asc'}
+                    onClick={() => handleSort('email')}
+                  >
+                    Email
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell
+                  scope="col"
+                  aria-sort={orderBy === 'phone' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'phone'}
+                    direction={orderBy === 'phone' ? order : 'asc'}
+                    onClick={() => handleSort('phone')}
+                  >
+                    Phone
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell
+                  scope="col"
+                  aria-sort={orderBy === 'city' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'city'}
+                    direction={orderBy === 'city' ? order : 'asc'}
+                    onClick={() => handleSort('city')}
+                  >
+                    City
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell
+                  scope="col"
+                  aria-sort={orderBy === 'status' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'status'}
+                    direction={orderBy === 'status' ? order : 'asc'}
+                    onClick={() => handleSort('status')}
+                  >
+                    Status
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell
+                  scope="col"
+                  aria-sort={orderBy === 'createdAt' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'createdAt'}
+                    direction={orderBy === 'createdAt' ? order : 'asc'}
+                    onClick={() => handleSort('createdAt')}
+                  >
+                    Created at
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell scope="col" align="right">Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {filteredVendors.length === 0 ? (
+              {isLoading ? (
+                <TableSkeleton rows={5} columns={7} />
+              ) : filteredVendors.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} align="center" sx={{ py: 8 }}>
+                  <TableCell colSpan={7} align="center" sx={{ py: 8 }}>
                     <Typography variant="body1" color="text.secondary">
                       No vendors found
                     </Typography>
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredVendors.map((vendor) => (
+                paginatedVendors.map((vendor) => (
                   <TableRow key={vendor.id} hover>
                     <TableCell>
                       <Box>
                         <Typography variant="body2" sx={{ fontWeight: 600 }}>
                           {vendor.name}
                         </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          {vendor.email}
-                        </Typography>
+                        {vendor.companyName && (
+                          <Typography variant="caption" color="text.secondary">
+                            {vendor.companyName}
+                          </Typography>
+                        )}
                       </Box>
                     </TableCell>
                     <TableCell>
-                      <Typography variant="body2">{vendor.companyName}</Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {vendor.email || '-'}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2" color="text.secondary">
+                        {vendor.phone || '-'}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2" color="text.secondary">
+                        {vendor.city || '-'}
+                      </Typography>
                     </TableCell>
                     <TableCell>
                       <Chip
-                        label={vendor.status}
+                        label={getStatusFromIsActive(vendor.isActive)}
                         size="small"
                         sx={{
-                          bgcolor:
-                            vendor.status === 'Active'
-                              ? 'rgba(76, 175, 80, 0.1)'
-                              : vendor.status === 'Prospect'
-                              ? 'rgba(33, 150, 243, 0.1)'
-                              : 'rgba(255, 152, 0, 0.1)',
-                          color:
-                            vendor.status === 'Active'
-                              ? 'success.main'
-                              : vendor.status === 'Prospect'
-                              ? 'primary.main'
-                              : '#FF9800',
+                          bgcolor: vendor.isActive
+                            ? 'rgba(76, 175, 80, 0.1)'
+                            : 'rgba(255, 152, 0, 0.1)',
+                          color: vendor.isActive ? 'success.main' : COLORS.warning,
                           fontWeight: 500,
                           borderRadius: '16px',
                         }}
@@ -366,13 +451,15 @@ const VendorsPage: React.FC = () => {
                         size="small"
                         onClick={() => navigate(`/vendor/update/${vendor.id}`)}
                         sx={{ mr: 1 }}
+                        aria-label={`Edit ${vendor.name}`}
                       >
                         <EditIcon fontSize="small" />
                       </IconButton>
                       <IconButton
                         size="small"
-                        onClick={() => handleDelete(vendor.id)}
-                        sx={{ color: 'error.main' }}
+                        onClick={() => handleDeleteClick(vendor.id)}
+                        sx={{ color: COLORS.error }}
+                        aria-label={`Delete ${vendor.name}`}
                       >
                         <DeleteIcon fontSize="small" />
                       </IconButton>
@@ -383,7 +470,57 @@ const VendorsPage: React.FC = () => {
             </TableBody>
           </Table>
         </TableContainer>
+
+        {/* Pagination */}
+        {!isLoading && (
+          <TablePagination
+            component="div"
+            count={totalCount}
+            page={page}
+            onPageChange={handleChangePage}
+            rowsPerPage={rowsPerPage}
+            onRowsPerPageChange={handleChangeRowsPerPage}
+            rowsPerPageOptions={[5, 10, 25, 50]}
+            sx={{ borderTop: '1px solid #E0E0E0' }}
+            aria-label="Vendors table pagination"
+          />
+        )}
       </Card>
+
+      {/* Success Snackbar */}
+      <Snackbar
+        open={!!successMessage}
+        autoHideDuration={4000}
+        onClose={() => setSuccessMessage('')}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert onClose={() => setSuccessMessage('')} severity="success" sx={{ width: '100%' }}>
+          {successMessage}
+        </Alert>
+      </Snackbar>
+
+      {/* Error Snackbar */}
+      <Snackbar
+        open={!!error}
+        autoHideDuration={6000}
+        onClose={() => setError('')}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert onClose={() => setError('')} severity="error" sx={{ width: '100%' }}>
+          {error}
+        </Alert>
+      </Snackbar>
+
+      <ConfirmDialog
+        open={deleteDialog.open}
+        title="Delete Vendor"
+        message="Are you sure you want to delete this vendor? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        confirmColor="error"
+        onConfirm={handleDeleteConfirm}
+        onCancel={handleDeleteCancel}
+      />
     </Box>
   );
 };

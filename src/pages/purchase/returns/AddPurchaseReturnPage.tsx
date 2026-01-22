@@ -31,29 +31,25 @@ import {
 } from '@mui/icons-material';
 import PageHeader from '../../../components/common/PageHeader';
 import FormSection from '../../../components/common/FormSection';
-
-interface LineItem {
-  id: string;
-  item: string;
-  quantity: number;
-  rate: number;
-  amount: number;
-}
-
-interface PurchaseReturnFormData {
-  companyId: number | '';
-  vendorId: string;
-  billNumber: string;
-  originalInvoice: string;
-  date: string;
-  returnReason: string;
-  paymentMethod: string;
-  accountNumber: string;
-  remarks: string;
-  status: 'Active' | 'Completed' | 'Pending';
-  taxId: string;
-  refundAmount: number;
-}
+import ReturnFormSkeleton from '../../../components/common/ReturnFormSkeleton';
+import { useCompanies } from '../../../hooks';
+import type {
+  LineItem,
+  PurchaseReturnFormData,
+  CompanyOption,
+  VendorOption,
+  TaxOption,
+  ItemOption,
+  PurchaseInvoiceOption,
+  RawCompanyData,
+  RawVendorData,
+  RawTaxData,
+  RawInventoryItemData,
+  RawPurchaseInvoiceData,
+  RawPurchaseReturnData,
+  ReturnStatus,
+  SelectChangeValue,
+} from '../../../types/invoice.types';
 
 const PAYMENT_METHODS = ['Hand in Cash', 'Bank Transfer (Online)', 'Cheque'];
 
@@ -61,6 +57,7 @@ const AddPurchaseReturnPage: React.FC = () => {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const isEditMode = Boolean(id);
+  const { companies: companiesData } = useCompanies();
 
   const [formData, setFormData] = useState<PurchaseReturnFormData>({
     companyId: '',
@@ -79,15 +76,18 @@ const AddPurchaseReturnPage: React.FC = () => {
   const [lineItems, setLineItems] = useState<LineItem[]>([
     { id: '1', item: '', quantity: 0, rate: 0, amount: 0 },
   ]);
-  const [companies, setCompanies] = useState<Array<{ id: number; name: string }>>([]);
-  const [vendors, setVendors] = useState<Array<{ id: string; name: string }>>([]);
-  const [purchaseInvoices, setPurchaseInvoices] = useState<Array<{ id: string; billNumber: string; vendorId: string }>>([]);
-  const [taxes, setTaxes] = useState<Array<{ id: string; name: string; percentage: number }>>([]);
-  const [items, setItems] = useState<Array<{ id: string; name: string; rate: number }>>([]);
+  const [vendors, setVendors] = useState<VendorOption[]>([]);
+  const [purchaseInvoices, setPurchaseInvoices] = useState<PurchaseInvoiceOption[]>([]);
+  const [taxes, setTaxes] = useState<TaxOption[]>([]);
+  const [items, setItems] = useState<ItemOption[]>([]);
   const [receiptImage, setReceiptImage] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoading, setIsLoading] = useState(isEditMode);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+
+  // Derive companies from hook data - use c.name as the hook normalizes to 'name' field
+  const companies: CompanyOption[] = (companiesData || []).map((c: RawCompanyData) => ({ id: c.id, name: c.name }));
 
   // Check if payment method requires image upload and account number
   const requiresImageAndAccount = formData.paymentMethod === 'Bank Transfer (Online)' || formData.paymentMethod === 'Cheque';
@@ -95,7 +95,7 @@ const AddPurchaseReturnPage: React.FC = () => {
   // Generate return number
   const generateReturnNumber = useCallback(() => {
     const savedReturns = localStorage.getItem('purchaseReturns');
-    const returns = savedReturns ? JSON.parse(savedReturns) : [];
+    const returns: RawPurchaseReturnData[] = savedReturns ? JSON.parse(savedReturns) : [];
     const nextNumber = returns.length + 1;
     return `PR-${String(nextNumber).padStart(6, '0')}`;
   }, []);
@@ -103,22 +103,16 @@ const AddPurchaseReturnPage: React.FC = () => {
   // Load data
   useEffect(() => {
     try {
-      const savedCompanies = localStorage.getItem('companies');
-      if (savedCompanies) {
-        const parsed = JSON.parse(savedCompanies);
-        setCompanies(parsed.map((c: any) => ({ id: c.id, name: c.companyName })));
-      }
-
       const savedVendors = localStorage.getItem('vendors');
       if (savedVendors) {
-        const parsed = JSON.parse(savedVendors);
-        setVendors(parsed.map((v: any) => ({ id: v.id, name: v.vendorName || v.name })));
+        const parsed: RawVendorData[] = JSON.parse(savedVendors);
+        setVendors(parsed.map((v) => ({ id: v.id, name: v.vendorName || v.name || '' })));
       }
 
       const savedInvoices = localStorage.getItem('purchaseInvoices');
       if (savedInvoices) {
-        const parsed = JSON.parse(savedInvoices);
-        setPurchaseInvoices(parsed.map((i: any) => ({
+        const parsed: RawPurchaseInvoiceData[] = JSON.parse(savedInvoices);
+        setPurchaseInvoices(parsed.map((i) => ({
           id: i.id,
           billNumber: i.billNumber,
           vendorId: i.vendorId,
@@ -127,8 +121,8 @@ const AddPurchaseReturnPage: React.FC = () => {
 
       const savedTaxes = localStorage.getItem('taxes');
       if (savedTaxes) {
-        const parsed = JSON.parse(savedTaxes);
-        setTaxes(parsed.map((t: any) => ({
+        const parsed: RawTaxData[] = JSON.parse(savedTaxes);
+        setTaxes(parsed.map((t) => ({
           id: t.id,
           name: t.taxName,
           percentage: t.taxPercentage,
@@ -137,10 +131,10 @@ const AddPurchaseReturnPage: React.FC = () => {
 
       const savedItems = localStorage.getItem('inventoryItems');
       if (savedItems) {
-        const parsed = JSON.parse(savedItems);
-        setItems(parsed.map((i: any) => ({
+        const parsed: RawInventoryItemData[] = JSON.parse(savedItems);
+        setItems(parsed.map((i) => ({
           id: i.id,
-          name: i.itemName || i.name,
+          name: i.itemName || i.name || '',
           rate: i.purchasePrice || i.rate || 0,
         })));
       }
@@ -154,8 +148,8 @@ const AddPurchaseReturnPage: React.FC = () => {
       if (isEditMode && id) {
         const savedReturns = localStorage.getItem('purchaseReturns');
         if (savedReturns) {
-          const returns = JSON.parse(savedReturns);
-          const returnData = returns.find((r: any) => r.id === id);
+          const returns: RawPurchaseReturnData[] = JSON.parse(savedReturns);
+          const returnData = returns.find((r) => r.id === id);
           if (returnData) {
             setFormData({
               companyId: returnData.companyId || '',
@@ -180,8 +174,13 @@ const AddPurchaseReturnPage: React.FC = () => {
           }
         }
       }
-    } catch (err) {
+    } catch (err: unknown) {
       console.error('Error loading data:', err);
+    } finally {
+      // Set loading to false after data is loaded
+      if (isEditMode) {
+        setIsLoading(false);
+      }
     }
   }, [isEditMode, id, generateReturnNumber]);
 
@@ -193,15 +192,15 @@ const AddPurchaseReturnPage: React.FC = () => {
     []
   );
 
-  const handleSelectChange = useCallback((name: string, value: any) => {
+  const handleSelectChange = useCallback((name: string, value: SelectChangeValue) => {
     setFormData((prev) => ({ ...prev, [name]: value }));
   }, []);
 
-  const handleStatusChange = useCallback((status: 'Active' | 'Completed' | 'Pending') => {
+  const handleStatusChange = useCallback((status: ReturnStatus) => {
     setFormData((prev) => ({ ...prev, status }));
   }, []);
 
-  const handleLineItemChange = useCallback((id: string, field: string, value: any) => {
+  const handleLineItemChange = useCallback((id: string, field: string, value: string | number) => {
     setLineItems((prev) =>
       prev.map((item) => {
         if (item.id === id) {
@@ -274,7 +273,7 @@ const AddPurchaseReturnPage: React.FC = () => {
     setError('');
 
     try {
-      const returns = JSON.parse(localStorage.getItem('purchaseReturns') || '[]');
+      const returns: RawPurchaseReturnData[] = JSON.parse(localStorage.getItem('purchaseReturns') || '[]');
       const company = companies.find((c) => c.id === formData.companyId);
       const vendor = vendors.find((v) => v.id === formData.vendorId);
       const firstItem = lineItems.find((l) => l.item)?.item || '';
@@ -307,12 +306,12 @@ const AddPurchaseReturnPage: React.FC = () => {
       };
 
       if (isEditMode) {
-        const index = returns.findIndex((r: any) => r.id === id);
+        const index = returns.findIndex((r) => r.id === id);
         if (index !== -1) {
           returns[index] = { ...returns[index], ...returnData };
         }
       } else {
-        returns.push(returnData);
+        returns.push(returnData as RawPurchaseReturnData);
       }
 
       localStorage.setItem('purchaseReturns', JSON.stringify(returns));
@@ -321,7 +320,7 @@ const AddPurchaseReturnPage: React.FC = () => {
       setTimeout(() => {
         navigate('/purchase/return');
       }, 1500);
-    } catch (err) {
+    } catch (err: unknown) {
       console.error('Error saving return:', err);
       setError('Failed to save return. Please try again.');
       setIsSubmitting(false);
@@ -334,6 +333,11 @@ const AddPurchaseReturnPage: React.FC = () => {
 
   // Filter invoices by selected vendor
   const filteredInvoices = purchaseInvoices.filter((inv) => !formData.vendorId || inv.vendorId === formData.vendorId);
+
+  // Show skeleton while loading in edit mode
+  if (isLoading) {
+    return <ReturnFormSkeleton />;
+  }
 
   return (
     <Box sx={{ p: 3, maxWidth: 1400, mx: 'auto', bgcolor: '#F9FAFB', minHeight: '100vh' }}>
@@ -352,11 +356,10 @@ const AddPurchaseReturnPage: React.FC = () => {
                 <FormControl fullWidth size="small">
                   <Select
                     value={formData.companyId}
-                    onChange={(e) => handleSelectChange('companyId', e.target.value)}
+                    onChange={(e) => handleSelectChange('companyId', e.target.value as SelectChangeValue)}
                     displayEmpty
                     sx={{ bgcolor: 'white' }}
                   >
-                    <MenuItem value="">EST Gas</MenuItem>
                     {companies.map((comp) => (
                       <MenuItem key={comp.id} value={comp.id}>{comp.name}</MenuItem>
                     ))}
@@ -384,7 +387,7 @@ const AddPurchaseReturnPage: React.FC = () => {
                 <FormControl fullWidth size="small">
                   <Select
                     value={formData.vendorId}
-                    onChange={(e) => handleSelectChange('vendorId', e.target.value)}
+                    onChange={(e) => handleSelectChange('vendorId', e.target.value as SelectChangeValue)}
                     displayEmpty
                     sx={{ bgcolor: 'white' }}
                   >
@@ -402,7 +405,7 @@ const AddPurchaseReturnPage: React.FC = () => {
                 <FormControl fullWidth size="small">
                   <Select
                     value={formData.originalInvoice}
-                    onChange={(e) => handleSelectChange('originalInvoice', e.target.value)}
+                    onChange={(e) => handleSelectChange('originalInvoice', e.target.value as SelectChangeValue)}
                     displayEmpty
                     sx={{ bgcolor: 'white' }}
                   >
@@ -449,7 +452,7 @@ const AddPurchaseReturnPage: React.FC = () => {
                 <FormControl fullWidth size="small">
                   <Select
                     value={formData.paymentMethod}
-                    onChange={(e) => handleSelectChange('paymentMethod', e.target.value)}
+                    onChange={(e) => handleSelectChange('paymentMethod', e.target.value as SelectChangeValue)}
                     displayEmpty
                     sx={{ bgcolor: 'white' }}
                   >
@@ -514,7 +517,7 @@ const AddPurchaseReturnPage: React.FC = () => {
                         <FormControl fullWidth size="small">
                           <Select
                             value={item.item}
-                            onChange={(e) => handleLineItemChange(item.id, 'item', e.target.value)}
+                            onChange={(e) => handleLineItemChange(item.id, 'item', e.target.value as string)}
                             displayEmpty
                             sx={{ bgcolor: 'white' }}
                           >
@@ -604,7 +607,7 @@ const AddPurchaseReturnPage: React.FC = () => {
                 <FormControl size="small" sx={{ minWidth: 120 }}>
                   <Select
                     value={formData.taxId}
-                    onChange={(e) => handleSelectChange('taxId', e.target.value)}
+                    onChange={(e) => handleSelectChange('taxId', e.target.value as SelectChangeValue)}
                     displayEmpty
                     sx={{ bgcolor: 'white' }}
                   >
@@ -681,10 +684,10 @@ const AddPurchaseReturnPage: React.FC = () => {
           <FormSection title="Status" icon={<CircleIcon />} sx={{ mb: 3 }}>
             <Divider sx={{ mb: 2, mt: -1 }} />
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-              {['Active', 'Completed', 'Pending'].map((status) => (
+              {(['Active', 'Completed', 'Pending'] as const).map((status) => (
                 <Box
                   key={status}
-                  onClick={() => handleStatusChange(status as 'Active' | 'Completed' | 'Pending')}
+                  onClick={() => handleStatusChange(status)}
                   sx={{
                     display: 'flex',
                     alignItems: 'center',

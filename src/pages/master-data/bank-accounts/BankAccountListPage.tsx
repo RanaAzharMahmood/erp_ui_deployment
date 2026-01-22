@@ -9,6 +9,7 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  TableSortLabel,
   IconButton,
   Chip,
   Typography,
@@ -20,6 +21,8 @@ import {
   Select,
   MenuItem,
   Popover,
+  Snackbar,
+  Alert,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -33,6 +36,7 @@ import {
 import TableSkeleton from '../../../components/common/TableSkeleton';
 import ConfirmDialog from '../../../components/common/ConfirmDialog';
 import { COLORS } from '../../../constants/colors';
+import { bankAccountService, BankAccount as ApiBankAccount } from '../../../services';
 
 interface BankAccount {
   id: string;
@@ -47,6 +51,24 @@ interface BankAccount {
   status: 'Active' | 'Inactive';
   createdAt: string;
 }
+
+type Order = 'asc' | 'desc';
+type BankAccountOrderBy = 'companyName' | 'bankName' | 'branchName' | 'accountTitle' | 'accountNumber' | 'status';
+
+// Map API response to internal format
+const mapApiToInternal = (account: ApiBankAccount): BankAccount => ({
+  id: String(account.id),
+  companyId: account.companyId,
+  companyName: account.companyName || '',
+  bankName: account.bankName,
+  branchName: account.branchName || '',
+  accountTitle: account.accountName,
+  accountNumber: account.accountNumber,
+  date: account.createdAt,
+  details: '',
+  status: account.isActive ? 'Active' : 'Inactive',
+  createdAt: account.createdAt,
+});
 
 const BankAccountListPage: React.FC = () => {
   const navigate = useNavigate();
@@ -65,27 +87,67 @@ const BankAccountListPage: React.FC = () => {
     open: false,
     id: null,
   });
+  const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
+    open: false,
+    message: '',
+    severity: 'success',
+  });
+  const [isDeleting, setIsDeleting] = useState(false);
 
-  // Load accounts from localStorage
-  useEffect(() => {
-    const loadAccounts = () => {
+  // Sorting state
+  const [orderBy, setOrderBy] = useState<BankAccountOrderBy>('companyName');
+  const [order, setOrder] = useState<Order>('asc');
+
+  // Load accounts from API with localStorage fallback
+  const loadAccounts = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = await bankAccountService.getAll();
+      if (response.success && response.data?.data) {
+        const mappedAccounts = response.data.data.map(mapApiToInternal);
+        setAccounts(mappedAccounts);
+        // Cache in localStorage for offline access
+        localStorage.setItem('bankAccounts', JSON.stringify(mappedAccounts));
+      }
+    } catch (error) {
+      console.error('Error loading bank accounts from API:', error);
+      // Fallback to localStorage
       try {
         const savedAccounts = localStorage.getItem('bankAccounts');
         if (savedAccounts) {
           setAccounts(JSON.parse(savedAccounts));
+          setSnackbar({
+            open: true,
+            message: 'Loaded cached data. Unable to connect to server.',
+            severity: 'error',
+          });
         }
-      } catch (error) {
-        console.error('Error loading bank accounts:', error);
-      } finally {
-        setLoading(false);
+      } catch (localError) {
+        console.error('Error loading from localStorage:', localError);
+        setSnackbar({
+          open: true,
+          message: 'Failed to load bank accounts',
+          severity: 'error',
+        });
       }
-    };
-    setTimeout(loadAccounts, 500);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  // Filter accounts
+  useEffect(() => {
+    loadAccounts();
+  }, [loadAccounts]);
+
+  // Handle sort
+  const handleSort = useCallback((property: BankAccountOrderBy) => {
+    setOrder((prevOrder) => (orderBy === property && prevOrder === 'asc' ? 'desc' : 'asc'));
+    setOrderBy(property);
+  }, [orderBy]);
+
+  // Filter and sort accounts
   const filteredAccounts = useMemo(() => {
-    return accounts.filter((account) => {
+    const filtered = accounts.filter((account) => {
       const matchesSearch =
         !searchTerm ||
         account.companyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -101,7 +163,48 @@ const BankAccountListPage: React.FC = () => {
 
       return matchesSearch && matchesCompany && matchesBankName && matchesBranchName && matchesAccountTitle && matchesStatus;
     });
-  }, [accounts, searchTerm, filters]);
+
+    // Sort the filtered accounts
+    const sortedAccounts = [...filtered].sort((a, b) => {
+      let aValue: string = '';
+      let bValue: string = '';
+
+      switch (orderBy) {
+        case 'companyName':
+          aValue = a.companyName || '';
+          bValue = b.companyName || '';
+          break;
+        case 'bankName':
+          aValue = a.bankName || '';
+          bValue = b.bankName || '';
+          break;
+        case 'branchName':
+          aValue = a.branchName || '';
+          bValue = b.branchName || '';
+          break;
+        case 'accountTitle':
+          aValue = a.accountTitle || '';
+          bValue = b.accountTitle || '';
+          break;
+        case 'accountNumber':
+          aValue = a.accountNumber || '';
+          bValue = b.accountNumber || '';
+          break;
+        case 'status':
+          aValue = a.status;
+          bValue = b.status;
+          break;
+        default:
+          return 0;
+      }
+
+      return order === 'asc'
+        ? aValue.localeCompare(bValue)
+        : bValue.localeCompare(aValue);
+    });
+
+    return sortedAccounts;
+  }, [accounts, searchTerm, filters, orderBy, order]);
 
   const handleAddAccount = useCallback(() => {
     navigate('/account/bank-account/add');
@@ -115,13 +218,34 @@ const BankAccountListPage: React.FC = () => {
     setDeleteDialog({ open: true, id });
   }, []);
 
-  const handleDeleteConfirm = useCallback(() => {
-    if (deleteDialog.id) {
+  const handleDeleteConfirm = useCallback(async () => {
+    if (!deleteDialog.id) return;
+
+    setIsDeleting(true);
+    try {
+      await bankAccountService.delete(Number(deleteDialog.id));
+
+      // Update local state
       const updatedAccounts = accounts.filter((a) => a.id !== deleteDialog.id);
       setAccounts(updatedAccounts);
       localStorage.setItem('bankAccounts', JSON.stringify(updatedAccounts));
+
+      setSnackbar({
+        open: true,
+        message: 'Bank account deleted successfully',
+        severity: 'success',
+      });
+    } catch (error) {
+      console.error('Error deleting bank account:', error);
+      setSnackbar({
+        open: true,
+        message: error instanceof Error ? error.message : 'Failed to delete bank account',
+        severity: 'error',
+      });
+    } finally {
+      setIsDeleting(false);
+      setDeleteDialog({ open: false, id: null });
     }
-    setDeleteDialog({ open: false, id: null });
   }, [accounts, deleteDialog.id]);
 
   const handleDeleteCancel = useCallback(() => {
@@ -144,6 +268,10 @@ const BankAccountListPage: React.FC = () => {
       accountTitle: '',
       status: '',
     });
+  };
+
+  const handleCloseSnackbar = () => {
+    setSnackbar({ ...snackbar, open: false });
   };
 
   const filterOpen = Boolean(filterAnchorEl);
@@ -377,16 +505,88 @@ const BankAccountListPage: React.FC = () => {
       {/* Table */}
       <Card sx={{ boxShadow: 'none', border: '1px solid #E5E7EB' }}>
         <TableContainer>
-          <Table>
+          <Table aria-label="Bank accounts list">
             <TableHead>
               <TableRow sx={{ bgcolor: '#F9FAFB' }}>
-                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Company</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Bank Name</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Branch Name</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Account Title</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Account Number</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Status</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Actions</TableCell>
+                <TableCell
+                  scope="col"
+                  sx={{ fontWeight: 600, color: '#374151' }}
+                  aria-sort={orderBy === 'companyName' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'companyName'}
+                    direction={orderBy === 'companyName' ? order : 'asc'}
+                    onClick={() => handleSort('companyName')}
+                  >
+                    Company
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell
+                  scope="col"
+                  sx={{ fontWeight: 600, color: '#374151' }}
+                  aria-sort={orderBy === 'bankName' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'bankName'}
+                    direction={orderBy === 'bankName' ? order : 'asc'}
+                    onClick={() => handleSort('bankName')}
+                  >
+                    Bank Name
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell
+                  scope="col"
+                  sx={{ fontWeight: 600, color: '#374151' }}
+                  aria-sort={orderBy === 'branchName' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'branchName'}
+                    direction={orderBy === 'branchName' ? order : 'asc'}
+                    onClick={() => handleSort('branchName')}
+                  >
+                    Branch Name
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell
+                  scope="col"
+                  sx={{ fontWeight: 600, color: '#374151' }}
+                  aria-sort={orderBy === 'accountTitle' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'accountTitle'}
+                    direction={orderBy === 'accountTitle' ? order : 'asc'}
+                    onClick={() => handleSort('accountTitle')}
+                  >
+                    Account Title
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell
+                  scope="col"
+                  sx={{ fontWeight: 600, color: '#374151' }}
+                  aria-sort={orderBy === 'accountNumber' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'accountNumber'}
+                    direction={orderBy === 'accountNumber' ? order : 'asc'}
+                    onClick={() => handleSort('accountNumber')}
+                  >
+                    Account Number
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell
+                  scope="col"
+                  sx={{ fontWeight: 600, color: '#374151' }}
+                  aria-sort={orderBy === 'status' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'status'}
+                    direction={orderBy === 'status' ? order : 'asc'}
+                    onClick={() => handleSort('status')}
+                  >
+                    Status
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell scope="col" sx={{ fontWeight: 600, color: '#374151' }}>Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -425,6 +625,7 @@ const BankAccountListPage: React.FC = () => {
                         size="small"
                         onClick={() => handleEditAccount(account.id)}
                         sx={{ color: '#10B981' }}
+                        aria-label={`Edit ${account.accountTitle}`}
                       >
                         <EditIcon fontSize="small" />
                       </IconButton>
@@ -432,6 +633,8 @@ const BankAccountListPage: React.FC = () => {
                         size="small"
                         onClick={() => handleDeleteClick(account.id)}
                         sx={{ color: COLORS.error }}
+                        disabled={isDeleting}
+                        aria-label={`Delete ${account.accountTitle}`}
                       >
                         <DeleteIcon fontSize="small" />
                       </IconButton>
@@ -454,6 +657,17 @@ const BankAccountListPage: React.FC = () => {
         onConfirm={handleDeleteConfirm}
         onCancel={handleDeleteCancel}
       />
+
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={handleCloseSnackbar}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert onClose={handleCloseSnackbar} severity={snackbar.severity} sx={{ width: '100%' }}>
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };

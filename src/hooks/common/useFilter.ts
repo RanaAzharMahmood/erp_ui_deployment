@@ -3,6 +3,9 @@ import { useState, useMemo, useCallback } from 'react';
 type FilterValue = string | number | boolean | null | undefined;
 type FilterFn<T> = (item: T, filters: Record<string, FilterValue>) => boolean;
 
+// Generic type for filterable objects with string keys
+type FilterableObject = Record<string, FilterValue | object>;
+
 interface UseFilterOptions<T> {
   initialFilters?: Record<string, FilterValue>;
   filterFn?: FilterFn<T>;
@@ -21,7 +24,7 @@ interface UseFilterReturn<T> {
 /**
  * Default filter function - matches string properties containing filter value
  */
-function defaultFilterFn<T extends Record<string, any>>(
+function defaultFilterFn<T extends FilterableObject>(
   item: T,
   filters: Record<string, FilterValue>
 ): boolean {
@@ -46,7 +49,7 @@ function defaultFilterFn<T extends Record<string, any>>(
 /**
  * Hook for filtering data with multiple filter criteria
  */
-export function useFilter<T extends Record<string, any>>(
+export function useFilter<T extends FilterableObject>(
   data: T[],
   options: UseFilterOptions<T> = {}
 ): UseFilterReturn<T> {

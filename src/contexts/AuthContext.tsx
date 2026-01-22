@@ -7,7 +7,6 @@ interface AuthContextType {
   isAuthenticated: boolean
   login: (email: string, password: string) => Promise<boolean>
   logout: () => void
-  getAccessToken: () => Promise<string | null>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -24,9 +23,14 @@ interface AuthProviderProps {
   children: ReactNode
 }
 
+// Storage key for user data (non-sensitive info only)
+const USER_STORAGE_KEY = 'erp_user'
+
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(() => {
-    const storedUser = localStorage.getItem('erp_user')
+    // Only store non-sensitive user info in localStorage
+    // Token is stored in httpOnly cookie by the server
+    const storedUser = localStorage.getItem(USER_STORAGE_KEY)
     return storedUser ? JSON.parse(storedUser) : null
   })
 
@@ -34,26 +38,30 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       const authApi = getAuthApi()
       const response = await authApi.v1ApiAuthLoginPost({ email, password })
-      
+
       if (response.success && response.data) {
-        const { user: userData, token } = response.data
-        
-        if (userData && token) {
+        const { user: userData } = response.data
+
+        if (userData) {
+          // Only store non-sensitive user info
+          // Token is automatically stored as httpOnly cookie by the server
           const newUser: User = {
             id: String(userData.id || ''),
             email: userData.email || email,
             name: userData.fullName || email.split('@')[0],
           }
-          
+
           setUser(newUser)
-          localStorage.setItem('erp_user', JSON.stringify(newUser))
-          localStorage.setItem('erp_token', token)
-          localStorage.setItem('auth_token', token)
-          
+          localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(newUser))
+
+          // Clear any legacy token storage (migration cleanup)
+          localStorage.removeItem('erp_token')
+          localStorage.removeItem('auth_token')
+
           return true
         }
       }
-      
+
       return false
     } catch (error) {
       console.error('Login error:', error)
@@ -61,16 +69,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   }, [])
 
-  const logout = useCallback(() => {
-    setUser(null)
-    localStorage.removeItem('erp_user')
-    localStorage.removeItem('erp_token')
-    localStorage.removeItem('auth_token')
-  }, [])
-
-  const getAccessToken = useCallback(async (): Promise<string | null> => {
-    const token = localStorage.getItem('erp_token') || localStorage.getItem('auth_token')
-    return token
+  const logout = useCallback(async () => {
+    try {
+      // Call logout endpoint to clear httpOnly cookie on server
+      const authApi = getAuthApi()
+      await authApi.v1ApiAuthLogoutPost()
+    } catch (error) {
+      console.error('Logout error:', error)
+    } finally {
+      // Always clear local state regardless of server response
+      setUser(null)
+      localStorage.removeItem(USER_STORAGE_KEY)
+      // Clear any legacy token storage
+      localStorage.removeItem('erp_token')
+      localStorage.removeItem('auth_token')
+    }
   }, [])
 
   return (
@@ -80,7 +93,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         isAuthenticated: !!user,
         login,
         logout,
-        getAccessToken,
       }}
     >
       {children}

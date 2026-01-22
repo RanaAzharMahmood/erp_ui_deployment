@@ -15,10 +15,13 @@ interface UseSearchReturn<T> {
   isSearching: boolean;
 }
 
+// Generic type for searchable objects with string keys
+type SearchableObject = Record<string, string | number | boolean | null | undefined | object>;
+
 /**
  * Hook for searching through data with debounced search term
  */
-export function useSearch<T extends Record<string, any>>(
+export function useSearch<T extends SearchableObject>(
   data: T[],
   searchableFields: (keyof T)[],
   options: UseSearchOptions = {}

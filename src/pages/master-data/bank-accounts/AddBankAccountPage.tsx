@@ -23,6 +23,13 @@ import {
 import PageHeader from '../../../components/common/PageHeader';
 import FormSection from '../../../components/common/FormSection';
 import StatusSelector from '../../../components/common/StatusSelector';
+import { useCompanies } from '../../../hooks';
+import {
+  getBankAccountsApi,
+  CreateBankAccountRequest,
+  UpdateBankAccountRequest,
+  BankAccountType,
+} from '../../../generated/api/client';
 
 interface BankAccountFormData {
   companyId: number | '';
@@ -53,24 +60,46 @@ const AddBankAccountPage: React.FC = () => {
     status: 'Active',
   });
 
-  const [companies, setCompanies] = useState<Array<{ id: number; name: string }>>([]);
+  const { companies: rawCompanies, refetch: refetchCompanies } = useCompanies();
+  const companies = rawCompanies.map((c) => ({ id: c.id, name: c.name }));
+
+  // Refetch companies on mount to ensure fresh data
+  useEffect(() => {
+    refetchCompanies();
+  }, [refetchCompanies]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
 
-  // Load companies and existing account if editing
+  // Load existing account if editing - try API first, then localStorage fallback
   useEffect(() => {
-    try {
-      const savedCompanies = localStorage.getItem('companies');
-      if (savedCompanies) {
-        const parsed = JSON.parse(savedCompanies);
-        setCompanies(parsed.map((c: { id: number; companyName: string }) => ({
-          id: c.id,
-          name: c.companyName,
-        })));
+    const loadAccount = async () => {
+      if (!isEditMode || !id) return;
+
+      try {
+        // Try API first
+        const api = getBankAccountsApi();
+        const response = await api.getById(Number(id));
+        if (response.success && response.data) {
+          const account = response.data;
+          setFormData({
+            companyId: account.companyId || '',
+            bankName: account.bankName || '',
+            accountTitle: account.accountName || '',
+            accountNumber: account.accountNumber || '',
+            branchName: account.branchName || '',
+            date: account.createdAt ? account.createdAt.split('T')[0] : '',
+            details: '',
+            status: account.isActive ? 'Active' : 'Inactive',
+          });
+          return;
+        }
+      } catch (apiError) {
+        console.error('Error loading from API, falling back to localStorage:', apiError);
       }
 
-      if (isEditMode && id) {
+      // Fallback to localStorage
+      try {
         const savedAccounts = localStorage.getItem('bankAccounts');
         if (savedAccounts) {
           const accounts = JSON.parse(savedAccounts);
@@ -88,10 +117,12 @@ const AddBankAccountPage: React.FC = () => {
             });
           }
         }
+      } catch (err) {
+        console.error('Error loading from localStorage:', err);
       }
-    } catch (err) {
-      console.error('Error loading data:', err);
-    }
+    };
+
+    loadAccount();
   }, [id, isEditMode]);
 
   const handleInputChange = useCallback((field: keyof BankAccountFormData, value: string | number) => {
@@ -106,10 +137,55 @@ const AddBankAccountPage: React.FC = () => {
 
     setIsSubmitting(true);
     try {
+      const company = companies.find((c) => c.id === formData.companyId);
+
+      // Try API first
+      try {
+        const api = getBankAccountsApi();
+
+        if (isEditMode && id) {
+          // Update existing account
+          const updateRequest: UpdateBankAccountRequest = {
+            accountName: formData.accountTitle,
+            accountNumber: formData.accountNumber,
+            bankName: formData.bankName,
+            branchName: formData.branchName,
+            companyId: formData.companyId ? Number(formData.companyId) : undefined,
+            isActive: formData.status === 'Active',
+          };
+
+          const response = await api.update(Number(id), updateRequest);
+          if (response.success) {
+            setSuccessMessage('Bank account updated successfully!');
+            setTimeout(() => navigate('/account/bank-account'), 1500);
+            return;
+          }
+        } else {
+          // Create new account
+          const createRequest: CreateBankAccountRequest = {
+            accountName: formData.accountTitle,
+            accountNumber: formData.accountNumber,
+            bankName: formData.bankName,
+            branchName: formData.branchName,
+            accountType: 'current' as BankAccountType, // Default to current
+            companyId: formData.companyId ? Number(formData.companyId) : undefined,
+          };
+
+          const response = await api.create(createRequest);
+          if (response.success) {
+            setSuccessMessage('Bank account created successfully!');
+            setTimeout(() => navigate('/account/bank-account'), 1500);
+            return;
+          }
+        }
+      } catch (apiError) {
+        console.error('API error, falling back to localStorage:', apiError);
+      }
+
+      // Fallback to localStorage
       const savedAccounts = localStorage.getItem('bankAccounts');
       const accounts = savedAccounts ? JSON.parse(savedAccounts) : [];
 
-      const company = companies.find((c) => c.id === formData.companyId);
       const accountData = {
         id: isEditMode ? id : Date.now().toString(),
         ...formData,
@@ -128,7 +204,7 @@ const AddBankAccountPage: React.FC = () => {
       }
 
       localStorage.setItem('bankAccounts', JSON.stringify(accounts));
-      setSuccessMessage(isEditMode ? 'Bank account updated successfully!' : 'Bank account created successfully!');
+      setSuccessMessage(isEditMode ? 'Bank account updated successfully (offline mode)!' : 'Bank account created successfully (offline mode)!');
       setTimeout(() => navigate('/account/bank-account'), 1500);
     } catch (err) {
       setError('Failed to save bank account');
@@ -161,7 +237,6 @@ const AddBankAccountPage: React.FC = () => {
                       displayEmpty
                       sx={{ bgcolor: 'white' }}
                     >
-                      <MenuItem value="">EST Gas</MenuItem>
                       {companies.map((company) => (
                         <MenuItem key={company.id} value={company.id}>
                           {company.name}

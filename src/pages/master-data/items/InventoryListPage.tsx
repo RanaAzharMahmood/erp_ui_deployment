@@ -9,6 +9,7 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  TableSortLabel,
   IconButton,
   Chip,
   Typography,
@@ -20,6 +21,8 @@ import {
   Select,
   MenuItem,
   Popover,
+  Snackbar,
+  Alert,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -31,9 +34,12 @@ import {
   GridOn as GridIcon,
 } from '@mui/icons-material';
 import TableSkeleton from '../../../components/common/TableSkeleton';
+import ConfirmDialog from '../../../components/feedback/ConfirmDialog';
+import { COLORS } from '../../../constants/colors';
+import { getItemsApi } from '../../../generated/api/client';
 
 interface Item {
-  id: string;
+  id: number;
   itemCode: string;
   itemName: string;
   categoryId?: number;
@@ -49,6 +55,12 @@ interface Item {
   createdAt: string;
 }
 
+interface SnackbarState {
+  open: boolean;
+  message: string;
+  severity: 'success' | 'error' | 'info' | 'warning';
+}
+
 const InventoryListPage: React.FC = () => {
   const navigate = useNavigate();
   const [items, setItems] = useState<Item[]>([]);
@@ -61,27 +73,92 @@ const InventoryListPage: React.FC = () => {
     category: '',
     status: '',
   });
+  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; id: number | null }>({
+    open: false,
+    id: null,
+  });
+  const [snackbar, setSnackbar] = useState<SnackbarState>({
+    open: false,
+    message: '',
+    severity: 'info',
+  });
+  const [orderBy, setOrderBy] = useState<string>('itemName');
+  const [order, setOrder] = useState<'asc' | 'desc'>('asc');
 
-  // Load items from localStorage
-  useEffect(() => {
-    const loadItems = () => {
-      try {
-        const savedItems = localStorage.getItem('items');
-        if (savedItems) {
-          setItems(JSON.parse(savedItems));
+  // Load items from API
+  const loadItems = useCallback(async () => {
+    setLoading(true);
+    try {
+      const itemsApi = getItemsApi();
+      // Pass undefined to get all items regardless of status for the filter to work
+      const response = await itemsApi.v1ApiItemsGet();
+      if (response.data) {
+        interface ApiItem {
+          id: number;
+          itemCode: string;
+          itemName: string;
+          categoryId?: number;
+          categoryName?: string;
+          companyName?: string;
+          unitPrice?: number | string;
+          purchasePrice?: number | string;
+          salePrice?: number | string;
+          unitOfMeasure: string;
+          isActive: boolean;
+          openingStock?: number | string;
+          currentStock?: number | string;
+          createdAt: string;
         }
-      } catch (error) {
-        console.error('Error loading items:', error);
-      } finally {
-        setLoading(false);
+        interface ApiResponseWithData {
+          data?: ApiItem[];
+        }
+        const responseData = response.data as ApiItem[] | ApiResponseWithData;
+        const itemsData = Array.isArray(responseData) ? responseData : (responseData as ApiResponseWithData).data || [];
+        setItems(
+          itemsData.map((i: ApiItem) => ({
+            id: i.id,
+            itemCode: i.itemCode,
+            itemName: i.itemName,
+            categoryId: i.categoryId,
+            categoryName: i.categoryName,
+            companyName: i.companyName,
+            unitPrice: Number(i.unitPrice) || 0,
+            purchasePrice: Number(i.purchasePrice) || 0,
+            salePrice: Number(i.salePrice) || 0,
+            unitOfMeasure: i.unitOfMeasure,
+            isActive: i.isActive,
+            openingStock: Number(i.openingStock) || 0,
+            currentStock: Number(i.currentStock) || 0,
+            createdAt: i.createdAt,
+          }))
+        );
       }
-    };
-    setTimeout(loadItems, 500);
+    } catch (error: unknown) {
+      console.error('Error loading items:', error);
+      setSnackbar({
+        open: true,
+        message: 'Failed to load items. Please try again.',
+        severity: 'error',
+      });
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  // Filter items
+  useEffect(() => {
+    loadItems();
+  }, [loadItems]);
+
+  // Sort handler
+  const handleSort = useCallback((property: string) => {
+    const isAsc = orderBy === property && order === 'asc';
+    setOrder(isAsc ? 'desc' : 'asc');
+    setOrderBy(property);
+  }, [orderBy, order]);
+
+  // Filter and sort items
   const filteredItems = useMemo(() => {
-    return items.filter((item) => {
+    const filtered = items.filter((item) => {
       const matchesSearch =
         !searchTerm ||
         item.itemName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -96,7 +173,52 @@ const InventoryListPage: React.FC = () => {
 
       return matchesSearch && matchesCompany && matchesCategory && matchesStatus;
     });
-  }, [items, searchTerm, filters]);
+
+    // Sort the filtered results
+    const sorted = [...filtered].sort((a, b) => {
+      let aValue: string | number = '';
+      let bValue: string | number = '';
+
+      switch (orderBy) {
+        case 'itemCode':
+          aValue = a.itemCode.toLowerCase();
+          bValue = b.itemCode.toLowerCase();
+          break;
+        case 'companyName':
+          aValue = (a.companyName || '').toLowerCase();
+          bValue = (b.companyName || '').toLowerCase();
+          break;
+        case 'itemName':
+          aValue = a.itemName.toLowerCase();
+          bValue = b.itemName.toLowerCase();
+          break;
+        case 'categoryName':
+          aValue = (a.categoryName || '').toLowerCase();
+          bValue = (b.categoryName || '').toLowerCase();
+          break;
+        case 'unitPrice':
+          aValue = a.unitPrice;
+          bValue = b.unitPrice;
+          break;
+        case 'purchasePrice':
+          aValue = a.purchasePrice;
+          bValue = b.purchasePrice;
+          break;
+        case 'status':
+          aValue = a.isActive ? 'Active' : 'Inactive';
+          bValue = b.isActive ? 'Active' : 'Inactive';
+          break;
+        default:
+          return 0;
+      }
+
+      if (aValue < bValue) return order === 'asc' ? -1 : 1;
+      if (aValue > bValue) return order === 'asc' ? 1 : -1;
+      return 0;
+    });
+
+    return sorted;
+  }, [items, searchTerm, filters, orderBy, order]);
 
   const handleAddItem = useCallback(() => {
     navigate('/inventory/add');
@@ -106,17 +228,54 @@ const InventoryListPage: React.FC = () => {
     navigate('/categories/add');
   }, [navigate]);
 
-  const handleEditItem = useCallback((id: string) => {
+  const handleEditItem = useCallback((id: number) => {
     navigate(`/inventory/update/${id}`);
   }, [navigate]);
 
-  const handleDeleteItem = useCallback((id: string) => {
-    if (window.confirm('Are you sure you want to delete this item?')) {
-      const updatedItems = items.filter((i) => i.id !== id);
-      setItems(updatedItems);
-      localStorage.setItem('items', JSON.stringify(updatedItems));
+  const handleDeleteClick = useCallback((id: number) => {
+    setDeleteDialog({ open: true, id });
+  }, []);
+
+  const handleDeleteConfirm = useCallback(async () => {
+    if (deleteDialog.id) {
+      try {
+        const itemsApi = getItemsApi();
+        await itemsApi.v1ApiItemsIdDelete(deleteDialog.id);
+
+        // Remove from local state
+        setItems((prev) => prev.filter((i) => i.id !== deleteDialog.id));
+
+        setSnackbar({
+          open: true,
+          message: 'Item deleted successfully!',
+          severity: 'success',
+        });
+      } catch (error: unknown) {
+        console.error('Error deleting item:', error);
+
+        let errorMessage = 'Failed to delete item. Please try again.';
+        if (error && typeof error === 'object' && 'json' in error && typeof (error as { json: unknown }).json === 'function') {
+          try {
+            const errorData = await (error as { json: () => Promise<{ message?: string }> }).json();
+            errorMessage = errorData.message || errorMessage;
+          } catch {
+            // Use default error message
+          }
+        }
+
+        setSnackbar({
+          open: true,
+          message: errorMessage,
+          severity: 'error',
+        });
+      }
     }
-  }, [items]);
+    setDeleteDialog({ open: false, id: null });
+  }, [deleteDialog.id]);
+
+  const handleDeleteCancel = useCallback(() => {
+    setDeleteDialog({ open: false, id: null });
+  }, []);
 
   const handleFilterClick = (event: React.MouseEvent<HTMLButtonElement>) => {
     setFilterAnchorEl(event.currentTarget);
@@ -128,6 +287,10 @@ const InventoryListPage: React.FC = () => {
 
   const handleClearFilters = () => {
     setFilters({ company: '', itemName: '', category: '', status: '' });
+  };
+
+  const handleSnackbarClose = () => {
+    setSnackbar((prev) => ({ ...prev, open: false }));
   };
 
   const filterOpen = Boolean(filterAnchorEl);
@@ -237,12 +400,12 @@ const InventoryListPage: React.FC = () => {
           startIcon={<AddIcon />}
           onClick={handleAddItem}
           sx={{
-            bgcolor: '#FF6B35',
+            bgcolor: COLORS.primary,
             textTransform: 'none',
-            '&:hover': { bgcolor: '#E55A2B' },
+            '&:hover': { bgcolor: COLORS.primaryHover },
           }}
         >
-          Add Invoice
+          Add Item
         </Button>
       </Card>
 
@@ -276,7 +439,7 @@ const InventoryListPage: React.FC = () => {
               onChange={(e) => setFilters({ ...filters, itemName: e.target.value })}
               label="Item Name"
             >
-              <MenuItem value="">Number</MenuItem>
+              <MenuItem value="">All Items</MenuItem>
             </Select>
           </FormControl>
 
@@ -287,7 +450,7 @@ const InventoryListPage: React.FC = () => {
               onChange={(e) => setFilters({ ...filters, category: e.target.value })}
               label="Category"
             >
-              <MenuItem value="">Name</MenuItem>
+              <MenuItem value="">All Categories</MenuItem>
               {categoryNames.map((name) => (
                 <MenuItem key={name} value={name}>{name}</MenuItem>
               ))}
@@ -333,9 +496,9 @@ const InventoryListPage: React.FC = () => {
               size="small"
               onClick={handleFilterClose}
               sx={{
-                bgcolor: '#FF6B35',
+                bgcolor: COLORS.primary,
                 textTransform: 'none',
-                '&:hover': { bgcolor: '#E55A2B' },
+                '&:hover': { bgcolor: COLORS.primaryHover },
               }}
             >
               Apply Filter
@@ -347,17 +510,101 @@ const InventoryListPage: React.FC = () => {
       {/* Table */}
       <Card sx={{ boxShadow: 'none', border: '1px solid #E5E7EB' }}>
         <TableContainer>
-          <Table>
+          <Table aria-label="Inventory items list">
             <TableHead>
               <TableRow sx={{ bgcolor: '#F9FAFB' }}>
-                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Item Id</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Company</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Item Name</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Category</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Unit Price(MT)</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Purchase Price</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Status</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Actions</TableCell>
+                <TableCell
+                  scope="col"
+                  sx={{ fontWeight: 600, color: '#374151' }}
+                  aria-sort={orderBy === 'itemCode' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'itemCode'}
+                    direction={orderBy === 'itemCode' ? order : 'asc'}
+                    onClick={() => handleSort('itemCode')}
+                  >
+                    Item Id
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell
+                  scope="col"
+                  sx={{ fontWeight: 600, color: '#374151' }}
+                  aria-sort={orderBy === 'companyName' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'companyName'}
+                    direction={orderBy === 'companyName' ? order : 'asc'}
+                    onClick={() => handleSort('companyName')}
+                  >
+                    Company
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell
+                  scope="col"
+                  sx={{ fontWeight: 600, color: '#374151' }}
+                  aria-sort={orderBy === 'itemName' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'itemName'}
+                    direction={orderBy === 'itemName' ? order : 'asc'}
+                    onClick={() => handleSort('itemName')}
+                  >
+                    Item Name
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell
+                  scope="col"
+                  sx={{ fontWeight: 600, color: '#374151' }}
+                  aria-sort={orderBy === 'categoryName' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'categoryName'}
+                    direction={orderBy === 'categoryName' ? order : 'asc'}
+                    onClick={() => handleSort('categoryName')}
+                  >
+                    Category
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell
+                  scope="col"
+                  sx={{ fontWeight: 600, color: '#374151' }}
+                  aria-sort={orderBy === 'unitPrice' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'unitPrice'}
+                    direction={orderBy === 'unitPrice' ? order : 'asc'}
+                    onClick={() => handleSort('unitPrice')}
+                  >
+                    Unit Price(MT)
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell
+                  scope="col"
+                  sx={{ fontWeight: 600, color: '#374151' }}
+                  aria-sort={orderBy === 'purchasePrice' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'purchasePrice'}
+                    direction={orderBy === 'purchasePrice' ? order : 'asc'}
+                    onClick={() => handleSort('purchasePrice')}
+                  >
+                    Purchase Price
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell
+                  scope="col"
+                  sx={{ fontWeight: 600, color: '#374151' }}
+                  aria-sort={orderBy === 'status' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'status'}
+                    direction={orderBy === 'status' ? order : 'asc'}
+                    onClick={() => handleSort('status')}
+                  >
+                    Status
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell scope="col" sx={{ fontWeight: 600, color: '#374151' }}>Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -365,7 +612,7 @@ const InventoryListPage: React.FC = () => {
                 <TableRow>
                   <TableCell colSpan={8} align="center" sx={{ py: 8 }}>
                     <Typography color="text.secondary">
-                      No items found. Click "Add Invoice" to add one.
+                      No items found. Click "Add Item" to add one.
                     </Typography>
                   </TableCell>
                 </TableRow>
@@ -373,9 +620,9 @@ const InventoryListPage: React.FC = () => {
                 filteredItems.map((item) => (
                   <TableRow key={item.id} hover>
                     <TableCell>{item.itemCode}</TableCell>
-                    <TableCell>{item.companyName || 'EST Gass'}</TableCell>
+                    <TableCell>{item.companyName || '-'}</TableCell>
                     <TableCell>{item.itemName}</TableCell>
-                    <TableCell>{item.categoryName || 'Gas'}</TableCell>
+                    <TableCell>{item.categoryName || '-'}</TableCell>
                     <TableCell>{item.unitPrice.toFixed(1)} PKR</TableCell>
                     <TableCell>{item.purchasePrice.toFixed(1)}</TableCell>
                     <TableCell>
@@ -394,14 +641,16 @@ const InventoryListPage: React.FC = () => {
                       <IconButton
                         size="small"
                         onClick={() => handleEditItem(item.id)}
-                        sx={{ color: '#10B981' }}
+                        sx={{ color: '#4CAF50' }}
+                        aria-label={`Edit ${item.itemName}`}
                       >
                         <EditIcon fontSize="small" />
                       </IconButton>
                       <IconButton
                         size="small"
-                        onClick={() => handleDeleteItem(item.id)}
-                        sx={{ color: '#EF4444' }}
+                        onClick={() => handleDeleteClick(item.id)}
+                        sx={{ color: COLORS.error }}
+                        aria-label={`Delete ${item.itemName}`}
                       >
                         <DeleteIcon fontSize="small" />
                       </IconButton>
@@ -413,6 +662,34 @@ const InventoryListPage: React.FC = () => {
           </Table>
         </TableContainer>
       </Card>
+
+      <ConfirmDialog
+        open={deleteDialog.open}
+        title="Delete Item"
+        message="Are you sure you want to delete this item? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        confirmColor="error"
+        onConfirm={handleDeleteConfirm}
+        onCancel={handleDeleteCancel}
+      />
+
+      {/* Snackbar for success/error messages */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={handleSnackbarClose}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert
+          onClose={handleSnackbarClose}
+          severity={snackbar.severity}
+          sx={{ width: '100%' }}
+          variant="filled"
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };

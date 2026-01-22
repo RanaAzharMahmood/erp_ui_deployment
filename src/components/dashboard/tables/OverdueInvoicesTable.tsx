@@ -90,10 +90,11 @@ const OverdueInvoicesTable: React.FC<OverdueInvoicesTableProps> = ({ data }) => 
         </Typography>
       </Box>
       <TableContainer sx={{ flex: 1, overflow: 'auto' }}>
-        <Table size="small" stickyHeader sx={{ minWidth: isMobile ? 450 : 'auto' }}>
+        <Table size="small" stickyHeader sx={{ minWidth: isMobile ? 450 : 'auto' }} aria-label="Overdue invoices">
           <TableHead>
             <TableRow>
               <TableCell
+                scope="col"
                 sx={{
                   bgcolor: COLORS.table.headerBg,
                   color: COLORS.text.secondary,
@@ -108,6 +109,7 @@ const OverdueInvoicesTable: React.FC<OverdueInvoicesTableProps> = ({ data }) => 
               </TableCell>
               {!isMobile && (
                 <TableCell
+                  scope="col"
                   sx={{
                     bgcolor: COLORS.table.headerBg,
                     color: COLORS.text.secondary,
@@ -122,6 +124,7 @@ const OverdueInvoicesTable: React.FC<OverdueInvoicesTableProps> = ({ data }) => 
                 </TableCell>
               )}
               <TableCell
+                scope="col"
                 align="right"
                 sx={{
                   bgcolor: COLORS.table.headerBg,
@@ -136,6 +139,7 @@ const OverdueInvoicesTable: React.FC<OverdueInvoicesTableProps> = ({ data }) => 
                 Amount
               </TableCell>
               <TableCell
+                scope="col"
                 sx={{
                   bgcolor: COLORS.table.headerBg,
                   color: COLORS.text.secondary,
@@ -149,6 +153,7 @@ const OverdueInvoicesTable: React.FC<OverdueInvoicesTableProps> = ({ data }) => 
                 {isMobile ? 'Days' : 'Due Date'}
               </TableCell>
               <TableCell
+                scope="col"
                 sx={{
                   bgcolor: COLORS.table.headerBg,
                   color: COLORS.text.secondary,

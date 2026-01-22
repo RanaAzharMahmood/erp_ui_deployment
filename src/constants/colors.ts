@@ -9,21 +9,29 @@ export const COLORS = {
   primary: '#FF6B35',
   primaryHover: '#E55A2B',
 
-  // Success/Green - positive actions, active status
-  success: '#10B981',
-  successHover: '#059669',
-  successLight: 'rgba(16, 185, 129, 0.1)',
-  successBorder: '#10B981',
+  // Success/Green - positive actions, active status, edit buttons
+  success: '#4CAF50',
+  successHover: '#43A047',
+  successLight: 'rgba(76, 175, 80, 0.1)',
+  successBorder: '#4CAF50',
 
-  // Error/Red - destructive actions, error states, inactive status
-  error: '#EF4444',
-  errorHover: '#DC2626',
-  errorLight: 'rgba(239, 68, 68, 0.1)',
-  errorBorder: '#EF4444',
+  // Edit alias (maps to success)
+  edit: '#4CAF50',
+  editHover: '#43A047',
+
+  // Error/Red - destructive actions, error states, inactive status, delete buttons
+  error: '#EF5350',
+  errorHover: '#E53935',
+  errorLight: 'rgba(239, 83, 80, 0.1)',
+  errorBorder: '#EF5350',
+
+  // Delete alias (maps to error)
+  delete: '#EF5350',
+  deleteHover: '#E53935',
 
   // Warning/Yellow - warnings, pending states
-  warning: '#F59E0B',
-  warningLight: 'rgba(245, 158, 11, 0.1)',
+  warning: '#FF9800',
+  warningLight: 'rgba(255, 152, 0, 0.1)',
 
   // Neutral/Gray palette
   text: {
@@ -124,32 +132,32 @@ export const DASHBOARD_COLORS = {
   kpiBackgrounds: {
     sales: 'rgba(255, 107, 53, 0.1)',      // Orange light
     purchase: 'rgba(59, 130, 246, 0.1)',   // Blue light
-    profit: 'rgba(16, 185, 129, 0.1)',     // Green light
+    profit: 'rgba(76, 175, 80, 0.1)',      // Green light (updated to match success)
     stock: 'rgba(139, 92, 246, 0.1)',      // Purple light
-    receivable: 'rgba(245, 158, 11, 0.1)', // Yellow light
-    payable: 'rgba(239, 68, 68, 0.1)',     // Red light
+    receivable: 'rgba(255, 152, 0, 0.1)',  // Yellow light (updated to match warning)
+    payable: 'rgba(239, 83, 80, 0.1)',     // Red light (updated to match error)
   },
   kpiIcons: {
     sales: '#FF6B35',
     purchase: '#3B82F6',
-    profit: '#10B981',
+    profit: '#4CAF50',    // Updated to match success
     stock: '#8B5CF6',
-    receivable: '#F59E0B',
-    payable: '#EF4444',
+    receivable: '#FF9800', // Updated to match warning
+    payable: '#EF5350',    // Updated to match error
   },
   charts: {
     sales: '#FF6B35',
     purchases: '#3B82F6',
-    inventory: '#10B981',
+    inventory: '#4CAF50', // Updated to match success
     product1: '#FF6B35',
     product2: '#3B82F6',
-    product3: '#10B981',
+    product3: '#4CAF50',  // Updated to match success
     product4: '#8B5CF6',
   },
   urgency: {
-    critical: '#EF4444',
-    warning: '#F59E0B',
-    low: '#10B981',
+    critical: '#EF5350',  // Updated to match error
+    warning: '#FF9800',   // Updated to match warning
+    low: '#4CAF50',       // Updated to match success
   },
 } as const;
 
