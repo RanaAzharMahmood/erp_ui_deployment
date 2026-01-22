@@ -79,7 +79,7 @@ const PurchaseReturnListPage: React.FC = () => {
   const [orderBy, setOrderBy] = useState<OrderBy>('date');
   const [order, setOrder] = useState<Order>('desc');
 
-  // Load returns from API with localStorage fallback
+  // Load returns from API
   useEffect(() => {
     const loadReturns = async () => {
       try {
@@ -99,21 +99,10 @@ const PurchaseReturnListPage: React.FC = () => {
             createdAt: ret.createdAt || '',
           }));
           setReturns(apiReturns);
-          // Sync to localStorage for offline access
-          localStorage.setItem('purchaseReturns', JSON.stringify(apiReturns));
         }
       } catch (err) {
-        console.error('Error loading purchase returns from API, using localStorage fallback:', err);
-        // Fallback to localStorage
-        try {
-          const savedReturns = localStorage.getItem('purchaseReturns');
-          if (savedReturns) {
-            setReturns(JSON.parse(savedReturns));
-          }
-        } catch (localErr) {
-          console.error('Error loading from localStorage:', localErr);
-          setError('Failed to load purchase returns. Please try again.');
-        }
+        console.error('Error loading purchase returns from API:', err);
+        setError('Failed to load purchase returns. Please try again.');
       } finally {
         setLoading(false);
       }
@@ -186,27 +175,16 @@ const PurchaseReturnListPage: React.FC = () => {
     if (deleteDialog.id) {
       setDeleting(true);
       try {
-        // Try API delete first
         const purchaseReturnsApi = getPurchaseReturnsApi();
         await purchaseReturnsApi.delete(Number(deleteDialog.id));
 
         // Update local state
         const updatedReturns = returns.filter((r) => r.id !== deleteDialog.id);
         setReturns(updatedReturns);
-        localStorage.setItem('purchaseReturns', JSON.stringify(updatedReturns));
         setSuccessMessage('Purchase return deleted successfully!');
       } catch (err) {
-        console.error('Error deleting purchase return from API, using localStorage fallback:', err);
-        // Fallback to localStorage only
-        try {
-          const updatedReturns = returns.filter((r) => r.id !== deleteDialog.id);
-          setReturns(updatedReturns);
-          localStorage.setItem('purchaseReturns', JSON.stringify(updatedReturns));
-          setSuccessMessage('Purchase return deleted successfully!');
-        } catch (localErr) {
-          console.error('Error deleting from localStorage:', localErr);
-          setError('Failed to delete purchase return. Please try again.');
-        }
+        console.error('Error deleting purchase return:', err);
+        setError('Failed to delete purchase return. Please try again.');
       } finally {
         setDeleting(false);
       }

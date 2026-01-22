@@ -15,7 +15,6 @@ export { useVendors } from './useVendors';
 export { useCustomers } from './useCustomers';
 
 // Common hooks
-export { useLocalStorage } from './common/useLocalStorage';
 export { usePagination } from './common/usePagination';
 export { useFilter } from './common/useFilter';
 export { useSearch } from './common/useSearch';

@@ -92,7 +92,7 @@ const TaxListPage: React.FC = () => {
   const [orderBy, setOrderBy] = useState<string>('taxName');
   const [order, setOrder] = useState<'asc' | 'desc'>('asc');
 
-  // Load taxes from API with localStorage fallback
+  // Load taxes from API
   const loadTaxes = useCallback(async () => {
     setLoading(true);
     try {
@@ -100,25 +100,15 @@ const TaxListPage: React.FC = () => {
       if (response.success && response.data) {
         const transformedTaxes = response.data.map(transformApiTax);
         setTaxes(transformedTaxes);
-        // Cache to localStorage for offline access
-        localStorage.setItem('taxes', JSON.stringify(transformedTaxes));
       }
     } catch (error) {
       console.error('Error loading taxes from API:', error);
-      // Fallback to localStorage
-      try {
-        const savedTaxes = localStorage.getItem('taxes');
-        if (savedTaxes) {
-          setTaxes(JSON.parse(savedTaxes));
-        }
-        setSnackbar({
-          open: true,
-          message: 'Failed to load from server. Showing cached data.',
-          severity: 'error',
-        });
-      } catch (localError) {
-        console.error('Error loading from localStorage:', localError);
-      }
+      setTaxes([]);
+      setSnackbar({
+        open: true,
+        message: 'Failed to load taxes from server.',
+        severity: 'error',
+      });
     } finally {
       setLoading(false);
     }
@@ -212,19 +202,15 @@ const TaxListPage: React.FC = () => {
         loadTaxes();
       } catch (error) {
         console.error('Error deleting tax:', error);
-        // Fallback to localStorage deletion
-        const updatedTaxes = taxes.filter((t) => t.id !== deleteDialog.id);
-        setTaxes(updatedTaxes);
-        localStorage.setItem('taxes', JSON.stringify(updatedTaxes));
         setSnackbar({
           open: true,
-          message: 'Tax deleted from local storage (server unavailable)',
+          message: 'Failed to delete tax. Please try again.',
           severity: 'error',
         });
       }
     }
     setDeleteDialog({ open: false, id: null });
-  }, [taxes, deleteDialog.id, loadTaxes]);
+  }, [deleteDialog.id, loadTaxes]);
 
   const handleDeleteCancel = useCallback(() => {
     setDeleteDialog({ open: false, id: null });

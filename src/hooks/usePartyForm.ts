@@ -4,7 +4,6 @@ import {
   PartyFormData,
   initialPartyFormData,
   Company,
-  PartyData,
 } from '../components/parties/types';
 import { getPartiesApi, getCompaniesApi } from '../generated/api/client';
 import { CreatePartyRequest, UpdatePartyRequest } from '../generated/api';
@@ -71,20 +70,13 @@ export const usePartyForm = ({ partyId, mode }: UsePartyFormOptions): UsePartyFo
           if (companiesResponse.data) {
             const apiCompanies = companiesResponse.data.map((c: ApiCompanyResponse) => ({
               id: c.id ?? 0,
-              name: c.name ?? '',
+              name: c.name || c.companyName || '',
             }));
             setCompanies(apiCompanies);
-            // Cache in localStorage
-            localStorage.setItem('companies', JSON.stringify(apiCompanies));
           }
         } catch (companyError) {
           console.error('Error loading companies from API:', companyError);
-          // Fallback to localStorage
-          const savedCompanies = localStorage.getItem('companies');
-          if (savedCompanies) {
-            const parsed = JSON.parse(savedCompanies) as ApiCompanyResponse[];
-            setCompanies(parsed.map((c) => ({ id: c.id ?? 0, name: c.companyName || c.name || '' })));
-          }
+          setError('Failed to load companies');
         }
 
         // Load party data for update mode
@@ -115,32 +107,7 @@ export const usePartyForm = ({ partyId, mode }: UsePartyFormOptions): UsePartyFo
             }
           } catch (partyError) {
             console.error('Error loading party from API:', partyError);
-            // Fallback to localStorage
-            const savedParties = localStorage.getItem('parties');
-            if (savedParties) {
-              const parties: PartyData[] = JSON.parse(savedParties);
-              const party = parties.find((p) => String(p.id) === partyId);
-              if (party) {
-                setFormData({
-                  partyName: party.partyName || '',
-                  partyType: party.partyType || '',
-                  ntnNumber: party.ntnNumber || '',
-                  taxOffice: party.taxOffice || '',
-                  salesTaxNumber: party.salesTaxNumber || '',
-                  address: party.address || '',
-                  contactName: party.contactName || '',
-                  contactCnic: party.contactCnic || '',
-                  contactEmail: party.contactEmail || '',
-                  contactNumber: party.contactNumber || '',
-                  principalActivity: party.principalActivity || '',
-                  companyId: party.companyId || '',
-                  status: party.isActive ? 'Active' : 'Inactive',
-                });
-                if (party.companyId) {
-                  setSelectedCompanies([party.companyId as number]);
-                }
-              }
-            }
+            setError('Failed to load party data');
           }
         }
       } catch (err) {
@@ -219,16 +186,6 @@ export const usePartyForm = ({ partyId, mode }: UsePartyFormOptions): UsePartyFo
 
         await partiesApi.v1ApiPartiesPost(createData);
         setSuccessMessage('Party created successfully!');
-
-        // Update localStorage cache
-        try {
-          const response = await partiesApi.v1ApiPartiesGet();
-          if (response.data?.data) {
-            localStorage.setItem('parties', JSON.stringify(response.data.data));
-          }
-        } catch {
-          // Ignore cache update error
-        }
       } else {
         const updateData: UpdatePartyRequest = {
           partyName: formData.partyName,
@@ -248,16 +205,6 @@ export const usePartyForm = ({ partyId, mode }: UsePartyFormOptions): UsePartyFo
 
         await partiesApi.v1ApiPartiesIdPut(updateData, parseInt(partyId!, 10));
         setSuccessMessage('Party updated successfully!');
-
-        // Update localStorage cache
-        try {
-          const response = await partiesApi.v1ApiPartiesGet();
-          if (response.data?.data) {
-            localStorage.setItem('parties', JSON.stringify(response.data.data));
-          }
-        } catch {
-          // Ignore cache update error
-        }
       }
 
       setTimeout(() => {
@@ -278,6 +225,7 @@ export const usePartyForm = ({ partyId, mode }: UsePartyFormOptions): UsePartyFo
       }
 
       setError(errorMessage);
+    } finally {
       setIsSubmitting(false);
     }
   }, [formData, mode, partyId, navigate, validateForm]);
@@ -288,19 +236,6 @@ export const usePartyForm = ({ partyId, mode }: UsePartyFormOptions): UsePartyFo
     try {
       const partiesApi = getPartiesApi();
       await partiesApi.v1ApiPartiesIdDelete(parseInt(partyId!, 10));
-
-      // Update localStorage cache
-      try {
-        const response = await partiesApi.v1ApiPartiesGet();
-        if (response.data?.data) {
-          localStorage.setItem('parties', JSON.stringify(response.data.data));
-        }
-      } catch {
-        // Fallback: remove from localStorage
-        const parties: PartyData[] = JSON.parse(localStorage.getItem('parties') || '[]');
-        const updatedParties = parties.filter((p) => String(p.id) !== partyId);
-        localStorage.setItem('parties', JSON.stringify(updatedParties));
-      }
 
       setSuccessMessage('Party deleted successfully!');
       setTimeout(() => {

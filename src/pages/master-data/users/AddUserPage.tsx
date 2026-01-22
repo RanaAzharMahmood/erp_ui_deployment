@@ -28,14 +28,6 @@ import { optimizeImage, validateImage } from '../../../utils/imageOptimizer';
 import type { UserFormData } from '../../../types/common.types';
 import { getUsersApi } from '../../../generated/api/client';
 import type { CreateUserRequest } from '../../../generated/api/api';
-import type { User } from '../../../types/common.types';
-
-// API response type for user creation
-interface CreateUserApiResponse {
-  data?: {
-    id?: number;
-  };
-}
 
 const AddUserPage: React.FC = () => {
   const navigate = useNavigate();
@@ -162,20 +154,7 @@ const AddUserPage: React.FC = () => {
       };
 
       // Call API
-      const response = await usersApi.v1ApiUsersPost(payload);
-
-      // Save to localStorage
-      const users: User[] = JSON.parse(localStorage.getItem('users') || '[]');
-      const apiResponse = response as CreateUserApiResponse;
-      const newUser: User = {
-        id: String(apiResponse.data?.id || Date.now()),
-        ...formData,
-        fullName: `${formData.firstName} ${formData.lastName}`.trim(),
-        companyAccess: extendedCompanyAccess,
-        createdAt: new Date().toISOString(),
-      };
-      users.push(newUser);
-      localStorage.setItem('users', JSON.stringify(users));
+      await usersApi.v1ApiUsersPost(payload);
 
       setSuccessMessage('User created successfully!');
 
@@ -184,22 +163,9 @@ const AddUserPage: React.FC = () => {
       }, 1500);
     } catch (err: unknown) {
       console.error('Error creating user:', err);
-      // Save locally even if API fails
-      const users: User[] = JSON.parse(localStorage.getItem('users') || '[]');
-      const newUser: User = {
-        id: String(Date.now()),
-        ...formData,
-        fullName: `${formData.firstName} ${formData.lastName}`.trim(),
-        companyAccess: extendedCompanyAccess,
-        createdAt: new Date().toISOString(),
-      };
-      users.push(newUser);
-      localStorage.setItem('users', JSON.stringify(users));
-
-      setSuccessMessage('User created successfully!');
-      setTimeout(() => {
-        navigate('/users');
-      }, 1500);
+      setError('Failed to create user. Please try again.');
+    } finally {
+      setIsSubmitting(false);
     }
   }, [formData, password, extendedCompanyAccess, navigate]);
 

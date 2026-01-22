@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { TaxFormData, TaxRecord, INITIAL_TAX_FORM_DATA } from '../components/taxes/taxTypes';
+import { TaxFormData, INITIAL_TAX_FORM_DATA } from '../components/taxes/taxTypes';
 import { getTaxesApi, CreateTaxRequest, UpdateTaxRequest, Tax } from '../generated/api/client';
 
 interface UseTaxFormOptions {
@@ -46,20 +46,6 @@ const apiTaxToFormData = (tax: Tax): TaxFormData => ({
   status: tax.isActive ? 'Active' : 'Inactive',
 });
 
-// Helper function to convert API Tax to TaxRecord for localStorage cache
-const apiTaxToRecord = (tax: Tax): TaxRecord => ({
-  id: String(tax.id),
-  taxId: tax.code || '',
-  taxName: tax.name || '',
-  taxPercentage: tax.rate || 0,
-  taxDate: tax.createdAt ? tax.createdAt.split('T')[0] : '',
-  note: tax.description || '',
-  isActive: tax.isActive,
-  status: tax.isActive ? 'Active' : 'Inactive',
-  createdAt: tax.createdAt,
-  updatedAt: tax.updatedAt,
-});
-
 export const useTaxForm = ({ mode, taxId }: UseTaxFormOptions): UseTaxFormReturn => {
   const navigate = useNavigate();
   const [formData, setFormData] = useState<TaxFormData>(INITIAL_TAX_FORM_DATA);
@@ -75,48 +61,14 @@ export const useTaxForm = ({ mode, taxId }: UseTaxFormOptions): UseTaxFormReturn
     const loadData = async () => {
       if (mode === 'update' && taxId) {
         try {
-          // Try to load from API first
           const taxesApi = getTaxesApi();
           const response = await taxesApi.getById(parseInt(taxId, 10));
           if (response.data) {
-            const tax = response.data;
-            setFormData(apiTaxToFormData(tax));
-            // Update localStorage cache
-            try {
-              const savedTaxes: TaxRecord[] = JSON.parse(localStorage.getItem('taxes') || '[]');
-              const updatedTaxes = savedTaxes.map((t) =>
-                t.id === taxId ? apiTaxToRecord(tax) : t
-              );
-              if (!savedTaxes.find((t) => t.id === taxId)) {
-                updatedTaxes.push(apiTaxToRecord(tax));
-              }
-              localStorage.setItem('taxes', JSON.stringify(updatedTaxes));
-            } catch {
-              // Ignore cache update error
-            }
+            setFormData(apiTaxToFormData(response.data));
           }
         } catch (apiError) {
           console.error('Error loading tax from API:', apiError);
-          // Fallback to localStorage
-          try {
-            const savedTaxes = localStorage.getItem('taxes');
-            if (savedTaxes) {
-              const taxes: TaxRecord[] = JSON.parse(savedTaxes);
-              const tax = taxes.find((t) => t.id === taxId);
-              if (tax) {
-                setFormData({
-                  taxId: tax.taxId || '',
-                  taxName: tax.taxName || '',
-                  taxPercentage: String(tax.taxPercentage || ''),
-                  taxDate: tax.taxDate || '',
-                  note: tax.note || '',
-                  status: tax.isActive ? 'Active' : 'Inactive',
-                });
-              }
-            }
-          } catch (localStorageError) {
-            console.error('Error loading tax from localStorage:', localStorageError);
-          }
+          setError('Failed to load tax data');
         } finally {
           setLoading(false);
         }
@@ -172,19 +124,6 @@ export const useTaxForm = ({ mode, taxId }: UseTaxFormOptions): UseTaxFormReturn
     return Object.keys(errors).length === 0;
   }, [formData.taxId, formData.taxPercentage]);
 
-  const updateLocalStorageCache = async () => {
-    try {
-      const taxesApi = getTaxesApi();
-      const response = await taxesApi.getAll();
-      if (response.data) {
-        const taxRecords = response.data.map(apiTaxToRecord);
-        localStorage.setItem('taxes', JSON.stringify(taxRecords));
-      }
-    } catch {
-      // Ignore cache update error
-    }
-  };
-
   const handleSubmit = useCallback(async () => {
     if (!validateForm()) {
       return;
@@ -207,9 +146,6 @@ export const useTaxForm = ({ mode, taxId }: UseTaxFormOptions): UseTaxFormReturn
 
         await taxesApi.create(createData);
         setSuccessMessage('Tax created successfully!');
-
-        // Update localStorage cache
-        await updateLocalStorageCache();
       } else {
         const updateData: UpdateTaxRequest = {
           name: formData.taxName || formData.taxId,
@@ -221,9 +157,6 @@ export const useTaxForm = ({ mode, taxId }: UseTaxFormOptions): UseTaxFormReturn
 
         await taxesApi.update(parseInt(taxId!, 10), updateData);
         setSuccessMessage('Tax updated successfully!');
-
-        // Update localStorage cache
-        await updateLocalStorageCache();
       }
 
       setTimeout(() => {
@@ -231,62 +164,14 @@ export const useTaxForm = ({ mode, taxId }: UseTaxFormOptions): UseTaxFormReturn
       }, 1500);
     } catch (err: unknown) {
       console.error(`Error ${mode === 'add' ? 'creating' : 'updating'} tax:`, err);
-
-      // Try localStorage fallback for offline support
-      try {
-        const taxes: TaxRecord[] = JSON.parse(localStorage.getItem('taxes') || '[]');
-
-        if (mode === 'add') {
-          const newTax: TaxRecord = {
-            id: String(Date.now()),
-            taxId: formData.taxId,
-            taxName: formData.taxName,
-            taxPercentage: parseFloat(formData.taxPercentage),
-            taxDate: formData.taxDate,
-            note: formData.note,
-            isActive: formData.status === 'Active',
-            status: formData.status,
-            createdAt: new Date().toISOString(),
-          };
-
-          taxes.push(newTax);
-          localStorage.setItem('taxes', JSON.stringify(taxes));
-          setSuccessMessage('Tax saved locally (offline mode). Will sync when online.');
-        } else {
-          const updatedTaxes = taxes.map((tax) => {
-            if (tax.id === taxId) {
-              return {
-                ...tax,
-                taxId: formData.taxId,
-                taxName: formData.taxName,
-                taxPercentage: parseFloat(formData.taxPercentage),
-                taxDate: formData.taxDate,
-                note: formData.note,
-                isActive: formData.status === 'Active',
-                status: formData.status,
-                updatedAt: new Date().toISOString(),
-              };
-            }
-            return tax;
-          });
-
-          localStorage.setItem('taxes', JSON.stringify(updatedTaxes));
-          setSuccessMessage('Tax saved locally (offline mode). Will sync when online.');
-        }
-
-        setTimeout(() => {
-          navigate('/tax');
-        }, 1500);
-      } catch (localError) {
-        // Both API and localStorage failed
-        let errorMessage = `Failed to ${mode === 'add' ? 'create' : 'update'} tax. Please try again.`;
-        const errorWithMessage = err as ErrorWithMessage;
-        if (errorWithMessage.message) {
-          errorMessage = errorWithMessage.message;
-        }
-        setError(errorMessage);
-        setIsSubmitting(false);
+      let errorMessage = `Failed to ${mode === 'add' ? 'create' : 'update'} tax. Please try again.`;
+      const errorWithMessage = err as ErrorWithMessage;
+      if (errorWithMessage.message) {
+        errorMessage = errorWithMessage.message;
       }
+      setError(errorMessage);
+    } finally {
+      setIsSubmitting(false);
     }
   }, [formData, mode, taxId, navigate, validateForm]);
 
@@ -297,36 +182,19 @@ export const useTaxForm = ({ mode, taxId }: UseTaxFormOptions): UseTaxFormReturn
       const taxesApi = getTaxesApi();
       await taxesApi.delete(parseInt(taxId!, 10));
 
-      // Update localStorage cache
-      await updateLocalStorageCache();
-
       setSuccessMessage('Tax deleted successfully!');
       setTimeout(() => {
         navigate('/tax');
       }, 1500);
     } catch (err: unknown) {
       console.error('Error deleting tax:', err);
-
-      // Try localStorage fallback for offline support
-      try {
-        const taxes: TaxRecord[] = JSON.parse(localStorage.getItem('taxes') || '[]');
-        const updatedTaxes = taxes.filter((t) => t.id !== taxId);
-        localStorage.setItem('taxes', JSON.stringify(updatedTaxes));
-
-        setSuccessMessage('Tax deleted locally (offline mode). Will sync when online.');
-        setTimeout(() => {
-          navigate('/tax');
-        }, 1500);
-      } catch (localError) {
-        // Both API and localStorage failed
-        let errorMessage = 'Failed to delete tax. Please try again.';
-        const errorWithMessage = err as ErrorWithMessage;
-        if (errorWithMessage.message) {
-          errorMessage = errorWithMessage.message;
-        }
-        setError(errorMessage);
-        setIsDeleting(false);
+      let errorMessage = 'Failed to delete tax. Please try again.';
+      const errorWithMessage = err as ErrorWithMessage;
+      if (errorWithMessage.message) {
+        errorMessage = errorWithMessage.message;
       }
+      setError(errorMessage);
+      setIsDeleting(false);
     }
   }, [taxId, navigate]);
 

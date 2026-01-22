@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   Popover,
   Card,
@@ -35,8 +35,6 @@ interface FilterManagerProps {
   fields: FilterField[];
   onApply: () => void;
   onReset: () => void;
-  pageKey: string; // e.g., 'companies', 'users'
-  userId: number | string;
 }
 
 const FilterManager: React.FC<FilterManagerProps> = ({
@@ -46,23 +44,8 @@ const FilterManager: React.FC<FilterManagerProps> = ({
   fields,
   onApply,
   onReset,
-  pageKey,
-  userId,
 }) => {
   const [savedFilters, setSavedFilters] = useState<SavedFilter[]>([]);
-  const storageKey = `saved_filters_${pageKey}_${userId}`;
-
-  // Load saved filters from localStorage
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem(storageKey);
-      if (saved) {
-        setSavedFilters(JSON.parse(saved));
-      }
-    } catch (err) {
-      console.error('Error loading saved filters:', err);
-    }
-  }, [storageKey]);
 
   // Check if current filter has at least one value
   const hasFilterValues = useMemo(() => {
@@ -114,8 +97,7 @@ const FilterManager: React.FC<FilterManagerProps> = ({
     // Keep only latest 3 filters
     const updatedFilters = [newFilter, ...savedFilters].slice(0, 3);
     setSavedFilters(updatedFilters);
-    localStorage.setItem(storageKey, JSON.stringify(updatedFilters));
-  }, [hasFilterValues, isDuplicateFilter, fields, savedFilters, storageKey, generateFilterName]);
+  }, [hasFilterValues, isDuplicateFilter, fields, savedFilters, generateFilterName]);
 
   // Apply saved filter
   const handleApplySavedFilter = useCallback(
@@ -136,9 +118,8 @@ const FilterManager: React.FC<FilterManagerProps> = ({
     (filterId: string) => {
       const updatedFilters = savedFilters.filter((f) => f.id !== filterId);
       setSavedFilters(updatedFilters);
-      localStorage.setItem(storageKey, JSON.stringify(updatedFilters));
     },
-    [savedFilters, storageKey]
+    [savedFilters]
   );
 
   // Handle apply and close

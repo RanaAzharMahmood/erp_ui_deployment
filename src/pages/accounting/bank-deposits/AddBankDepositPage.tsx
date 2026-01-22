@@ -91,7 +91,7 @@ const AddBankDepositPage: React.FC = () => {
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
 
-  // Load bank accounts from API with localStorage fallback
+  // Load bank accounts from API
   useEffect(() => {
     const loadBankAccounts = async () => {
       try {
@@ -103,27 +103,11 @@ const AddBankDepositPage: React.FC = () => {
             name: account.accountNumber || account.accountName,
           }));
           setBankAccounts(mappedAccounts);
-          // Cache for offline access
-          localStorage.setItem('bankAccountsDropdown', JSON.stringify(mappedAccounts));
         }
       } catch (error) {
         console.error('Error loading bank accounts from API:', error);
-        // Fallback to localStorage
-        try {
-          const cached = localStorage.getItem('bankAccountsDropdown');
-          if (cached) {
-            setBankAccounts(JSON.parse(cached));
-          } else {
-            // Final fallback to mock data
-            setBankAccounts([
-              { id: '1', name: 'BHI0112545464682' },
-              { id: '2', name: 'HBL0098765432100' },
-              { id: '3', name: 'MCB0056789012345' },
-            ]);
-          }
-        } catch (localError) {
-          console.error('Error loading from localStorage:', localError);
-        }
+        setBankAccounts([]);
+        setError('Failed to load bank accounts');
       }
     };
 
@@ -188,70 +172,36 @@ const AddBankDepositPage: React.FC = () => {
     setError('');
 
     try {
-      const company = companies.find((c) => c.id === formData.companyId);
       const selectedAccount = bankAccounts.find((acc) => acc.name === formData.bankAccount);
       const bankAccountId = selectedAccount ? Number(selectedAccount.id) : 0;
 
-      // Try API first
-      try {
-        const api = getBankDepositsApi();
-        const createRequest: CreateBankDepositRequest = {
-          date: formData.date,
-          bankAccountId: bankAccountId,
-          amount: totalAmount,
-          reference: formData.depositSlipNumber || undefined,
-          description: formData.note || undefined,
-          depositedBy: formData.depositMethod || undefined,
-          companyId: Number(formData.companyId),
-        };
-
-        const response = await api.create(createRequest);
-        if (response.success) {
-          setSuccessMessage('Deposit created successfully!');
-          setTimeout(() => {
-            navigate('/account/bank-deposit');
-          }, 1500);
-          return;
-        }
-      } catch (apiError) {
-        console.error('API error, falling back to localStorage:', apiError);
-      }
-
-      // Fallback to localStorage
-      const deposits = JSON.parse(localStorage.getItem('bankDeposits') || '[]');
-
-      const newDeposit = {
-        id: String(Date.now()),
-        companyId: formData.companyId,
-        companyName: company?.name || 'EST-Gas',
+      const api = getBankDepositsApi();
+      const createRequest: CreateBankDepositRequest = {
         date: formData.date,
-        bankAccount: formData.bankAccount,
-        depositNumber: formData.depositSlipNumber || '01450545',
-        depositEntryNumber: formData.depositEntryNumber,
-        totalAmount,
-        status: formData.status,
-        note: formData.note,
-        referenceType: formData.referenceType,
-        accountType: formData.accountType,
-        depositMethod: formData.depositMethod,
-        lineItems,
-        slipImage,
-        createdAt: new Date().toISOString(),
+        bankAccountId: bankAccountId,
+        amount: totalAmount,
+        reference: formData.depositSlipNumber || undefined,
+        description: formData.note || undefined,
+        depositedBy: formData.depositMethod || undefined,
+        companyId: Number(formData.companyId),
       };
 
-      deposits.push(newDeposit);
-      localStorage.setItem('bankDeposits', JSON.stringify(deposits));
-
-      setSuccessMessage('Deposit created successfully (offline mode)!');
-      setTimeout(() => {
-        navigate('/account/bank-deposit');
-      }, 1500);
+      const response = await api.create(createRequest);
+      if (response.success) {
+        setSuccessMessage('Deposit created successfully!');
+        setTimeout(() => {
+          navigate('/account/bank-deposit');
+        }, 1500);
+      } else {
+        setError('Failed to create deposit. Please try again.');
+        setIsSubmitting(false);
+      }
     } catch (err) {
       console.error('Error creating deposit:', err);
       setError('Failed to create deposit. Please try again.');
       setIsSubmitting(false);
     }
-  }, [formData, companies, bankAccounts, lineItems, totalAmount, slipImage, navigate]);
+  }, [formData, bankAccounts, totalAmount, navigate]);
 
   const handleCancel = useCallback(() => {
     navigate('/account/bank-deposit');

@@ -98,7 +98,7 @@ const BankAccountListPage: React.FC = () => {
   const [orderBy, setOrderBy] = useState<BankAccountOrderBy>('companyName');
   const [order, setOrder] = useState<Order>('asc');
 
-  // Load accounts from API with localStorage fallback
+  // Load accounts from API
   const loadAccounts = useCallback(async () => {
     setLoading(true);
     try {
@@ -106,30 +106,15 @@ const BankAccountListPage: React.FC = () => {
       if (response.success && response.data?.data) {
         const mappedAccounts = response.data.data.map(mapApiToInternal);
         setAccounts(mappedAccounts);
-        // Cache in localStorage for offline access
-        localStorage.setItem('bankAccounts', JSON.stringify(mappedAccounts));
       }
     } catch (error) {
       console.error('Error loading bank accounts from API:', error);
-      // Fallback to localStorage
-      try {
-        const savedAccounts = localStorage.getItem('bankAccounts');
-        if (savedAccounts) {
-          setAccounts(JSON.parse(savedAccounts));
-          setSnackbar({
-            open: true,
-            message: 'Loaded cached data. Unable to connect to server.',
-            severity: 'error',
-          });
-        }
-      } catch (localError) {
-        console.error('Error loading from localStorage:', localError);
-        setSnackbar({
-          open: true,
-          message: 'Failed to load bank accounts',
-          severity: 'error',
-        });
-      }
+      setAccounts([]);
+      setSnackbar({
+        open: true,
+        message: 'Failed to load bank accounts',
+        severity: 'error',
+      });
     } finally {
       setLoading(false);
     }
@@ -228,7 +213,6 @@ const BankAccountListPage: React.FC = () => {
       // Update local state
       const updatedAccounts = accounts.filter((a) => a.id !== deleteDialog.id);
       setAccounts(updatedAccounts);
-      localStorage.setItem('bankAccounts', JSON.stringify(updatedAccounts));
 
       setSnackbar({
         open: true,

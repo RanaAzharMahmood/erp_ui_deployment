@@ -90,36 +90,20 @@ const AddOtherPaymentsPage: React.FC = () => {
 
   // Load existing payment if editing
   useEffect(() => {
-    try {
+    const loadPayment = async () => {
       if (isEditMode && id) {
-        const savedPayments = localStorage.getItem('otherPayments');
-        if (savedPayments) {
-          const payments = JSON.parse(savedPayments);
-          const payment = payments.find((p: { id: string }) => p.id === id);
-          if (payment) {
-            setFormData({
-              companyId: payment.companyId || '',
-              paymentNumber: payment.paymentNumber || payment.number || '0000000',
-              paymentName: payment.paymentName || '',
-              accountType: payment.accountType || '',
-              reference: payment.reference || '',
-              contactName: payment.contactName || '',
-              paymentMethod: payment.paymentMethod || '',
-              note: payment.note || '',
-              status: payment.status || 'Submit',
-            });
-            if (payment.lineItems) {
-              setLineItems(payment.lineItems);
-            }
-            if (payment.slipImage) {
-              setSlipImage(payment.slipImage);
-            }
-          }
+        try {
+          // TODO: Replace with actual API call when available
+          // const response = await api.get(`/other-payments/${id}`);
+          // const payment = response.data;
+          setError('Edit mode not available - API not implemented');
+        } catch (err) {
+          console.error('Error loading payment:', err);
+          setError('Failed to load payment data');
         }
       }
-    } catch (err) {
-      console.error('Error loading data:', err);
-    }
+    };
+    loadPayment();
   }, [id, isEditMode]);
 
   const handleInputChange = useCallback((field: keyof OtherPaymentFormData, value: string | number) => {
@@ -168,12 +152,8 @@ const AddOtherPaymentsPage: React.FC = () => {
 
     setIsSubmitting(true);
     try {
-      const savedPayments = localStorage.getItem('otherPayments');
-      const payments = savedPayments ? JSON.parse(savedPayments) : [];
-
       const company = companies.find((c) => c.id === formData.companyId);
       const paymentData = {
-        id: isEditMode ? id : Date.now().toString(),
         ...formData,
         number: formData.paymentNumber,
         companyName: company?.name || 'EST-Gas',
@@ -181,28 +161,23 @@ const AddOtherPaymentsPage: React.FC = () => {
         lineItems,
         slipImage,
         totalAmount: calculateTotal(),
-        createdAt: isEditMode ? undefined : new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
       };
 
-      if (isEditMode) {
-        const index = payments.findIndex((p: { id: string }) => p.id === id);
-        if (index !== -1) {
-          payments[index] = { ...payments[index], ...paymentData };
-        }
-      } else {
-        payments.push(paymentData);
-      }
+      // TODO: Replace with actual API call when available
+      // if (isEditMode) {
+      //   await api.put(`/other-payments/${id}`, paymentData);
+      // } else {
+      //   await api.post('/other-payments', paymentData);
+      // }
 
-      localStorage.setItem('otherPayments', JSON.stringify(payments));
-      setSuccessMessage(isEditMode ? 'Payment updated successfully!' : 'Payment created successfully!');
-      setTimeout(() => navigate('/account/other-payments'), 1500);
+      // For now, show error since API is not implemented
+      setError('API not implemented - unable to save payment');
     } catch (err) {
       setError('Failed to save payment');
     } finally {
       setIsSubmitting(false);
     }
-  }, [formData, lineItems, slipImage, companies, navigate, isEditMode, id, calculateTotal]);
+  }, [formData, lineItems, slipImage, companies, calculateTotal]);
 
   return (
     <Box sx={{ bgcolor: '#F5F5F5', minHeight: '100vh' }}>

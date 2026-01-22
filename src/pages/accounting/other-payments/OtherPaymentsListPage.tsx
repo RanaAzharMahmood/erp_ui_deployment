@@ -75,21 +75,11 @@ const OtherPaymentsListPage: React.FC = () => {
   const [orderBy, setOrderBy] = useState<OtherPaymentOrderBy>('date');
   const [order, setOrder] = useState<Order>('desc');
 
-  // Load payments from localStorage
+  // Load payments - API not yet implemented, show empty state
   useEffect(() => {
-    const loadPayments = () => {
-      try {
-        const savedPayments = localStorage.getItem('otherPayments');
-        if (savedPayments) {
-          setPayments(JSON.parse(savedPayments));
-        }
-      } catch (error) {
-        console.error('Error loading other payments:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    setTimeout(loadPayments, 500);
+    // TODO: Replace with API call when backend is ready
+    setPayments([]);
+    setLoading(false);
   }, []);
 
   // Handle sort
@@ -182,9 +172,9 @@ const OtherPaymentsListPage: React.FC = () => {
 
   const handleDeleteConfirm = useCallback(() => {
     if (deleteDialog.id) {
+      // TODO: Replace with API call when backend is ready
       const updatedPayments = payments.filter((p) => p.id !== deleteDialog.id);
       setPayments(updatedPayments);
-      localStorage.setItem('otherPayments', JSON.stringify(updatedPayments));
     }
     setDeleteDialog({ open: false, id: null });
   }, [payments, deleteDialog.id]);

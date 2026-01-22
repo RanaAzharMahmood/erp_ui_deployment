@@ -2,12 +2,10 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   VendorFormData,
-  Vendor,
   initialVendorFormState,
 } from '../components/vendors/types';
 import { vendorService } from '../services';
 
-const VENDORS_STORAGE_KEY = 'vendors';
 const VENDOR_LIST_PATH = '/vendor';
 
 interface UseVendorFormOptions {
@@ -75,37 +73,7 @@ export const useVendorForm = (options: UseVendorFormOptions = {}): UseVendorForm
       } catch (err) {
         console.error('Error loading vendor:', err);
         setError(err instanceof Error ? err.message : 'Failed to load vendor');
-
-        // Fallback to localStorage
-        const savedVendors = localStorage.getItem(VENDORS_STORAGE_KEY);
-        if (savedVendors) {
-          const vendors: Vendor[] = JSON.parse(savedVendors);
-          const vendor = vendors.find((v) => v.id === parseInt(vendorId, 10));
-          if (vendor) {
-            setFormData({
-              name: vendor.name,
-              email: vendor.email || '',
-              phone: vendor.phone || '',
-              address: vendor.address || '',
-              city: vendor.city || '',
-              state: vendor.state || '',
-              country: vendor.country || '',
-              postalCode: vendor.postalCode || '',
-              taxId: vendor.taxId || '',
-              paymentTerms: vendor.paymentTerms || '',
-              bankName: vendor.bankName || '',
-              bankAccountNo: vendor.bankAccountNo || '',
-              notes: vendor.notes || '',
-              companyId: vendor.companyId,
-              isActive: vendor.isActive,
-            });
-            setVendorExists(true);
-          } else {
-            setVendorExists(false);
-          }
-        } else {
-          setVendorExists(false);
-        }
+        setVendorExists(false);
       } finally {
         setIsLoading(false);
       }
@@ -190,49 +158,11 @@ export const useVendorForm = (options: UseVendorFormOptions = {}): UseVendorForm
         await vendorService.create(submitData);
       }
 
-      // Update localStorage backup
-      try {
-        const response = await vendorService.getAll({ limit: 100 });
-        localStorage.setItem(VENDORS_STORAGE_KEY, JSON.stringify(response.data));
-      } catch {
-        // Ignore localStorage backup errors
-      }
-
       navigate(VENDOR_LIST_PATH);
     } catch (err) {
       console.error('Error saving vendor:', err);
       const errorMessage = err instanceof Error ? err.message : 'Failed to save vendor';
       setError(errorMessage);
-
-      // Fallback to localStorage for offline support
-      try {
-        const existingVendors: Vendor[] = JSON.parse(
-          localStorage.getItem(VENDORS_STORAGE_KEY) || '[]'
-        );
-
-        if (isEditMode && vendorId) {
-          const updatedVendors = existingVendors.map((vendor) =>
-            vendor.id === parseInt(vendorId, 10)
-              ? { ...vendor, ...formData, updatedAt: new Date().toISOString() }
-              : vendor
-          );
-          localStorage.setItem(VENDORS_STORAGE_KEY, JSON.stringify(updatedVendors));
-        } else {
-          const newVendor: Vendor = {
-            ...formData,
-            id: Date.now(),
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          };
-          localStorage.setItem(
-            VENDORS_STORAGE_KEY,
-            JSON.stringify([...existingVendors, newVendor])
-          );
-        }
-        navigate(VENDOR_LIST_PATH);
-      } catch {
-        // If localStorage also fails, keep the error displayed
-      }
     } finally {
       setIsSubmitting(false);
     }
@@ -246,37 +176,11 @@ export const useVendorForm = (options: UseVendorFormOptions = {}): UseVendorForm
 
     try {
       await vendorService.delete(parseInt(vendorId, 10));
-
-      // Update localStorage backup
-      try {
-        const savedVendors = localStorage.getItem(VENDORS_STORAGE_KEY);
-        if (savedVendors) {
-          const vendors: Vendor[] = JSON.parse(savedVendors);
-          const updatedVendors = vendors.filter((v) => v.id !== parseInt(vendorId, 10));
-          localStorage.setItem(VENDORS_STORAGE_KEY, JSON.stringify(updatedVendors));
-        }
-      } catch {
-        // Ignore localStorage errors
-      }
-
       navigate(VENDOR_LIST_PATH);
     } catch (err) {
       console.error('Error deleting vendor:', err);
       const errorMessage = err instanceof Error ? err.message : 'Failed to delete vendor';
       setError(errorMessage);
-
-      // Fallback to localStorage
-      try {
-        const savedVendors = localStorage.getItem(VENDORS_STORAGE_KEY);
-        if (savedVendors) {
-          const vendors: Vendor[] = JSON.parse(savedVendors);
-          const updatedVendors = vendors.filter((v) => v.id !== parseInt(vendorId, 10));
-          localStorage.setItem(VENDORS_STORAGE_KEY, JSON.stringify(updatedVendors));
-          navigate(VENDOR_LIST_PATH);
-        }
-      } catch {
-        // If localStorage also fails, keep the error displayed
-      }
     } finally {
       setIsSubmitting(false);
     }

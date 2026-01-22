@@ -1,5 +1,5 @@
 /**
- * Base service class for localStorage-based CRUD operations
+ * Base service class for CRUD operations
  * Can be extended for specific domain entities
  */
 
@@ -17,88 +17,38 @@ export class BaseService<T extends BaseEntity> {
   }
 
   /**
-   * Get all items from localStorage
+   * Get all items - not implemented without API
    */
   getAll(): T[] {
-    try {
-      const data = localStorage.getItem(this.storageKey);
-      return data ? JSON.parse(data) : [];
-    } catch (error) {
-      console.error(`Error reading ${this.storageKey}:`, error);
-      return [];
-    }
+    throw new Error('getAll not implemented - API required');
   }
 
   /**
-   * Get a single item by ID
+   * Get a single item by ID - not implemented without API
    */
   getById(id: string): T | undefined {
-    const items = this.getAll();
-    return items.find((item) => item.id === id);
+    throw new Error(`getById(${id}) not implemented - API required`);
   }
 
   /**
-   * Create a new item
+   * Create a new item - not implemented without API
    */
-  create(item: Omit<T, 'id' | 'createdAt' | 'updatedAt'>): T {
-    const items = this.getAll();
-    const newItem = {
-      ...item,
-      id: this.generateId(),
-      createdAt: new Date().toISOString(),
-    } as T;
-
-    items.push(newItem);
-    this.saveAll(items);
-    return newItem;
+  create(_item: Omit<T, 'id' | 'createdAt' | 'updatedAt'>): T {
+    throw new Error('create not implemented - API required');
   }
 
   /**
-   * Update an existing item
+   * Update an existing item - not implemented without API
    */
-  update(id: string, updates: Partial<Omit<T, 'id' | 'createdAt'>>): T | undefined {
-    const items = this.getAll();
-    const index = items.findIndex((item) => item.id === id);
-
-    if (index === -1) {
-      return undefined;
-    }
-
-    const updatedItem = {
-      ...items[index],
-      ...updates,
-      updatedAt: new Date().toISOString(),
-    };
-
-    items[index] = updatedItem;
-    this.saveAll(items);
-    return updatedItem;
+  update(id: string, _updates: Partial<Omit<T, 'id' | 'createdAt'>>): T | undefined {
+    throw new Error(`update(${id}) not implemented - API required`);
   }
 
   /**
-   * Delete an item by ID
+   * Delete an item by ID - not implemented without API
    */
   delete(id: string): boolean {
-    const items = this.getAll();
-    const filteredItems = items.filter((item) => item.id !== id);
-
-    if (filteredItems.length === items.length) {
-      return false;
-    }
-
-    this.saveAll(filteredItems);
-    return true;
-  }
-
-  /**
-   * Save all items to localStorage
-   */
-  protected saveAll(items: T[]): void {
-    try {
-      localStorage.setItem(this.storageKey, JSON.stringify(items));
-    } catch (error) {
-      console.error(`Error saving ${this.storageKey}:`, error);
-    }
+    throw new Error(`delete(${id}) not implemented - API required`);
   }
 
   /**
@@ -109,24 +59,24 @@ export class BaseService<T extends BaseEntity> {
   }
 
   /**
-   * Clear all items
+   * Clear all items - not implemented without API
    */
   clearAll(): void {
-    localStorage.removeItem(this.storageKey);
+    throw new Error('clearAll not implemented - API required');
   }
 
   /**
-   * Get count of items
+   * Get count of items - not implemented without API
    */
   count(): number {
-    return this.getAll().length;
+    throw new Error('count not implemented - API required');
   }
 
   /**
-   * Check if an item exists
+   * Check if an item exists - not implemented without API
    */
   exists(id: string): boolean {
-    return this.getById(id) !== undefined;
+    throw new Error(`exists(${id}) not implemented - API required`);
   }
 }
 

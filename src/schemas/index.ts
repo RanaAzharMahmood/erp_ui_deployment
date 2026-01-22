@@ -552,8 +552,8 @@ export function validateForm<T extends z.ZodSchema>(
 
   const errors: Record<string, string> = {};
   // Safely iterate over errors with null check
-  const errorList = result.error?.errors ?? [];
-  errorList.forEach((err) => {
+  const errorList = result.error?.issues ?? [];
+  errorList.forEach((err: z.ZodIssue) => {
     const path = err.path.join('.');
     if (path && !errors[path]) {
       errors[path] = err.message;
@@ -575,8 +575,8 @@ export function getFieldError(
 ): string {
   if (!errors) return '';
 
-  const fieldError = errors.errors.find(
-    (err) => err.path.join('.') === fieldName
+  const fieldError = errors.issues.find(
+    (err: z.ZodIssue) => err.path.join('.') === fieldName
   );
 
   return fieldError?.message || '';
@@ -596,7 +596,7 @@ export function createValidator<T extends z.ZodSchema>(schema: T) {
     }
 
     const errors: Record<string, string> = {};
-    result.error.errors.forEach((err) => {
+    result.error.issues.forEach((err: z.ZodIssue) => {
       const path = err.path.join('.');
       if (path && !errors[path]) {
         errors[path] = err.message;

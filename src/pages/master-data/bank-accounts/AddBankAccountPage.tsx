@@ -71,13 +71,12 @@ const AddBankAccountPage: React.FC = () => {
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
 
-  // Load existing account if editing - try API first, then localStorage fallback
+  // Load existing account if editing
   useEffect(() => {
     const loadAccount = async () => {
       if (!isEditMode || !id) return;
 
       try {
-        // Try API first
         const api = getBankAccountsApi();
         const response = await api.getById(Number(id));
         if (response.success && response.data) {
@@ -92,33 +91,12 @@ const AddBankAccountPage: React.FC = () => {
             details: '',
             status: account.isActive ? 'Active' : 'Inactive',
           });
-          return;
+        } else {
+          setError('Failed to load bank account');
         }
       } catch (apiError) {
-        console.error('Error loading from API, falling back to localStorage:', apiError);
-      }
-
-      // Fallback to localStorage
-      try {
-        const savedAccounts = localStorage.getItem('bankAccounts');
-        if (savedAccounts) {
-          const accounts = JSON.parse(savedAccounts);
-          const account = accounts.find((a: { id: string }) => a.id === id);
-          if (account) {
-            setFormData({
-              companyId: account.companyId || '',
-              bankName: account.bankName || '',
-              accountTitle: account.accountTitle || '',
-              accountNumber: account.accountNumber || '',
-              branchName: account.branchName || '',
-              date: account.date || '',
-              details: account.details || '',
-              status: account.status || 'Active',
-            });
-          }
-        }
-      } catch (err) {
-        console.error('Error loading from localStorage:', err);
+        console.error('Error loading bank account:', apiError);
+        setError('Failed to load bank account');
       }
     };
 
@@ -137,81 +115,52 @@ const AddBankAccountPage: React.FC = () => {
 
     setIsSubmitting(true);
     try {
-      const company = companies.find((c) => c.id === formData.companyId);
+      const api = getBankAccountsApi();
 
-      // Try API first
-      try {
-        const api = getBankAccountsApi();
+      if (isEditMode && id) {
+        // Update existing account
+        const updateRequest: UpdateBankAccountRequest = {
+          accountName: formData.accountTitle,
+          accountNumber: formData.accountNumber,
+          bankName: formData.bankName,
+          branchName: formData.branchName,
+          companyId: formData.companyId ? Number(formData.companyId) : undefined,
+          isActive: formData.status === 'Active',
+        };
 
-        if (isEditMode && id) {
-          // Update existing account
-          const updateRequest: UpdateBankAccountRequest = {
-            accountName: formData.accountTitle,
-            accountNumber: formData.accountNumber,
-            bankName: formData.bankName,
-            branchName: formData.branchName,
-            companyId: formData.companyId ? Number(formData.companyId) : undefined,
-            isActive: formData.status === 'Active',
-          };
-
-          const response = await api.update(Number(id), updateRequest);
-          if (response.success) {
-            setSuccessMessage('Bank account updated successfully!');
-            setTimeout(() => navigate('/account/bank-account'), 1500);
-            return;
-          }
+        const response = await api.update(Number(id), updateRequest);
+        if (response.success) {
+          setSuccessMessage('Bank account updated successfully!');
+          setTimeout(() => navigate('/account/bank-account'), 1500);
         } else {
-          // Create new account
-          const createRequest: CreateBankAccountRequest = {
-            accountName: formData.accountTitle,
-            accountNumber: formData.accountNumber,
-            bankName: formData.bankName,
-            branchName: formData.branchName,
-            accountType: 'current' as BankAccountType, // Default to current
-            companyId: formData.companyId ? Number(formData.companyId) : undefined,
-          };
-
-          const response = await api.create(createRequest);
-          if (response.success) {
-            setSuccessMessage('Bank account created successfully!');
-            setTimeout(() => navigate('/account/bank-account'), 1500);
-            return;
-          }
-        }
-      } catch (apiError) {
-        console.error('API error, falling back to localStorage:', apiError);
-      }
-
-      // Fallback to localStorage
-      const savedAccounts = localStorage.getItem('bankAccounts');
-      const accounts = savedAccounts ? JSON.parse(savedAccounts) : [];
-
-      const accountData = {
-        id: isEditMode ? id : Date.now().toString(),
-        ...formData,
-        companyName: company?.name || 'EST-Gas',
-        createdAt: isEditMode ? undefined : new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-
-      if (isEditMode) {
-        const index = accounts.findIndex((a: { id: string }) => a.id === id);
-        if (index !== -1) {
-          accounts[index] = { ...accounts[index], ...accountData };
+          setError('Failed to update bank account');
         }
       } else {
-        accounts.push(accountData);
-      }
+        // Create new account
+        const createRequest: CreateBankAccountRequest = {
+          accountName: formData.accountTitle,
+          accountNumber: formData.accountNumber,
+          bankName: formData.bankName,
+          branchName: formData.branchName,
+          accountType: 'current' as BankAccountType, // Default to current
+          companyId: formData.companyId ? Number(formData.companyId) : undefined,
+        };
 
-      localStorage.setItem('bankAccounts', JSON.stringify(accounts));
-      setSuccessMessage(isEditMode ? 'Bank account updated successfully (offline mode)!' : 'Bank account created successfully (offline mode)!');
-      setTimeout(() => navigate('/account/bank-account'), 1500);
+        const response = await api.create(createRequest);
+        if (response.success) {
+          setSuccessMessage('Bank account created successfully!');
+          setTimeout(() => navigate('/account/bank-account'), 1500);
+        } else {
+          setError('Failed to create bank account');
+        }
+      }
     } catch (err) {
+      console.error('Error saving bank account:', err);
       setError('Failed to save bank account');
     } finally {
       setIsSubmitting(false);
     }
-  }, [formData, companies, navigate, isEditMode, id]);
+  }, [formData, navigate, isEditMode, id]);
 
   return (
     <Box sx={{ bgcolor: '#F5F5F5', minHeight: '100vh' }}>

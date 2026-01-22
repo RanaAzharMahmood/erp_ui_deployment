@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 
 interface UseListDataOptions<T> {
-  storageKey: string;
   initialData?: T[];
   loadDelay?: number;
 }
@@ -18,12 +17,12 @@ interface UseListDataReturn<T> {
 }
 
 /**
- * Generic hook for loading and managing list data from localStorage
+ * Generic hook for loading and managing list data
  */
 export function useListData<T extends { id: string }>(
   options: UseListDataOptions<T>
 ): UseListDataReturn<T> {
-  const { storageKey, initialData = [], loadDelay = 500 } = options;
+  const { initialData = [], loadDelay = 500 } = options;
 
   const [data, setData] = useState<T[]>(initialData);
   const [loading, setLoading] = useState(true);
@@ -35,69 +34,28 @@ export function useListData<T extends { id: string }>(
 
     // Simulate async loading
     setTimeout(() => {
-      try {
-        const savedData = localStorage.getItem(storageKey);
-        if (savedData) {
-          setData(JSON.parse(savedData));
-        }
-      } catch (err) {
-        setError(`Error loading ${storageKey}: ${err}`);
-        console.error(`Error loading ${storageKey}:`, err);
-      } finally {
-        setLoading(false);
-      }
+      // Data loading would be handled by API calls
+      setLoading(false);
     }, loadDelay);
-  }, [storageKey, loadDelay]);
+  }, [loadDelay]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
 
-  const saveData = useCallback(
-    (newData: T[]) => {
-      try {
-        localStorage.setItem(storageKey, JSON.stringify(newData));
-      } catch (err) {
-        console.error(`Error saving ${storageKey}:`, err);
-      }
-    },
-    [storageKey]
-  );
+  const addItem = useCallback((item: T) => {
+    setData((prev) => [...prev, item]);
+  }, []);
 
-  const addItem = useCallback(
-    (item: T) => {
-      setData((prev) => {
-        const newData = [...prev, item];
-        saveData(newData);
-        return newData;
-      });
-    },
-    [saveData]
-  );
+  const updateItem = useCallback((id: string, updates: Partial<T>) => {
+    setData((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, ...updates } : item))
+    );
+  }, []);
 
-  const updateItem = useCallback(
-    (id: string, updates: Partial<T>) => {
-      setData((prev) => {
-        const newData = prev.map((item) =>
-          item.id === id ? { ...item, ...updates } : item
-        );
-        saveData(newData);
-        return newData;
-      });
-    },
-    [saveData]
-  );
-
-  const deleteItem = useCallback(
-    (id: string) => {
-      setData((prev) => {
-        const newData = prev.filter((item) => item.id !== id);
-        saveData(newData);
-        return newData;
-      });
-    },
-    [saveData]
-  );
+  const deleteItem = useCallback((id: string) => {
+    setData((prev) => prev.filter((item) => item.id !== id));
+  }, []);
 
   const refresh = useCallback(() => {
     loadData();

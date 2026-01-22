@@ -24,7 +24,7 @@ import { getCompaniesApi } from '../../../generated/api/client';
 import type { Company as ApiCompany } from '../../../generated/api/api';
 import type { Status } from '../../../types/common.types';
 
-// Type for localStorage company data (includes fields from both API and local storage)
+// Type for company data (includes fields from both API and extended local fields)
 interface LocalStorageCompany {
   id: number;
   companyName?: string;
@@ -136,37 +136,8 @@ const UpdateCompanyPage: React.FC = () => {
         setIsLoading(false);
       } catch (err: unknown) {
         console.error('Error loading company from API:', err);
-        // Fallback to localStorage
-        const companies = JSON.parse(localStorage.getItem('companies') || '[]') as LocalStorageCompany[];
-        const company = companies.find((c: LocalStorageCompany) => c.id === Number(id));
-
-        if (!company) {
-          navigate('/companies');
-          return;
-        }
-
-        setFormData({
-          companyName: company.companyName || company.name || '',
-          ntnNumber: company.ntnNumber || company.user || '',
-          website: company.website || '',
-          industry: company.industry || '',
-          salesTaxNumber: company.salesTaxNumber || '',
-          companyEmail: company.companyEmail || '',
-          address: company.address || '',
-          contactName: company.contactName || '',
-          contactEmail: company.contactEmail || '',
-          contactPhone: company.contactPhone || '',
-          status: (company.status as Status) || 'Active',
-          logo: company.logo || '',
-          user: company.user || '',
-          subscriptionEnd: company.subscriptionEnd || '',
-        });
-
-        if (company.logo) {
-          setLogoPreview(company.logo);
-        }
-
-        setIsLoading(false);
+        setError('Failed to load company data.');
+        navigate('/companies');
       }
     };
 
@@ -183,11 +154,6 @@ const UpdateCompanyPage: React.FC = () => {
 
       // Call API to delete
       await companiesApi.v1ApiCompaniesIdDelete(Number(id));
-
-      // Update localStorage
-      const companies = JSON.parse(localStorage.getItem('companies') || '[]') as LocalStorageCompany[];
-      const updatedCompanies = companies.filter((company: LocalStorageCompany) => company.id !== Number(id));
-      localStorage.setItem('companies', JSON.stringify(updatedCompanies));
 
       setSuccessMessage('Company deleted successfully!');
 

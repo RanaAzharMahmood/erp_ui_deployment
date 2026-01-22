@@ -109,22 +109,10 @@ const CustomersPage: React.FC = () => {
       const response = await customerApi.getCustomers();
       const transformedCustomers = response.data.data.map(transformCustomerData);
       setCustomers(transformedCustomers);
-
-      // Also save to localStorage as backup
-      localStorage.setItem('customers', JSON.stringify(transformedCustomers));
     } catch (err: unknown) {
       console.error('Error loading customers:', err);
-      setError('Failed to load customers. Loading from local storage...');
-
-      // Fallback to localStorage
-      const savedCustomers = localStorage.getItem('customers');
-      if (savedCustomers) {
-        try {
-          setCustomers(JSON.parse(savedCustomers));
-        } catch {
-          setCustomers([]);
-        }
-      }
+      setError('Failed to load customers.');
+      setCustomers([]);
     } finally {
       setIsLoading(false);
     }
@@ -240,10 +228,6 @@ const CustomersPage: React.FC = () => {
 
       // Remove from local state
       setCustomers((prev) => prev.filter((customer) => customer.id !== deleteDialog.id));
-
-      // Update localStorage
-      const updatedCustomers = customers.filter((customer) => customer.id !== deleteDialog.id);
-      localStorage.setItem('customers', JSON.stringify(updatedCustomers));
 
       setSuccessMessage('Customer deleted successfully!');
     } catch (err: unknown) {

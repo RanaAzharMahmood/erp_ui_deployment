@@ -154,24 +154,12 @@ const ExpenseListPage: React.FC = () => {
 
       setExpenses(expenseData);
       setTotalCount(response.data.total);
-
-      // Save to localStorage as backup
-      localStorage.setItem('expenses', JSON.stringify(expenseData));
     } catch (err: unknown) {
       console.error('Error loading expenses:', err);
       const errorMessage = err instanceof Error ? err.message : 'Failed to load expenses';
-      setError(`${errorMessage}. Loading from local storage...`);
-
-      // Fallback to localStorage
-      const savedExpenses = localStorage.getItem('expenses');
-      if (savedExpenses) {
-        const parsedExpenses = JSON.parse(savedExpenses);
-        setExpenses(parsedExpenses);
-        setTotalCount(parsedExpenses.length);
-      } else {
-        setExpenses([]);
-        setTotalCount(0);
-      }
+      setError(errorMessage);
+      setExpenses([]);
+      setTotalCount(0);
     } finally {
       setIsLoading(false);
     }
@@ -265,7 +253,6 @@ const ExpenseListPage: React.FC = () => {
         const updatedExpenses = expenses.filter((e) => e.id !== deleteDialog.id);
         setExpenses(updatedExpenses);
         setTotalCount((prev) => prev - 1);
-        localStorage.setItem('expenses', JSON.stringify(updatedExpenses));
 
         setSuccessMessage('Expense deleted successfully');
       } catch (err: unknown) {
@@ -315,7 +302,6 @@ const ExpenseListPage: React.FC = () => {
             e.id === actionDialog.id ? response.data : e
           );
           setExpenses(updatedExpenses);
-          localStorage.setItem('expenses', JSON.stringify(updatedExpenses));
           setSuccessMessage(message);
         }
       } catch (err: unknown) {

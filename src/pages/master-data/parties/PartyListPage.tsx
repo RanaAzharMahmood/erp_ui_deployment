@@ -80,7 +80,7 @@ const PartyListPage: React.FC = () => {
   const [orderBy, setOrderBy] = useState<string>('partyName');
   const [order, setOrder] = useState<'asc' | 'desc'>('asc');
 
-  // Load parties from API with localStorage fallback
+  // Load parties from API
   const loadParties = useCallback(async () => {
     setLoading(true);
     try {
@@ -111,40 +111,14 @@ const PartyListPage: React.FC = () => {
           createdAt: p.createdAt,
         }));
         setParties(apiParties);
-        // Update localStorage as cache
-        localStorage.setItem('parties', JSON.stringify(apiParties));
       }
     } catch (error: unknown) {
       console.error('Error loading parties from API:', error);
-      // Fallback to localStorage
-      try {
-        const savedParties = localStorage.getItem('parties');
-        if (savedParties) {
-          interface StoredParty {
-            id: number | string;
-            partyName: string;
-            partyType: 'Customer' | 'Vendor';
-            contactName: string;
-            contactEmail?: string;
-            companyId?: number;
-            companyName?: string;
-            isActive: boolean;
-            createdAt: string;
-          }
-          const parsedParties: StoredParty[] = JSON.parse(savedParties);
-          // Ensure id is number
-          setParties(parsedParties.map((p: StoredParty) => ({
-            ...p,
-            id: typeof p.id === 'string' ? parseInt(p.id, 10) : p.id,
-          })));
-        }
-      } catch (localError) {
-        console.error('Error loading parties from localStorage:', localError);
-      }
+      setParties([]);
       setSnackbar({
         open: true,
-        message: 'Failed to load parties from server. Showing cached data.',
-        severity: 'warning',
+        message: 'Failed to load parties from server.',
+        severity: 'error',
       });
     } finally {
       setLoading(false);
@@ -247,10 +221,6 @@ const PartyListPage: React.FC = () => {
 
         // Remove from local state
         setParties((prev) => prev.filter((p) => p.id !== deleteDialog.id));
-
-        // Update localStorage cache
-        const updatedParties = parties.filter((p) => p.id !== deleteDialog.id);
-        localStorage.setItem('parties', JSON.stringify(updatedParties));
 
         setSnackbar({
           open: true,

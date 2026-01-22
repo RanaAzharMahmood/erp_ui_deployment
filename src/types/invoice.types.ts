@@ -60,7 +60,7 @@ export interface PurchaseInvoiceOption {
 }
 
 // =============================================================================
-// Raw Data Types (from localStorage/API)
+// Raw Data Types (from API)
 // =============================================================================
 
 export interface RawCompanyData {

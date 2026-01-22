@@ -79,41 +79,35 @@ const SalesReturnListPage: React.FC = () => {
   const [orderBy, setOrderBy] = useState<OrderBy>('date');
   const [order, setOrder] = useState<Order>('desc');
 
-  // Load returns from API with localStorage fallback
+  // Load returns from API
   useEffect(() => {
     const loadReturns = async () => {
       try {
         const salesReturnsApi = getSalesReturnsApi();
         const response = await salesReturnsApi.getAll();
         if (response.data?.data) {
-          const apiReturns = response.data.data.map((ret) => ({
-            id: String(ret.id),
-            returnNumber: ret.returnNumber,
-            companyName: ret.companyName || '',
-            customerName: ret.customerName || '',
-            item: ret.item || '',
-            quantity: ret.quantity || 0,
-            netAmount: ret.netAmount || 0,
-            status: ret.status as 'Active' | 'Completed' | 'Pending',
-            date: ret.date,
-            createdAt: ret.createdAt || '',
-          }));
+          const apiReturns = response.data.data.map((ret) => {
+            // Get first line item name and total quantity from lines
+            const firstItem = ret.lines?.[0]?.itemName || '';
+            const totalQuantity = ret.lines?.reduce((sum, l) => sum + (l.quantity || 0), 0) || 0;
+            return {
+              id: String(ret.id),
+              returnNumber: ret.returnNumber,
+              companyName: ret.companyName || '',
+              customerName: ret.customerName || '',
+              item: firstItem,
+              quantity: totalQuantity,
+              netAmount: ret.totalAmount || 0,
+              status: (ret.status === 'completed' ? 'Completed' : ret.status === 'approved' ? 'Active' : 'Pending') as 'Active' | 'Completed' | 'Pending',
+              date: ret.date,
+              createdAt: ret.createdAt || '',
+            };
+          });
           setReturns(apiReturns);
-          // Sync to localStorage for offline access
-          localStorage.setItem('salesReturns', JSON.stringify(apiReturns));
         }
       } catch (err) {
-        console.error('Error loading sales returns from API, using localStorage fallback:', err);
-        // Fallback to localStorage
-        try {
-          const savedReturns = localStorage.getItem('salesReturns');
-          if (savedReturns) {
-            setReturns(JSON.parse(savedReturns));
-          }
-        } catch (localErr) {
-          console.error('Error loading from localStorage:', localErr);
-          setError('Failed to load sales returns. Please try again.');
-        }
+        console.error('Error loading sales returns from API:', err);
+        setError('Failed to load sales returns. Please try again.');
       } finally {
         setLoading(false);
       }
@@ -186,27 +180,16 @@ const SalesReturnListPage: React.FC = () => {
     if (deleteDialog.id) {
       setDeleting(true);
       try {
-        // Try API delete first
         const salesReturnsApi = getSalesReturnsApi();
         await salesReturnsApi.delete(Number(deleteDialog.id));
 
         // Update local state
         const updatedReturns = returns.filter((r) => r.id !== deleteDialog.id);
         setReturns(updatedReturns);
-        localStorage.setItem('salesReturns', JSON.stringify(updatedReturns));
         setSuccessMessage('Sales return deleted successfully!');
       } catch (err) {
-        console.error('Error deleting sales return from API, using localStorage fallback:', err);
-        // Fallback to localStorage only
-        try {
-          const updatedReturns = returns.filter((r) => r.id !== deleteDialog.id);
-          setReturns(updatedReturns);
-          localStorage.setItem('salesReturns', JSON.stringify(updatedReturns));
-          setSuccessMessage('Sales return deleted successfully!');
-        } catch (localErr) {
-          console.error('Error deleting from localStorage:', localErr);
-          setError('Failed to delete sales return. Please try again.');
-        }
+        console.error('Error deleting sales return:', err);
+        setError('Failed to delete sales return. Please try again.');
       } finally {
         setDeleting(false);
       }

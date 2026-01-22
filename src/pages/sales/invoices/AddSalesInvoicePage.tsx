@@ -47,10 +47,6 @@ import type {
   TaxOption,
   ItemOption,
   RawCompanyData,
-  RawCustomerData,
-  RawTaxData,
-  RawInventoryItemData,
-  RawSalesInvoiceData,
   InvoiceStatus,
   SelectChangeValue,
 } from '../../../types/invoice.types';
@@ -95,23 +91,20 @@ const AddSalesInvoicePage: React.FC = () => {
   // Check if payment method requires image upload and account number
   const requiresImageAndAccount = formData.paymentMethod === 'Bank Transfer (Online)' || formData.paymentMethod === 'Cheque';
 
-  // Generate invoice number from API or fallback to localStorage
+  // Generate invoice number from API
   const generateInvoiceNumber = useCallback(async () => {
     try {
       const api = getSalesInvoicesApi();
       const response = await api.getNextNumber();
       return response.data.nextNumber;
     } catch (err) {
-      console.error('Error fetching next invoice number from API, using fallback:', err);
-      // Fallback to localStorage
-      const savedInvoices = localStorage.getItem('salesInvoices');
-      const invoices: RawSalesInvoiceData[] = savedInvoices ? JSON.parse(savedInvoices) : [];
-      const nextNumber = invoices.length + 1;
-      return `SI-${String(nextNumber).padStart(6, '0')}`;
+      console.error('Error fetching next invoice number from API:', err);
+      setError('Failed to generate invoice number. Please try again.');
+      return '';
     }
   }, []);
 
-  // Load data from API with localStorage fallback
+  // Load data from API
   useEffect(() => {
     const loadData = async () => {
       setIsLoading(true);
@@ -127,12 +120,8 @@ const AddSalesInvoicePage: React.FC = () => {
             })));
           }
         } catch (err) {
-          console.error('Error loading customers from API, using localStorage fallback:', err);
-          const savedCustomers = localStorage.getItem('customers');
-          if (savedCustomers) {
-            const parsed: RawCustomerData[] = JSON.parse(savedCustomers);
-            setCustomers(parsed.map((c) => ({ id: c.id, name: c.customerName || c.name || '' })));
-          }
+          console.error('Error loading customers from API:', err);
+          setCustomers([]);
         }
 
         // Load taxes from API
@@ -147,16 +136,8 @@ const AddSalesInvoicePage: React.FC = () => {
             })));
           }
         } catch (err) {
-          console.error('Error loading taxes from API, using localStorage fallback:', err);
-          const savedTaxes = localStorage.getItem('taxes');
-          if (savedTaxes) {
-            const parsed: RawTaxData[] = JSON.parse(savedTaxes);
-            setTaxes(parsed.map((t) => ({
-              id: t.id,
-              name: t.taxName,
-              percentage: t.taxPercentage,
-            })));
-          }
+          console.error('Error loading taxes from API:', err);
+          setTaxes([]);
         }
 
         // Load items from API
@@ -171,16 +152,8 @@ const AddSalesInvoicePage: React.FC = () => {
             })));
           }
         } catch (err) {
-          console.error('Error loading items from API, using localStorage fallback:', err);
-          const savedItems = localStorage.getItem('inventoryItems');
-          if (savedItems) {
-            const parsed: RawInventoryItemData[] = JSON.parse(savedItems);
-            setItems(parsed.map((i) => ({
-              id: i.id,
-              name: i.itemName || i.name || '',
-              rate: i.salePrice || i.rate || 0,
-            })));
-          }
+          console.error('Error loading items from API:', err);
+          setItems([]);
         }
 
         // Generate invoice number for new invoices
@@ -224,35 +197,8 @@ const AddSalesInvoicePage: React.FC = () => {
               }
             }
           } catch (err) {
-            console.error('Error loading invoice from API, using localStorage fallback:', err);
-            // Fallback to localStorage
-            const savedInvoices = localStorage.getItem('salesInvoices');
-            if (savedInvoices) {
-              const invoices: RawSalesInvoiceData[] = JSON.parse(savedInvoices);
-              const invoice = invoices.find((i) => i.id === id);
-              if (invoice) {
-                setFormData({
-                  companyId: invoice.companyId || '',
-                  customerId: invoice.customerId || '',
-                  invoiceNumber: invoice.invoiceNumber,
-                  date: invoice.date,
-                  dueDate: invoice.dueDate || '',
-                  paymentMethod: invoice.paymentMethod || '',
-                  accountNumber: invoice.accountNumber || '',
-                  remarks: invoice.remarks || '',
-                  status: invoice.status,
-                  taxId: invoice.taxId || '',
-                  paidAmount: invoice.paidAmount || 0,
-                  discount: invoice.discount || 0,
-                });
-                if (invoice.lineItems) {
-                  setLineItems(invoice.lineItems);
-                }
-                if (invoice.receiptImage) {
-                  setReceiptImage(invoice.receiptImage);
-                }
-              }
-            }
+            console.error('Error loading invoice from API:', err);
+            setError('Failed to load invoice. Please try again.');
           }
         }
       } catch (err: unknown) {
@@ -357,8 +303,6 @@ const AddSalesInvoicePage: React.FC = () => {
 
     try {
       const api = getSalesInvoicesApi();
-      const company = companies.find((c) => c.id === formData.companyId);
-      const customer = customers.find((c) => c.id === formData.customerId);
 
       // Prepare API request data
       const apiData = {
@@ -383,62 +327,15 @@ const AddSalesInvoicePage: React.FC = () => {
         receiptImage: receiptImage || undefined,
       };
 
-      try {
-        if (isEditMode && id) {
-          await api.update(Number(id), {
-            ...apiData,
-            status: formData.status === 'Paid' ? 'paid' : formData.status === 'Overdue' ? 'overdue' : 'draft',
-          });
-        } else {
-          await api.create(apiData);
-        }
-        setSuccessMessage(isEditMode ? 'Invoice updated successfully!' : 'Invoice created successfully!');
-      } catch (apiErr) {
-        console.error('API call failed, saving to localStorage as fallback:', apiErr);
-        // Fallback to localStorage
-        const invoices: RawSalesInvoiceData[] = JSON.parse(localStorage.getItem('salesInvoices') || '[]');
-        const firstItem = lineItems.find((l) => l.item)?.item || '';
-        const totalQuantity = lineItems.reduce((sum, l) => sum + (l.quantity || 0), 0);
-
-        const invoiceData = {
-          id: isEditMode ? id : String(Date.now()),
-          companyId: formData.companyId,
-          companyName: company?.name || 'GST Gas',
-          customerId: formData.customerId,
-          customerName: customer?.name || '',
-          invoiceNumber: formData.invoiceNumber,
-          date: formData.date,
-          dueDate: formData.dueDate,
-          paymentMethod: formData.paymentMethod,
-          accountNumber: formData.accountNumber,
-          remarks: formData.remarks,
-          item: firstItem,
-          quantity: totalQuantity,
-          grossAmount,
-          netAmount: subtotal,
-          taxAmount,
-          discount: formData.discount,
-          paidAmount: formData.paidAmount,
-          balance,
-          status: formData.status,
-          lineItems,
-          receiptImage,
-          createdAt: isEditMode ? undefined : new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        };
-
-        if (isEditMode) {
-          const index = invoices.findIndex((i) => i.id === id);
-          if (index !== -1) {
-            invoices[index] = { ...invoices[index], ...invoiceData };
-          }
-        } else {
-          invoices.push(invoiceData as RawSalesInvoiceData);
-        }
-
-        localStorage.setItem('salesInvoices', JSON.stringify(invoices));
-        setSuccessMessage(isEditMode ? 'Invoice updated successfully (offline)!' : 'Invoice created successfully (offline)!');
+      if (isEditMode && id) {
+        await api.update(Number(id), {
+          ...apiData,
+          status: formData.status === 'Paid' ? 'paid' : formData.status === 'Overdue' ? 'overdue' : 'draft',
+        });
+      } else {
+        await api.create(apiData);
       }
+      setSuccessMessage(isEditMode ? 'Invoice updated successfully!' : 'Invoice created successfully!');
 
       setTimeout(() => {
         navigate('/sales/invoice');
@@ -448,7 +345,7 @@ const AddSalesInvoicePage: React.FC = () => {
       setError('Failed to save invoice. Please try again.');
       setIsSubmitting(false);
     }
-  }, [formData, companies, customers, lineItems, grossAmount, subtotal, taxAmount, balance, receiptImage, navigate, isEditMode, id, requiresImageAndAccount, items, selectedTax]);
+  }, [formData, lineItems, receiptImage, navigate, isEditMode, id, requiresImageAndAccount, items, selectedTax]);
 
   const handleCancel = useCallback(() => {
     navigate('/sales/invoice');

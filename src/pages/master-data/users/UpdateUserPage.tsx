@@ -32,7 +32,6 @@ import { getUsersApi } from '../../../generated/api/client';
 import type { UpdateUserRequest } from '../../../generated/api/api';
 import ConfirmDialog from '../../../components/feedback/ConfirmDialog';
 import { COLORS } from '../../../constants/colors';
-import type { User, UserCompanyAccess } from '../../../types/common.types';
 
 const UpdateUserPage: React.FC = () => {
   const navigate = useNavigate();
@@ -89,48 +88,67 @@ const UpdateUserPage: React.FC = () => {
     onError: setError,
   });
 
-  // Load user data on mount
+  // Load user data on mount from API
   useEffect(() => {
     if (!id) {
       navigate('/users');
       return;
     }
 
-    const users: User[] = JSON.parse(localStorage.getItem('users') || '[]');
-    const user = users.find((u) => u.id === id);
+    const loadUser = async () => {
+      try {
+        const usersApi = getUsersApi();
+        const { data: response } = await usersApi.v1ApiUsersIdGet(Number(id));
+        const apiResponse = response as { data?: { id?: number; firstName?: string; lastName?: string; fullName?: string; email?: string; phone?: string; isActive?: boolean; roleId?: number; roleName?: string; companies?: Array<{ id?: number; name?: string }> } };
+        const user = apiResponse.data;
 
-    if (!user) {
-      navigate('/users');
-      return;
-    }
+        if (!user) {
+          setError('User not found');
+          navigate('/users');
+          return;
+        }
 
-    setFormData({
-      firstName: user.firstName || '',
-      lastName: user.lastName || '',
-      fullName: user.fullName || '',
-      email: user.email || '',
-      cnic: user.cnic || '',
-      phone: user.phone || '',
-      about: user.about || '',
-      imageUrl: user.imageUrl || '',
-      status: user.status || 'Active',
-      companyAccess: user.companyAccess || [],
-    });
+        setFormData({
+          firstName: user.firstName || '',
+          lastName: user.lastName || '',
+          fullName: user.fullName || `${user.firstName} ${user.lastName}`,
+          email: user.email || '',
+          cnic: '',
+          phone: user.phone || '',
+          about: '',
+          imageUrl: '',
+          status: user.isActive ? 'Active' : 'Inactive',
+          companyAccess: (user.companies || []).map((company) => ({
+            companyId: company.id!,
+            companyName: company.name!,
+            roleId: user.roleId || 0,
+            roleName: user.roleName || 'User',
+            permissions: [],
+          })),
+        });
 
-    // Convert old format to new format with modulePermissions and set via hook
-    if (user.companyAccess) {
-      const extendedAccess: ExtendedUserCompanyAccess[] = user.companyAccess.map((access: UserCompanyAccess & { modulePermissions?: Record<string, string[]> }) => ({
-        ...access,
-        modulePermissions: access.modulePermissions || {},
-      }));
-      setExtendedCompanyAccess(extendedAccess);
-    }
+        // Set extended company access
+        if (user.companies) {
+          const extendedAccess: ExtendedUserCompanyAccess[] = (user.companies || []).map((company) => ({
+            companyId: company.id!,
+            companyName: company.name!,
+            roleId: user.roleId || 0,
+            roleName: user.roleName || 'User',
+            permissions: [],
+            modulePermissions: {},
+          }));
+          setExtendedCompanyAccess(extendedAccess);
+        }
 
-    if (user.imageUrl) {
-      setImagePreview(user.imageUrl);
-    }
+        setIsLoading(false);
+      } catch (err: unknown) {
+        console.error('Error loading user:', err);
+        setError('Failed to load user data');
+        navigate('/users');
+      }
+    };
 
-    setIsLoading(false);
+    loadUser();
   }, [id, navigate, setExtendedCompanyAccess]);
 
   // Memoized input change handler
@@ -210,21 +228,6 @@ const UpdateUserPage: React.FC = () => {
       // Call API
       await usersApi.v1ApiUsersIdPut(payload, Number(id));
 
-      // Update localStorage
-      const users: User[] = JSON.parse(localStorage.getItem('users') || '[]');
-      const updatedUsers = users.map((user) =>
-        user.id === id
-          ? {
-              ...user,
-              ...formData,
-              fullName: `${formData.firstName} ${formData.lastName}`.trim(),
-              companyAccess: extendedCompanyAccess,
-              updatedAt: new Date().toISOString(),
-            }
-          : user
-      );
-      localStorage.setItem('users', JSON.stringify(updatedUsers));
-
       setSuccessMessage('User updated successfully!');
 
       setTimeout(() => {
@@ -232,25 +235,9 @@ const UpdateUserPage: React.FC = () => {
       }, 1500);
     } catch (err: unknown) {
       console.error('Error updating user:', err);
-      // Save locally even if API fails
-      const users: User[] = JSON.parse(localStorage.getItem('users') || '[]');
-      const updatedUsers = users.map((user) =>
-        user.id === id
-          ? {
-              ...user,
-              ...formData,
-              fullName: `${formData.firstName} ${formData.lastName}`.trim(),
-              companyAccess: extendedCompanyAccess,
-              updatedAt: new Date().toISOString(),
-            }
-          : user
-      );
-      localStorage.setItem('users', JSON.stringify(updatedUsers));
-
-      setSuccessMessage('User updated successfully!');
-      setTimeout(() => {
-        navigate('/users');
-      }, 1500);
+      setError('Failed to update user. Please try again.');
+    } finally {
+      setIsSubmitting(false);
     }
   }, [formData, password, extendedCompanyAccess, id, navigate]);
 
@@ -271,11 +258,6 @@ const UpdateUserPage: React.FC = () => {
       // Call API to delete
       await usersApi.v1ApiUsersIdDelete(Number(id));
 
-      // Update localStorage
-      const users: User[] = JSON.parse(localStorage.getItem('users') || '[]');
-      const updatedUsers = users.filter((user) => user.id !== id);
-      localStorage.setItem('users', JSON.stringify(updatedUsers));
-
       setSuccessMessage('User deleted successfully!');
 
       setTimeout(() => {
@@ -283,15 +265,9 @@ const UpdateUserPage: React.FC = () => {
       }, 1500);
     } catch (err: unknown) {
       console.error('Error deleting user:', err);
-      // Delete locally even if API fails
-      const users: User[] = JSON.parse(localStorage.getItem('users') || '[]');
-      const updatedUsers = users.filter((user) => user.id !== id);
-      localStorage.setItem('users', JSON.stringify(updatedUsers));
-
-      setSuccessMessage('User deleted successfully!');
-      setTimeout(() => {
-        navigate('/users');
-      }, 1500);
+      setError('Failed to delete user. Please try again.');
+    } finally {
+      setIsDeleting(false);
     }
   }, [id, navigate]);
 

@@ -42,11 +42,6 @@ import type {
   ItemOption,
   PurchaseInvoiceOption,
   RawCompanyData,
-  RawVendorData,
-  RawTaxData,
-  RawInventoryItemData,
-  RawPurchaseInvoiceData,
-  RawPurchaseReturnData,
   ReturnStatus,
   SelectChangeValue,
 } from '../../../types/invoice.types';
@@ -94,49 +89,52 @@ const AddPurchaseReturnPage: React.FC = () => {
 
   // Generate return number
   const generateReturnNumber = useCallback(() => {
-    const savedReturns = localStorage.getItem('purchaseReturns');
-    const returns: RawPurchaseReturnData[] = savedReturns ? JSON.parse(savedReturns) : [];
-    const nextNumber = returns.length + 1;
-    return `PR-${String(nextNumber).padStart(6, '0')}`;
+    // Generate a unique return number based on timestamp
+    const timestamp = Date.now();
+    return `PR-${String(timestamp).slice(-6).padStart(6, '0')}`;
   }, []);
 
   // Load data
   useEffect(() => {
-    try {
-      const savedVendors = localStorage.getItem('vendors');
-      if (savedVendors) {
-        const parsed: RawVendorData[] = JSON.parse(savedVendors);
-        setVendors(parsed.map((v) => ({ id: v.id, name: v.vendorName || v.name || '' })));
+    const loadData = async () => {
+      try {
+        // Load vendors from API
+        // TODO: Replace with actual API call when available
+        setVendors([]);
+      } catch (err: unknown) {
+        console.error('Error loading vendors:', err);
+        setError('Failed to load vendors');
+        setVendors([]);
       }
 
-      const savedInvoices = localStorage.getItem('purchaseInvoices');
-      if (savedInvoices) {
-        const parsed: RawPurchaseInvoiceData[] = JSON.parse(savedInvoices);
-        setPurchaseInvoices(parsed.map((i) => ({
-          id: i.id,
-          billNumber: i.billNumber,
-          vendorId: i.vendorId,
-        })));
+      try {
+        // Load purchase invoices from API
+        // TODO: Replace with actual API call when available
+        setPurchaseInvoices([]);
+      } catch (err: unknown) {
+        console.error('Error loading purchase invoices:', err);
+        setError('Failed to load purchase invoices');
+        setPurchaseInvoices([]);
       }
 
-      const savedTaxes = localStorage.getItem('taxes');
-      if (savedTaxes) {
-        const parsed: RawTaxData[] = JSON.parse(savedTaxes);
-        setTaxes(parsed.map((t) => ({
-          id: t.id,
-          name: t.taxName,
-          percentage: t.taxPercentage,
-        })));
+      try {
+        // Load taxes from API
+        // TODO: Replace with actual API call when available
+        setTaxes([]);
+      } catch (err: unknown) {
+        console.error('Error loading taxes:', err);
+        setError('Failed to load taxes');
+        setTaxes([]);
       }
 
-      const savedItems = localStorage.getItem('inventoryItems');
-      if (savedItems) {
-        const parsed: RawInventoryItemData[] = JSON.parse(savedItems);
-        setItems(parsed.map((i) => ({
-          id: i.id,
-          name: i.itemName || i.name || '',
-          rate: i.purchasePrice || i.rate || 0,
-        })));
+      try {
+        // Load inventory items from API
+        // TODO: Replace with actual API call when available
+        setItems([]);
+      } catch (err: unknown) {
+        console.error('Error loading inventory items:', err);
+        setError('Failed to load inventory items');
+        setItems([]);
       }
 
       // Generate return number for new returns
@@ -146,42 +144,24 @@ const AddPurchaseReturnPage: React.FC = () => {
 
       // Load existing return for edit mode
       if (isEditMode && id) {
-        const savedReturns = localStorage.getItem('purchaseReturns');
-        if (savedReturns) {
-          const returns: RawPurchaseReturnData[] = JSON.parse(savedReturns);
-          const returnData = returns.find((r) => r.id === id);
-          if (returnData) {
-            setFormData({
-              companyId: returnData.companyId || '',
-              vendorId: returnData.vendorId || '',
-              billNumber: returnData.billNumber,
-              originalInvoice: returnData.originalInvoice || '',
-              date: returnData.date,
-              returnReason: returnData.returnReason || '',
-              paymentMethod: returnData.paymentMethod || '',
-              accountNumber: returnData.accountNumber || '',
-              remarks: returnData.remarks || '',
-              status: returnData.status,
-              taxId: returnData.taxId || '',
-              refundAmount: returnData.refundAmount || 0,
-            });
-            if (returnData.lineItems) {
-              setLineItems(returnData.lineItems);
-            }
-            if (returnData.receiptImage) {
-              setReceiptImage(returnData.receiptImage);
-            }
-          }
+        try {
+          // TODO: Replace with actual API call when available
+          // const response = await api.getPurchaseReturn(id);
+          // For now, show error since we can't load data without API
+          setError('Failed to load return data. API not available.');
+        } catch (err: unknown) {
+          console.error('Error loading return data:', err);
+          setError('Failed to load return data');
         }
       }
-    } catch (err: unknown) {
-      console.error('Error loading data:', err);
-    } finally {
+
       // Set loading to false after data is loaded
       if (isEditMode) {
         setIsLoading(false);
       }
-    }
+    };
+
+    loadData();
   }, [isEditMode, id, generateReturnNumber]);
 
   const handleInputChange = useCallback(
@@ -273,7 +253,6 @@ const AddPurchaseReturnPage: React.FC = () => {
     setError('');
 
     try {
-      const returns: RawPurchaseReturnData[] = JSON.parse(localStorage.getItem('purchaseReturns') || '[]');
       const company = companies.find((c) => c.id === formData.companyId);
       const vendor = vendors.find((v) => v.id === formData.vendorId);
       const firstItem = lineItems.find((l) => l.item)?.item || '';
@@ -305,27 +284,22 @@ const AddPurchaseReturnPage: React.FC = () => {
         updatedAt: new Date().toISOString(),
       };
 
-      if (isEditMode) {
-        const index = returns.findIndex((r) => r.id === id);
-        if (index !== -1) {
-          returns[index] = { ...returns[index], ...returnData };
-        }
-      } else {
-        returns.push(returnData as RawPurchaseReturnData);
-      }
+      // TODO: Replace with actual API call when available
+      // if (isEditMode) {
+      //   await api.updatePurchaseReturn(id, returnData);
+      // } else {
+      //   await api.createPurchaseReturn(returnData);
+      // }
 
-      localStorage.setItem('purchaseReturns', JSON.stringify(returns));
-
-      setSuccessMessage(isEditMode ? 'Return updated successfully!' : 'Return created successfully!');
-      setTimeout(() => {
-        navigate('/purchase/return');
-      }, 1500);
+      // For now, show error since API is not available
+      setError('Failed to save return. API not available.');
+      setIsSubmitting(false);
     } catch (err: unknown) {
       console.error('Error saving return:', err);
       setError('Failed to save return. Please try again.');
       setIsSubmitting(false);
     }
-  }, [formData, companies, vendors, lineItems, grossAmount, netAmount, taxAmount, receiptImage, navigate, isEditMode, id, requiresImageAndAccount]);
+  }, [formData, companies, vendors, lineItems, grossAmount, netAmount, taxAmount, receiptImage, isEditMode, id, requiresImageAndAccount]);
 
   const handleCancel = useCallback(() => {
     navigate('/purchase/return');

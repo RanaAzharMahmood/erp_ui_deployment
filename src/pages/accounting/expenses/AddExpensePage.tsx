@@ -85,7 +85,7 @@ const AddExpensePage: React.FC = () => {
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
 
-  // Load taxes from API with localStorage fallback
+  // Load taxes from API
   useEffect(() => {
     const loadTaxes = async () => {
       try {
@@ -99,21 +99,9 @@ const AddExpensePage: React.FC = () => {
           })));
         }
       } catch (err) {
-        console.error('Error loading taxes from API, falling back to localStorage:', err);
-        // Fallback to localStorage
-        try {
-          const savedTaxes = localStorage.getItem('taxes');
-          if (savedTaxes) {
-            const parsed = JSON.parse(savedTaxes);
-            setTaxes(parsed.map((t: any) => ({
-              id: t.id,
-              name: t.taxName,
-              percentage: t.taxPercentage,
-            })));
-          }
-        } catch (localErr) {
-          console.error('Error loading data from localStorage:', localErr);
-        }
+        console.error('Error loading taxes from API:', err);
+        setError('Failed to load taxes');
+        setTaxes([]);
       }
     };
     loadTaxes();
@@ -182,43 +170,15 @@ const AddExpensePage: React.FC = () => {
     setError('');
 
     try {
-      const expenses = JSON.parse(localStorage.getItem('expenses') || '[]');
-      const company = companies.find((c) => c.id === formData.companyId);
-
-      const newExpense = {
-        id: String(Date.now()),
-        companyId: formData.companyId,
-        companyName: company?.name || 'GST Gas',
-        date: formData.date,
-        payFor: formData.payFor,
-        payDate: formData.payDate,
-        paymentMethod: formData.paymentMethod,
-        remarks: formData.remarks,
-        grossAmount,
-        netAmount: subtotal,
-        taxAmount,
-        discount: formData.discount,
-        paidAmount: formData.paidAmount,
-        balance,
-        status: formData.status === 'Paid' ? 'Active' : formData.status,
-        lineItems,
-        chequeImage,
-        createdAt: new Date().toISOString(),
-      };
-
-      expenses.push(newExpense);
-      localStorage.setItem('expenses', JSON.stringify(expenses));
-
-      setSuccessMessage('Expense created successfully!');
-      setTimeout(() => {
-        navigate('/account/expense');
-      }, 1500);
+      // TODO: Replace with actual API call to create expense
+      setError('API not yet implemented for creating expenses');
+      setIsSubmitting(false);
     } catch (err) {
       console.error('Error creating expense:', err);
       setError('Failed to create expense. Please try again.');
       setIsSubmitting(false);
     }
-  }, [formData, companies, lineItems, grossAmount, subtotal, taxAmount, balance, chequeImage, navigate]);
+  }, [formData]);
 
   const handleCancel = useCallback(() => {
     navigate('/account/expense');

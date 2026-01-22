@@ -79,7 +79,7 @@ const PurchaseInvoiceListPage: React.FC = () => {
   const [orderBy, setOrderBy] = useState<OrderBy>('date');
   const [order, setOrder] = useState<Order>('desc');
 
-  // Load invoices from API with localStorage fallback
+  // Load invoices from API
   useEffect(() => {
     const loadInvoices = async () => {
       try {
@@ -99,21 +99,10 @@ const PurchaseInvoiceListPage: React.FC = () => {
             createdAt: inv.createdAt || '',
           }));
           setInvoices(apiInvoices);
-          // Sync to localStorage for offline access
-          localStorage.setItem('purchaseInvoices', JSON.stringify(apiInvoices));
         }
       } catch (err) {
-        console.error('Error loading purchase invoices from API, using localStorage fallback:', err);
-        // Fallback to localStorage
-        try {
-          const savedInvoices = localStorage.getItem('purchaseInvoices');
-          if (savedInvoices) {
-            setInvoices(JSON.parse(savedInvoices));
-          }
-        } catch (localErr) {
-          console.error('Error loading from localStorage:', localErr);
-          setError('Failed to load purchase invoices. Please try again.');
-        }
+        console.error('Error loading purchase invoices from API:', err);
+        setError('Failed to load purchase invoices. Please try again.');
       } finally {
         setLoading(false);
       }
@@ -186,27 +175,16 @@ const PurchaseInvoiceListPage: React.FC = () => {
     if (deleteDialog.id) {
       setDeleting(true);
       try {
-        // Try API delete first
         const purchaseInvoicesApi = getPurchaseInvoicesApi();
         await purchaseInvoicesApi.delete(Number(deleteDialog.id));
 
         // Update local state
         const updatedInvoices = invoices.filter((i) => i.id !== deleteDialog.id);
         setInvoices(updatedInvoices);
-        localStorage.setItem('purchaseInvoices', JSON.stringify(updatedInvoices));
         setSuccessMessage('Purchase invoice deleted successfully!');
       } catch (err) {
-        console.error('Error deleting purchase invoice from API, using localStorage fallback:', err);
-        // Fallback to localStorage only
-        try {
-          const updatedInvoices = invoices.filter((i) => i.id !== deleteDialog.id);
-          setInvoices(updatedInvoices);
-          localStorage.setItem('purchaseInvoices', JSON.stringify(updatedInvoices));
-          setSuccessMessage('Purchase invoice deleted successfully!');
-        } catch (localErr) {
-          console.error('Error deleting from localStorage:', localErr);
-          setError('Failed to delete purchase invoice. Please try again.');
-        }
+        console.error('Error deleting purchase invoice:', err);
+        setError('Failed to delete purchase invoice. Please try again.');
       } finally {
         setDeleting(false);
       }

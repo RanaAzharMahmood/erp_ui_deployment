@@ -22,7 +22,7 @@ class ApiClient {
   }
 
   private getAuthToken(): string | null {
-    return localStorage.getItem('authToken');
+    return null;
   }
 
   private buildUrl(endpoint: string, params?: Record<string, string>): string {

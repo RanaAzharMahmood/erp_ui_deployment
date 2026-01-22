@@ -95,11 +95,6 @@ const getHeaders = () => {
     'Content-Type': 'application/json',
   };
 
-  const token = localStorage.getItem('erp_token') || localStorage.getItem('auth_token');
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
-
   return headers;
 };
 

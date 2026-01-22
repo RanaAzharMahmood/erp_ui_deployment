@@ -119,18 +119,10 @@ const UsersPage: React.FC = () => {
       }));
 
       setUsers(transformedUsers);
-
-      // Also save to localStorage as backup
-      localStorage.setItem('users', JSON.stringify(transformedUsers));
     } catch (err: unknown) {
       console.error('Error loading users:', err);
-      setError('Failed to load users. Loading from local storage...');
-
-      // Fallback to localStorage
-      const savedUsers = localStorage.getItem('users');
-      if (savedUsers) {
-        setUsers(JSON.parse(savedUsers));
-      }
+      setError('Failed to load users. Please try again.');
+      setUsers([]);
     } finally {
       setIsLoading(false);
     }
@@ -140,18 +132,9 @@ const UsersPage: React.FC = () => {
     loadUsers();
   }, [loadUsers]);
 
-  // Get current user ID
+  // Get current user ID - returns default for filter manager
   const getCurrentUserId = useCallback(() => {
-    try {
-      const userStr = localStorage.getItem('erp_user');
-      if (userStr) {
-        const user = JSON.parse(userStr);
-        return user.id;
-      }
-    } catch (err) {
-      console.error('Error getting user ID:', err);
-    }
-    return 1; // Default fallback
+    return 1; // Default user ID
   }, []);
 
   // Handle applying saved filter
@@ -269,17 +252,13 @@ const UsersPage: React.FC = () => {
       // Remove from local state
       setUsers((prev) => prev.filter((user) => user.id !== deleteDialog.id));
 
-      // Update localStorage
-      const updatedUsers = users.filter((user) => user.id !== deleteDialog.id);
-      localStorage.setItem('users', JSON.stringify(updatedUsers));
-
       setSuccessMessage('User deleted successfully!');
     } catch (err: unknown) {
       console.error('Error deleting user:', err);
       setError('Failed to delete user. Please try again.');
     }
     setDeleteDialog({ open: false, id: null });
-  }, [users, deleteDialog.id]);
+  }, [deleteDialog.id]);
 
   const handleDeleteCancel = useCallback(() => {
     setDeleteDialog({ open: false, id: null });

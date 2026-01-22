@@ -88,25 +88,12 @@ const VendorsPage: React.FC = () => {
 
       setVendors(response.data);
       setTotalCount(response.pagination.total);
-
-      // Save to localStorage as backup
-      localStorage.setItem('vendors', JSON.stringify(response.data));
     } catch (err: unknown) {
       console.error('Error loading vendors:', err);
       const errorMessage = err instanceof Error ? err.message : 'Failed to load vendors';
-      setError(`${errorMessage}. Loading from local storage...`);
-
-      // Fallback to localStorage
-      const savedVendors = localStorage.getItem('vendors');
-      if (savedVendors) {
-        const parsedVendors = JSON.parse(savedVendors);
-        setVendors(parsedVendors);
-        setTotalCount(parsedVendors.length);
-      } else {
-        // Initialize with empty array
-        setVendors([]);
-        setTotalCount(0);
-      }
+      setError(errorMessage);
+      setVendors([]);
+      setTotalCount(0);
     } finally {
       setIsLoading(false);
     }
@@ -123,7 +110,7 @@ const VendorsPage: React.FC = () => {
     setOrderBy(property);
   }, [orderBy, order]);
 
-  // Memoized filtered and sorted vendors for client-side filtering when using localStorage fallback
+  // Memoized filtered and sorted vendors for client-side filtering
   const filteredVendors = useMemo(() => {
     // Sort the vendors
     const sorted = [...vendors].sort((a, b) => {
@@ -167,7 +154,7 @@ const VendorsPage: React.FC = () => {
     return sorted;
   }, [vendors, orderBy, order]);
 
-  // Paginated vendors - for client-side pagination when using localStorage fallback
+  // Paginated vendors - for client-side pagination
   const paginatedVendors = useMemo(() => {
     // When using API, pagination is handled server-side
     return filteredVendors;
@@ -195,7 +182,6 @@ const VendorsPage: React.FC = () => {
         const updatedVendors = vendors.filter((vendor) => vendor.id !== deleteDialog.id);
         setVendors(updatedVendors);
         setTotalCount((prev) => prev - 1);
-        localStorage.setItem('vendors', JSON.stringify(updatedVendors));
 
         setSuccessMessage('Vendor deleted successfully');
       } catch (err: unknown) {

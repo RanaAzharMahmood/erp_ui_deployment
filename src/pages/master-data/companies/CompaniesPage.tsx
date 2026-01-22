@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../../contexts/AuthContext';
 import {
   Box,
   Button,
@@ -93,19 +94,11 @@ const CompaniesPage: React.FC = () => {
   // Debounce search for better performance
   const debouncedSearch = useDebounce(searchTerm, 300);
 
-  // Get current user ID
+  // Get current user ID from auth context
+  const { user } = useAuth();
   const getCurrentUserId = useCallback(() => {
-    try {
-      const userStr = localStorage.getItem('erp_user');
-      if (userStr) {
-        const user = JSON.parse(userStr);
-        return user.id;
-      }
-    } catch (err) {
-      console.error('Error getting user ID:', err);
-    }
-    return 1; // Default fallback
-  }, []);
+    return user?.id ? Number(user.id) : 1; // Default fallback
+  }, [user]);
 
   // Handle applying saved filter
   useEffect(() => {
@@ -161,19 +154,10 @@ const CompaniesPage: React.FC = () => {
       }));
 
       setCompanies(transformedCompanies);
-
-      // Also save to localStorage as backup
-      localStorage.setItem('companies', JSON.stringify(transformedCompanies));
     } catch (err: unknown) {
       console.error('Error loading companies:', err);
-      setError('Failed to load companies. Loading from local storage...');
-
-      // Fallback to localStorage
-      const savedCompanies = localStorage.getItem('companies');
-
-      if (savedCompanies) {
-        setCompanies(JSON.parse(savedCompanies));
-      }
+      setError('Failed to load companies.');
+      setCompanies([]);
     } finally {
       setIsLoading(false);
     }
@@ -283,7 +267,6 @@ const CompaniesPage: React.FC = () => {
         // Update local state
         const updatedCompanies = companies.filter((company) => company.id !== deleteDialog.id);
         setCompanies(updatedCompanies);
-        localStorage.setItem('companies', JSON.stringify(updatedCompanies));
 
         setSuccessMessage('Company deleted successfully');
       } catch (err: unknown) {

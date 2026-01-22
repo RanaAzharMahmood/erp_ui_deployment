@@ -36,7 +36,7 @@ import { useCompanies } from '../../../hooks';
 import {
   getCustomersApi,
   getTaxesApi,
-  getInventoryItemsApi,
+  getItemsApi,
   getSalesInvoicesApi,
   getSalesReturnsApi,
 } from '../../../generated/api/client';
@@ -49,11 +49,6 @@ import type {
   ItemOption,
   SalesInvoiceOption,
   RawCompanyData,
-  RawCustomerData,
-  RawTaxData,
-  RawInventoryItemData,
-  RawSalesInvoiceData,
-  RawSalesReturnData,
   ReturnStatus,
   SelectChangeValue,
 } from '../../../types/invoice.types';
@@ -99,7 +94,7 @@ const AddSalesReturnPage: React.FC = () => {
   // Check if payment method requires image upload and account number
   const requiresImageAndAccount = formData.paymentMethod === 'Bank Transfer (Online)' || formData.paymentMethod === 'Cheque';
 
-  // Generate return number from API with localStorage fallback
+  // Generate return number from API
   const generateReturnNumber = useCallback(async () => {
     try {
       const salesReturnsApi = getSalesReturnsApi();
@@ -108,16 +103,14 @@ const AddSalesReturnPage: React.FC = () => {
         return response.data.nextNumber;
       }
     } catch (err) {
-      console.error('Error getting next return number from API, using localStorage fallback:', err);
+      console.error('Error getting next return number from API:', err);
+      setError('Failed to generate return number. Please try again.');
     }
-    // Fallback to localStorage
-    const savedReturns = localStorage.getItem('salesReturns');
-    const returns: RawSalesReturnData[] = savedReturns ? JSON.parse(savedReturns) : [];
-    const nextNumber = returns.length + 1;
-    return `SR-${String(nextNumber).padStart(6, '0')}`;
+    // Return a placeholder if API fails
+    return `SR-${String(Date.now()).slice(-6)}`;
   }, []);
 
-  // Load data from API with localStorage fallback
+  // Load data from API
   useEffect(() => {
     const loadData = async () => {
       try {
@@ -132,12 +125,9 @@ const AddSalesReturnPage: React.FC = () => {
             })));
           }
         } catch (err) {
-          console.error('Error loading customers from API, using localStorage fallback:', err);
-          const savedCustomers = localStorage.getItem('customers');
-          if (savedCustomers) {
-            const parsed: RawCustomerData[] = JSON.parse(savedCustomers);
-            setCustomers(parsed.map((c) => ({ id: c.id, name: c.customerName || c.name || '' })));
-          }
+          console.error('Error loading customers from API:', err);
+          setCustomers([]);
+          setError('Failed to load customers. Please refresh the page.');
         }
 
         // Load sales invoices from API
@@ -152,64 +142,43 @@ const AddSalesReturnPage: React.FC = () => {
             })));
           }
         } catch (err) {
-          console.error('Error loading invoices from API, using localStorage fallback:', err);
-          const savedInvoices = localStorage.getItem('salesInvoices');
-          if (savedInvoices) {
-            const parsed: RawSalesInvoiceData[] = JSON.parse(savedInvoices);
-            setSalesInvoices(parsed.map((i) => ({
-              id: i.id,
-              invoiceNumber: i.invoiceNumber,
-              customerId: i.customerId,
-            })));
-          }
+          console.error('Error loading invoices from API:', err);
+          setSalesInvoices([]);
+          setError('Failed to load invoices. Please refresh the page.');
         }
 
         // Load taxes from API
         try {
           const taxesApi = getTaxesApi();
           const taxesResponse = await taxesApi.getAll();
-          if (taxesResponse.data?.data) {
-            setTaxes(taxesResponse.data.data.map((t) => ({
+          if (taxesResponse.data) {
+            setTaxes(taxesResponse.data.map((t: { id?: number; name?: string; rate?: number }) => ({
               id: String(t.id),
-              name: t.name,
-              percentage: t.percentage,
+              name: t.name || '',
+              percentage: t.rate || 0,
             })));
           }
         } catch (err) {
-          console.error('Error loading taxes from API, using localStorage fallback:', err);
-          const savedTaxes = localStorage.getItem('taxes');
-          if (savedTaxes) {
-            const parsed: RawTaxData[] = JSON.parse(savedTaxes);
-            setTaxes(parsed.map((t) => ({
-              id: t.id,
-              name: t.taxName,
-              percentage: t.taxPercentage,
-            })));
-          }
+          console.error('Error loading taxes from API:', err);
+          setTaxes([]);
+          setError('Failed to load taxes. Please refresh the page.');
         }
 
         // Load items from API
         try {
-          const itemsApi = getInventoryItemsApi();
-          const itemsResponse = await itemsApi.getAll();
-          if (itemsResponse.data?.data) {
-            setItems(itemsResponse.data.data.map((i) => ({
+          const itemsApi = getItemsApi();
+          const itemsResponse = await itemsApi.v1ApiItemsGet(true);
+          if (itemsResponse.data) {
+            setItems(itemsResponse.data.map((i: { id?: number; itemName?: string; salePrice?: number; unitPrice?: number }) => ({
               id: String(i.id),
-              name: i.name,
-              rate: i.salePrice || 0,
+              name: i.itemName || '',
+              rate: i.salePrice || i.unitPrice || 0,
             })));
           }
         } catch (err) {
-          console.error('Error loading items from API, using localStorage fallback:', err);
-          const savedItems = localStorage.getItem('inventoryItems');
-          if (savedItems) {
-            const parsed: RawInventoryItemData[] = JSON.parse(savedItems);
-            setItems(parsed.map((i) => ({
-              id: i.id,
-              name: i.itemName || i.name || '',
-              rate: i.salePrice || i.rate || 0,
-            })));
-          }
+          console.error('Error loading items from API:', err);
+          setItems([]);
+          setError('Failed to load items. Please refresh the page.');
         }
 
         // Generate return number for new returns
@@ -227,54 +196,31 @@ const AddSalesReturnPage: React.FC = () => {
               const returnData = returnResponse.data;
               setFormData({
                 companyId: returnData.companyId || '',
-                customerId: returnData.customerId || '',
+                customerId: String(returnData.customerId) || '',
                 returnNumber: returnData.returnNumber,
-                originalInvoice: returnData.originalInvoice || '',
+                originalInvoice: returnData.salesInvoiceId ? String(returnData.salesInvoiceId) : '',
                 date: returnData.date,
-                returnReason: returnData.returnReason || '',
-                paymentMethod: returnData.paymentMethod || '',
-                accountNumber: returnData.accountNumber || '',
-                remarks: returnData.remarks || '',
-                status: returnData.status as ReturnStatus,
-                taxId: returnData.taxId || '',
-                refundAmount: returnData.refundAmount || 0,
+                returnReason: returnData.reason || '',
+                paymentMethod: '',
+                accountNumber: '',
+                remarks: returnData.notes || '',
+                status: (returnData.status === 'approved' || returnData.status === 'completed' ? 'Approved' : returnData.status === 'cancelled' ? 'Rejected' : 'Pending') as ReturnStatus,
+                taxId: '',
+                refundAmount: returnData.totalAmount || 0,
               });
-              if (returnData.lineItems) {
-                setLineItems(returnData.lineItems);
-              }
-              if (returnData.receiptImage) {
-                setReceiptImage(returnData.receiptImage);
+              if (returnData.lines) {
+                setLineItems(returnData.lines.map((l) => ({
+                  id: String(l.id || Date.now()),
+                  item: l.itemName || '',
+                  quantity: l.quantity,
+                  rate: l.unitPrice,
+                  amount: l.lineTotal,
+                })));
               }
             }
           } catch (err) {
-            console.error('Error loading return from API, using localStorage fallback:', err);
-            const savedReturns = localStorage.getItem('salesReturns');
-            if (savedReturns) {
-              const returns: RawSalesReturnData[] = JSON.parse(savedReturns);
-              const returnData = returns.find((r) => r.id === id);
-              if (returnData) {
-                setFormData({
-                  companyId: returnData.companyId || '',
-                  customerId: returnData.customerId || '',
-                  returnNumber: returnData.returnNumber,
-                  originalInvoice: returnData.originalInvoice || '',
-                  date: returnData.date,
-                  returnReason: returnData.returnReason || '',
-                  paymentMethod: returnData.paymentMethod || '',
-                  accountNumber: returnData.accountNumber || '',
-                  remarks: returnData.remarks || '',
-                  status: returnData.status,
-                  taxId: returnData.taxId || '',
-                  refundAmount: returnData.refundAmount || 0,
-                });
-                if (returnData.lineItems) {
-                  setLineItems(returnData.lineItems);
-                }
-                if (returnData.receiptImage) {
-                  setReceiptImage(returnData.receiptImage);
-                }
-              }
-            }
+            console.error('Error loading return from API:', err);
+            setError('Failed to load return data. Please try again.');
           }
         }
       } catch (err: unknown) {
@@ -383,62 +329,34 @@ const AddSalesReturnPage: React.FC = () => {
       const firstItem = lineItems.find((l) => l.item)?.item || '';
       const totalQuantity = lineItems.reduce((sum, l) => sum + (l.quantity || 0), 0);
 
-      const returnData = {
-        companyId: formData.companyId,
-        companyName: company?.name || '',
-        customerId: formData.customerId,
-        customerName: customer?.name || '',
-        returnNumber: formData.returnNumber,
-        originalInvoice: formData.originalInvoice,
+      // Prepare API request data
+      const selectedTax = taxes.find((t) => t.id === formData.taxId);
+      const apiData = {
         date: formData.date,
-        returnReason: formData.returnReason,
-        paymentMethod: formData.paymentMethod,
-        accountNumber: formData.accountNumber,
-        remarks: formData.remarks,
-        item: firstItem,
-        quantity: totalQuantity,
-        grossAmount,
-        netAmount,
-        taxAmount,
-        refundAmount: formData.refundAmount,
-        status: formData.status,
-        lineItems,
-        receiptImage,
-        taxId: formData.taxId,
+        customerId: Number(formData.customerId),
+        salesInvoiceId: formData.originalInvoice ? Number(formData.originalInvoice) : undefined,
+        reason: formData.returnReason || undefined,
+        notes: formData.remarks || undefined,
+        companyId: formData.companyId ? Number(formData.companyId) : 1,
+        lines: lineItems.filter(l => l.item).map((l) => ({
+          itemId: Number(items.find(i => i.name === l.item)?.id) || 0,
+          description: l.item,
+          quantity: l.quantity,
+          unitPrice: l.rate,
+          taxId: formData.taxId ? Number(formData.taxId) : undefined,
+          taxAmount: selectedTax ? (l.amount * selectedTax.percentage) / 100 : 0,
+          lineTotal: l.amount,
+        })),
       };
 
-      // Try API first
-      try {
-        const salesReturnsApi = getSalesReturnsApi();
-        if (isEditMode && id) {
-          await salesReturnsApi.update(Number(id), returnData);
-        } else {
-          await salesReturnsApi.create(returnData);
-        }
-        setSuccessMessage(isEditMode ? 'Return updated successfully!' : 'Return created successfully!');
-      } catch (apiErr) {
-        console.error('API error, falling back to localStorage:', apiErr);
-        // Fallback to localStorage
-        const returns: RawSalesReturnData[] = JSON.parse(localStorage.getItem('salesReturns') || '[]');
-        const localReturnData = {
-          ...returnData,
-          id: isEditMode ? id : String(Date.now()),
-          createdAt: isEditMode ? undefined : new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        };
-
-        if (isEditMode) {
-          const index = returns.findIndex((r) => r.id === id);
-          if (index !== -1) {
-            returns[index] = { ...returns[index], ...localReturnData };
-          }
-        } else {
-          returns.push(localReturnData as RawSalesReturnData);
-        }
-
-        localStorage.setItem('salesReturns', JSON.stringify(returns));
-        setSuccessMessage(isEditMode ? 'Return updated successfully!' : 'Return created successfully!');
+      // Save via API
+      const salesReturnsApi = getSalesReturnsApi();
+      if (isEditMode && id) {
+        await salesReturnsApi.update(Number(id), apiData);
+      } else {
+        await salesReturnsApi.create(apiData);
       }
+      setSuccessMessage(isEditMode ? 'Return updated successfully!' : 'Return created successfully!');
 
       setTimeout(() => {
         navigate('/sales/return');
@@ -448,7 +366,7 @@ const AddSalesReturnPage: React.FC = () => {
       setError('Failed to save return. Please try again.');
       setIsSubmitting(false);
     }
-  }, [formData, companies, customers, lineItems, grossAmount, netAmount, taxAmount, receiptImage, navigate, isEditMode, id, requiresImageAndAccount]);
+  }, [formData, items, taxes, lineItems, receiptImage, navigate, isEditMode, id, requiresImageAndAccount]);
 
   const handleCancel = useCallback(() => {
     navigate('/sales/return');

@@ -114,13 +114,10 @@ const AddJournalEntryPage: React.FC = () => {
         return `JE-${String(nextNumber).padStart(6, '0')}`;
       }
     } catch (err) {
-      console.error('Error generating journal number from API, falling back to localStorage:', err);
+      console.error('Error generating journal number from API:', err);
     }
-    // Fallback to localStorage
-    const savedEntries = localStorage.getItem('journalEntries');
-    const entries = savedEntries ? JSON.parse(savedEntries) : [];
-    const nextNumber = entries.length + 1;
-    return `JE-${String(nextNumber).padStart(6, '0')}`;
+    // Fallback to a default starting number
+    return `JE-000001`;
   }, []);
 
   // Check if memo is required (when reference type is Tax Adjustment or Opening Balance)
@@ -158,32 +155,8 @@ const AddJournalEntryPage: React.FC = () => {
               return;
             }
           } catch (apiErr) {
-            console.error('Error loading entry from API, falling back to localStorage:', apiErr);
-          }
-
-          // Fallback to localStorage
-          const savedEntries = localStorage.getItem('journalEntries');
-          if (savedEntries) {
-            const entries = JSON.parse(savedEntries);
-            const entry = entries.find((e: { id: string }) => e.id === id);
-            if (entry) {
-              setFormData({
-                companyId: entry.companyId || '',
-                journalNumber: entry.journalNumber || '',
-                date: entry.date || '',
-                memo: entry.memo || '',
-                paymentMethod: entry.paymentMethod || '',
-                referenceType: entry.referenceType || '',
-                accountType: entry.accountType || '',
-                status: entry.status || 'Draft',
-              });
-              if (entry.lineItems) {
-                setLineItems(entry.lineItems);
-              }
-              if (entry.chequeImage) {
-                setChequeImage(entry.chequeImage);
-              }
-            }
+            console.error('Error loading entry from API:', apiErr);
+            setError('Failed to load journal entry');
           }
         } else {
           // Auto-generate journal number for new entries
@@ -258,42 +231,37 @@ const AddJournalEntryPage: React.FC = () => {
 
     setIsSubmitting(true);
     try {
-      const savedEntries = localStorage.getItem('journalEntries');
-      const entries = savedEntries ? JSON.parse(savedEntries) : [];
-
+      const api = getJournalEntriesApi();
       const company = companies.find((c) => c.id === formData.companyId);
       const entryData = {
-        id: isEditMode ? id : Date.now().toString(),
-        ...formData,
-        companyName: company?.name || 'EST Gas',
-        lineItems,
-        chequeImage,
-        debit: calculateTotals().totalDebit,
-        credit: calculateTotals().totalCredit,
-        accountName: lineItems[0]?.accountName || '',
+        companyId: formData.companyId as number,
+        entryNumber: formData.journalNumber,
+        date: formData.date,
+        description: formData.memo,
         reference: formData.referenceType,
-        createdAt: isEditMode ? undefined : new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        status: formData.status === 'Draft' ? 'draft' : formData.status === 'Approved' ? 'posted' : 'pending',
+        lines: lineItems.map((item) => ({
+          accountName: item.accountName,
+          debit: parseFloat(item.debit) || 0,
+          credit: parseFloat(item.credit) || 0,
+        })),
       };
 
-      if (isEditMode) {
-        const index = entries.findIndex((e: { id: string }) => e.id === id);
-        if (index !== -1) {
-          entries[index] = { ...entries[index], ...entryData };
-        }
+      if (isEditMode && id) {
+        await api.update(parseInt(id, 10), entryData);
       } else {
-        entries.push(entryData);
+        await api.create(entryData);
       }
 
-      localStorage.setItem('journalEntries', JSON.stringify(entries));
       setSuccessMessage(isEditMode ? 'Journal entry updated successfully!' : 'Journal entry created successfully!');
       setTimeout(() => navigate('/account/journal-entry'), 1500);
     } catch (err) {
+      console.error('Error saving journal entry:', err);
       setError('Failed to save journal entry');
     } finally {
       setIsSubmitting(false);
     }
-  }, [formData, lineItems, chequeImage, companies, navigate, isEditMode, id, calculateTotals]);
+  }, [formData, lineItems, companies, navigate, isEditMode, id, calculateTotals, isMemoRequired]);
 
   const { totalDebit, totalCredit, isBalanced } = calculateTotals();
 
