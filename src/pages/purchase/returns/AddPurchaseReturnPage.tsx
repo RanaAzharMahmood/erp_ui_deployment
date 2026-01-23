@@ -33,6 +33,13 @@ import PageHeader from '../../../components/common/PageHeader';
 import FormSection from '../../../components/common/FormSection';
 import ReturnFormSkeleton from '../../../components/common/ReturnFormSkeleton';
 import { useCompanies } from '../../../hooks';
+import {
+  getVendorsApi,
+  getTaxesApi,
+  getItemsApi,
+  getPurchaseInvoicesApi,
+  getPurchaseReturnsApi,
+} from '../../../generated/api/client';
 import type {
   LineItem,
   PurchaseReturnFormData,
@@ -41,7 +48,6 @@ import type {
   TaxOption,
   ItemOption,
   PurchaseInvoiceOption,
-  RawCompanyData,
   ReturnStatus,
   SelectChangeValue,
 } from '../../../types/invoice.types';
@@ -82,7 +88,7 @@ const AddPurchaseReturnPage: React.FC = () => {
   const [successMessage, setSuccessMessage] = useState('');
 
   // Derive companies from hook data - use c.name as the hook normalizes to 'name' field
-  const companies: CompanyOption[] = (companiesData || []).map((c: RawCompanyData) => ({ id: c.id, name: c.name }));
+  const companies: CompanyOption[] = (companiesData || []).map((c) => ({ id: c.id, name: c.name || '' }));
 
   // Check if payment method requires image upload and account number
   const requiresImageAndAccount = formData.paymentMethod === 'Bank Transfer (Online)' || formData.paymentMethod === 'Cheque';
@@ -99,65 +105,135 @@ const AddPurchaseReturnPage: React.FC = () => {
     const loadData = async () => {
       try {
         // Load vendors from API
-        // TODO: Replace with actual API call when available
-        setVendors([]);
-      } catch (err: unknown) {
-        console.error('Error loading vendors:', err);
-        setError('Failed to load vendors');
-        setVendors([]);
-      }
-
-      try {
-        // Load purchase invoices from API
-        // TODO: Replace with actual API call when available
-        setPurchaseInvoices([]);
-      } catch (err: unknown) {
-        console.error('Error loading purchase invoices:', err);
-        setError('Failed to load purchase invoices');
-        setPurchaseInvoices([]);
-      }
-
-      try {
-        // Load taxes from API
-        // TODO: Replace with actual API call when available
-        setTaxes([]);
-      } catch (err: unknown) {
-        console.error('Error loading taxes:', err);
-        setError('Failed to load taxes');
-        setTaxes([]);
-      }
-
-      try {
-        // Load inventory items from API
-        // TODO: Replace with actual API call when available
-        setItems([]);
-      } catch (err: unknown) {
-        console.error('Error loading inventory items:', err);
-        setError('Failed to load inventory items');
-        setItems([]);
-      }
-
-      // Generate return number for new returns
-      if (!isEditMode) {
-        setFormData((prev) => ({ ...prev, billNumber: generateReturnNumber() }));
-      }
-
-      // Load existing return for edit mode
-      if (isEditMode && id) {
         try {
-          // TODO: Replace with actual API call when available
-          // const response = await api.getPurchaseReturn(id);
-          // For now, show error since we can't load data without API
-          setError('Failed to load return data. API not available.');
-        } catch (err: unknown) {
-          console.error('Error loading return data:', err);
-          setError('Failed to load return data');
+          const vendorsApi = getVendorsApi();
+          const vendorsResponse = await vendorsApi.getAll();
+          const vendorsData = vendorsResponse.data as { data?: Array<{ id?: number; name?: string }> } | Array<{ id?: number; name?: string }> | undefined;
+          if (vendorsData && 'data' in vendorsData && vendorsData.data) {
+            setVendors(vendorsData.data.map((v) => ({
+              id: String(v.id),
+              name: v.name || '',
+            })));
+          } else if (Array.isArray(vendorsData)) {
+            setVendors(vendorsData.map((v) => ({
+              id: String(v.id),
+              name: v.name || '',
+            })));
+          }
+        } catch (err) {
+          console.error('Error loading vendors from API:', err);
+          setVendors([]);
         }
-      }
 
-      // Set loading to false after data is loaded
-      if (isEditMode) {
-        setIsLoading(false);
+        // Load purchase invoices from API
+        try {
+          const invoicesApi = getPurchaseInvoicesApi();
+          const invoicesResponse = await invoicesApi.getAll();
+          if (invoicesResponse.data?.data) {
+            setPurchaseInvoices(invoicesResponse.data.data.map((i) => ({
+              id: String(i.id),
+              billNumber: i.billNumber || '',
+              vendorId: String(i.vendorId) || '',
+            })));
+          } else if (invoicesResponse.data && typeof invoicesResponse.data === 'object' && 'data' in invoicesResponse.data && Array.isArray((invoicesResponse.data as { data: unknown }).data)) {
+            setPurchaseInvoices(((invoicesResponse.data as { data: Array<{ id?: number; billNumber?: string; vendorId?: number }> }).data).map((i) => ({
+              id: String(i.id),
+              billNumber: i.billNumber || '',
+              vendorId: String(i.vendorId) || '',
+            })));
+          }
+        } catch (err) {
+          console.error('Error loading purchase invoices from API:', err);
+          setPurchaseInvoices([]);
+        }
+
+        // Load taxes from API
+        try {
+          const taxesApi = getTaxesApi();
+          const taxesResponse = await taxesApi.getAll();
+          const taxesData = taxesResponse.data as { data?: Array<{ id?: number; name?: string; rate?: number; percentage?: number }> } | Array<{ id?: number; name?: string; rate?: number; percentage?: number }> | undefined;
+          if (taxesData && 'data' in taxesData && taxesData.data) {
+            setTaxes(taxesData.data.map((t) => ({
+              id: String(t.id),
+              name: t.name || '',
+              percentage: t.percentage || 0,
+            })));
+          } else if (Array.isArray(taxesData)) {
+            setTaxes(taxesData.map((t) => ({
+              id: String(t.id),
+              name: t.name || '',
+              percentage: t.rate || t.percentage || 0,
+            })));
+          }
+        } catch (err) {
+          console.error('Error loading taxes from API:', err);
+          setTaxes([]);
+        }
+
+        // Load inventory items from API
+        try {
+          const itemsApi = getItemsApi();
+          const itemsResponse = await itemsApi.v1ApiItemsGet(true);
+          if (itemsResponse.data) {
+            setItems(itemsResponse.data.map((i: { id?: number; itemName?: string; purchasePrice?: number; unitPrice?: number }) => ({
+              id: String(i.id),
+              name: i.itemName || '',
+              rate: i.purchasePrice || i.unitPrice || 0,
+            })));
+          }
+        } catch (err) {
+          console.error('Error loading inventory items from API:', err);
+          setItems([]);
+        }
+
+        // Generate return number for new returns
+        if (!isEditMode) {
+          setFormData((prev) => ({ ...prev, billNumber: generateReturnNumber() }));
+        }
+
+        // Load existing return for edit mode
+        if (isEditMode && id) {
+          try {
+            const purchaseReturnsApi = getPurchaseReturnsApi();
+            const returnResponse = await purchaseReturnsApi.getById(Number(id));
+            if (returnResponse.data) {
+              const returnData = returnResponse.data;
+              setFormData({
+                companyId: returnData.companyId || '',
+                vendorId: String(returnData.vendorId) || '',
+                billNumber: returnData.returnNumber,
+                originalInvoice: returnData.purchaseInvoiceId ? String(returnData.purchaseInvoiceId) : '',
+                date: returnData.date,
+                returnReason: returnData.reason || '',
+                paymentMethod: '',
+                accountNumber: '',
+                remarks: returnData.notes || '',
+                status: (returnData.status === 'approved' || returnData.status === 'completed' ? 'Approved' : returnData.status === 'cancelled' ? 'Rejected' : 'Pending') as ReturnStatus,
+                taxId: '',
+                refundAmount: returnData.totalAmount || 0,
+              });
+              if (returnData.lines) {
+                setLineItems(returnData.lines.map((l) => ({
+                  id: String(l.id || Date.now()),
+                  item: l.itemName || '',
+                  quantity: l.quantity,
+                  rate: l.unitPrice,
+                  amount: l.lineTotal,
+                })));
+              }
+            }
+          } catch (err) {
+            console.error('Error loading return data from API:', err);
+            setError('Failed to load return data. Please try again.');
+          }
+        }
+      } catch (err: unknown) {
+        console.error('Error loading data:', err);
+      } finally {
+        // Set loading to false after data is loaded
+        if (isEditMode) {
+          setIsLoading(false);
+        }
       }
     };
 
@@ -253,53 +329,44 @@ const AddPurchaseReturnPage: React.FC = () => {
     setError('');
 
     try {
-      const company = companies.find((c) => c.id === formData.companyId);
-      const vendor = vendors.find((v) => v.id === formData.vendorId);
-      const firstItem = lineItems.find((l) => l.item)?.item || '';
-      const totalQuantity = lineItems.reduce((sum, l) => sum + (l.quantity || 0), 0);
-
-      const returnData = {
-        id: isEditMode ? id : String(Date.now()),
-        companyId: formData.companyId,
-        companyName: company?.name || 'GST Gas',
-        vendorId: formData.vendorId,
-        vendorName: vendor?.name || '',
-        billNumber: formData.billNumber,
-        originalInvoice: formData.originalInvoice,
+      // Prepare API request data
+      const selectedTax = taxes.find((t) => t.id === formData.taxId);
+      const apiData = {
         date: formData.date,
-        returnReason: formData.returnReason,
-        paymentMethod: formData.paymentMethod,
-        accountNumber: formData.accountNumber,
-        remarks: formData.remarks,
-        item: firstItem,
-        quantity: totalQuantity,
-        grossAmount,
-        netAmount,
-        taxAmount,
-        refundAmount: formData.refundAmount,
-        status: formData.status,
-        lineItems,
-        receiptImage,
-        createdAt: isEditMode ? undefined : new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        vendorId: Number(formData.vendorId),
+        purchaseInvoiceId: formData.originalInvoice ? Number(formData.originalInvoice) : undefined,
+        reason: formData.returnReason || undefined,
+        notes: formData.remarks || undefined,
+        companyId: formData.companyId ? Number(formData.companyId) : 1,
+        lines: lineItems.filter(l => l.item).map((l) => ({
+          itemId: Number(items.find(i => i.name === l.item)?.id) || 0,
+          description: l.item,
+          quantity: l.quantity,
+          unitPrice: l.rate,
+          taxId: formData.taxId ? Number(formData.taxId) : undefined,
+          taxAmount: selectedTax ? (l.amount * selectedTax.percentage) / 100 : 0,
+          lineTotal: l.amount,
+        })),
       };
 
-      // TODO: Replace with actual API call when available
-      // if (isEditMode) {
-      //   await api.updatePurchaseReturn(id, returnData);
-      // } else {
-      //   await api.createPurchaseReturn(returnData);
-      // }
+      // Save via API
+      const purchaseReturnsApi = getPurchaseReturnsApi();
+      if (isEditMode && id) {
+        await purchaseReturnsApi.update(Number(id), apiData);
+      } else {
+        await purchaseReturnsApi.create(apiData);
+      }
+      setSuccessMessage(isEditMode ? 'Return updated successfully!' : 'Return created successfully!');
 
-      // For now, show error since API is not available
-      setError('Failed to save return. API not available.');
-      setIsSubmitting(false);
+      setTimeout(() => {
+        navigate('/purchase/return');
+      }, 1500);
     } catch (err: unknown) {
       console.error('Error saving return:', err);
       setError('Failed to save return. Please try again.');
       setIsSubmitting(false);
     }
-  }, [formData, companies, vendors, lineItems, grossAmount, netAmount, taxAmount, receiptImage, isEditMode, id, requiresImageAndAccount]);
+  }, [formData, items, taxes, lineItems, receiptImage, navigate, isEditMode, id, requiresImageAndAccount]);
 
   const handleCancel = useCallback(() => {
     navigate('/purchase/return');
@@ -658,7 +725,7 @@ const AddPurchaseReturnPage: React.FC = () => {
           <FormSection title="Status" icon={<CircleIcon />} sx={{ mb: 3 }}>
             <Divider sx={{ mb: 2, mt: -1 }} />
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-              {(['Active', 'Completed', 'Pending'] as const).map((status) => (
+              {(['Pending', 'Approved', 'Rejected'] as const).map((status) => (
                 <Box
                   key={status}
                   onClick={() => handleStatusChange(status)}

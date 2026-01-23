@@ -94,23 +94,23 @@ const UsersPage: React.FC = () => {
       const { data: response } = await usersApi.v1ApiUsersGet();
 
       // Transform API response to match our local interface
-      const apiResponse = response as UsersApiResponse;
+      const apiResponse = response as unknown as UsersApiResponse;
       const transformedUsers: User[] = apiResponse.data.map((user: ApiUser) => ({
         id: String(user.id!),
         firstName: user.firstName,
         lastName: user.lastName,
-        fullName: user.fullName || `${user.firstName} ${user.lastName}`,
-        email: user.email,
+        fullName: user.fullName || `${user.firstName || ''} ${user.lastName || ''}`,
+        email: user.email || '',
         phone: user.phone || '',
         cnic: '',
         about: '',
         imageUrl: '',
         status: user.isActive ? 'Active' : 'Inactive',
-        roleId: user.roleId,
+        roleId: user.roleId || 0,
         roleName: user.roleName || 'User',
         companyAccess: (user.companies || []).map((company) => ({
-          companyId: company.id!,
-          companyName: company.name!,
+          companyId: company.id || 0,
+          companyName: company.name || '',
           roleId: user.roleId || 0,
           roleName: user.roleName || 'User',
           permissions: [],
@@ -133,9 +133,9 @@ const UsersPage: React.FC = () => {
   }, [loadUsers]);
 
   // Get current user ID - returns default for filter manager
-  const getCurrentUserId = useCallback(() => {
-    return 1; // Default user ID
-  }, []);
+  // const getCurrentUserId = useCallback(() => {
+  //   return 1; // Default user ID
+  // }, []);
 
   // Handle applying saved filter
   useEffect(() => {
@@ -172,7 +172,7 @@ const UsersPage: React.FC = () => {
         !selectedCompany ||
         user.companyAccess.some((access) => access.companyName === selectedCompany);
 
-      const matchesRole = !selectedRole || user.roleName === selectedRole;
+      const matchesRole = !selectedRole || (user.roleName && user.roleName === selectedRole);
 
       const matchesStatus = !selectedStatus || user.status === selectedStatus;
 
@@ -194,8 +194,8 @@ const UsersPage: React.FC = () => {
           bValue = b.email.toLowerCase();
           break;
         case 'roleName':
-          aValue = a.roleName.toLowerCase();
-          bValue = b.roleName.toLowerCase();
+          aValue = (a.roleName || '').toLowerCase();
+          bValue = (b.roleName || '').toLowerCase();
           break;
         case 'companies':
           aValue = a.companyAccess.length;
@@ -279,7 +279,7 @@ const UsersPage: React.FC = () => {
   const filterFields: FilterField[] = useMemo(
     () => [
       {
-        name: 'company',
+        name: 'company' as const,
         label: 'Company Name',
         value: selectedCompany,
         component: (
@@ -300,7 +300,7 @@ const UsersPage: React.FC = () => {
         ),
       },
       {
-        name: 'role',
+        name: 'role' as const,
         label: 'User Role',
         value: selectedRole,
         component: (
@@ -321,7 +321,7 @@ const UsersPage: React.FC = () => {
         ),
       },
       {
-        name: 'status',
+        name: 'status' as const,
         label: 'Status',
         value: selectedStatus,
         component: (
@@ -444,8 +444,6 @@ const UsersPage: React.FC = () => {
         fields={filterFields}
         onApply={handleApplyFilters}
         onReset={handleResetFilters}
-        pageKey="users"
-        userId={getCurrentUserId()}
       />
 
       {/* Table */}

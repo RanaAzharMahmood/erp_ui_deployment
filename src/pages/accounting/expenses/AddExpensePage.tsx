@@ -32,7 +32,7 @@ import {
 import PageHeader from '../../../components/common/PageHeader';
 import FormSection from '../../../components/common/FormSection';
 import { useCompanies } from '../../../hooks';
-import { getTaxesApi } from '../../../generated/api/client';
+import { getTaxesApi, getExpensesApi, CreateExpenseRequest } from '../../../generated/api/client';
 
 interface LineItem {
   id: string;
@@ -170,15 +170,34 @@ const AddExpensePage: React.FC = () => {
     setError('');
 
     try {
-      // TODO: Replace with actual API call to create expense
-      setError('API not yet implemented for creating expenses');
-      setIsSubmitting(false);
+      const api = getExpensesApi();
+
+      // Prepare the expense data
+      const expenseData: CreateExpenseRequest = {
+        date: formData.date,
+        vendorId: undefined, // Not required based on API
+        categoryId: undefined, // Not required based on API
+        accountId: 0, // Required - TODO: map to actual account
+        description: formData.payFor,
+        amount: subtotal, // Use subtotal as the main amount
+        taxAmount: taxAmount,
+        paymentMethod: (formData.paymentMethod as 'cash' | 'bank' | 'credit' | undefined) ?? 'cash',
+        reference: formData.remarks || undefined,
+        companyId: formData.companyId ? Number(formData.companyId) : 1,
+      };
+
+      await api.create(expenseData);
+      setSuccessMessage('Expense created successfully!');
+
+      setTimeout(() => {
+        navigate('/account/expense');
+      }, 1500);
     } catch (err) {
       console.error('Error creating expense:', err);
       setError('Failed to create expense. Please try again.');
       setIsSubmitting(false);
     }
-  }, [formData]);
+  }, [formData, lineItems, taxes, grossAmount, taxAmount, subtotal, navigate]);
 
   const handleCancel = useCallback(() => {
     navigate('/account/expense');

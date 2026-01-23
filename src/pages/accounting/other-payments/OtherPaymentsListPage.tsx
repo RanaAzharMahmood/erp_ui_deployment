@@ -225,7 +225,11 @@ const OtherPaymentsListPage: React.FC = () => {
     return (
       <Box sx={{ p: 3 }}>
         <Typography variant="h5" sx={{ fontWeight: 600, mb: 3 }}>Other Payments</Typography>
-        <TableSkeleton rows={5} columns={7} />
+        <Table>
+          <TableBody>
+            <TableSkeleton rows={5} columns={7} />
+          </TableBody>
+        </Table>
       </Box>
     );
   }

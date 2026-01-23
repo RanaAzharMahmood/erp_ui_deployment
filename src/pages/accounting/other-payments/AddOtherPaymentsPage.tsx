@@ -152,18 +152,17 @@ const AddOtherPaymentsPage: React.FC = () => {
 
     setIsSubmitting(true);
     try {
-      const company = companies.find((c) => c.id === formData.companyId);
-      const paymentData = {
-        ...formData,
-        number: formData.paymentNumber,
-        companyName: company?.name || 'EST-Gas',
-        date: new Date().toISOString().split('T')[0],
-        lineItems,
-        slipImage,
-        totalAmount: calculateTotal(),
-      };
-
       // TODO: Replace with actual API call when available
+      // const _company = companies.find((c) => c.id === formData.companyId);
+      // const paymentData = {
+      //   ...formData,
+      //   number: formData.paymentNumber,
+      //   companyName: _company?.name || 'EST-Gas',
+      //   date: new Date().toISOString().split('T')[0],
+      //   lineItems,
+      //   slipImage,
+      //   totalAmount: calculateTotal(),
+      // };
       // if (isEditMode) {
       //   await api.put(`/other-payments/${id}`, paymentData);
       // } else {

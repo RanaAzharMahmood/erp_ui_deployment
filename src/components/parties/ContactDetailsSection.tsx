@@ -154,7 +154,7 @@ const ContactDetailsSection: React.FC<ContactDetailsSectionProps> = ({
                 sx={{ mb: 0.5, fontWeight: 500 }}
                 id="contact-company-label"
               >
-                Select Company
+                Select Companies
               </Typography>
               <FormControl fullWidth size="small">
                 <Select

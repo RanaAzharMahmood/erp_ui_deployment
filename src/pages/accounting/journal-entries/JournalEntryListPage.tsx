@@ -337,7 +337,11 @@ const JournalEntryListPage: React.FC = () => {
         <Typography variant="h5" sx={{ fontWeight: 600, mb: 3 }}>
           Journal Entries
         </Typography>
-        <TableSkeleton rows={5} columns={8} />
+        <Table>
+          <TableBody>
+            <TableSkeleton rows={5} columns={8} />
+          </TableBody>
+        </Table>
       </Box>
     );
   }
@@ -729,7 +733,7 @@ const JournalEntryListPage: React.FC = () => {
         message="Are you sure you want to void this journal entry? This action will mark the entry as void."
         confirmText="Void"
         cancelText="Cancel"
-        confirmColor="warning"
+        confirmColor="error"
         onConfirm={handleVoidConfirm}
         onCancel={handleVoidCancel}
       />

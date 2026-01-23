@@ -36,7 +36,7 @@ import { useCompanies } from '../../../hooks';
 import {
   getVendorsApi,
   getTaxesApi,
-  getInventoryItemsApi,
+  getItemsApi,
   getPurchaseInvoicesApi,
 } from '../../../generated/api/client';
 import type {
@@ -46,7 +46,6 @@ import type {
   VendorOption,
   TaxOption,
   ItemOption,
-  RawCompanyData,
   InvoiceStatus,
   SelectChangeValue,
 } from '../../../types/invoice.types';
@@ -86,7 +85,7 @@ const AddPurchaseInvoicePage: React.FC = () => {
   const [successMessage, setSuccessMessage] = useState('');
 
   // Derive companies from hook data - use c.name as the hook normalizes to 'name' field
-  const companies: CompanyOption[] = (companiesData || []).map((c: RawCompanyData) => ({ id: c.id, name: c.name }));
+  const companies: CompanyOption[] = (companiesData || []).map((c) => ({ id: c.id, name: c.name || '' }));
 
   // Check if payment method requires image upload and account number
   const requiresImageAndAccount = formData.paymentMethod === 'Bank Transfer (Online)' || formData.paymentMethod === 'Cheque';
@@ -114,10 +113,16 @@ const AddPurchaseInvoicePage: React.FC = () => {
         try {
           const vendorsApi = getVendorsApi();
           const vendorsResponse = await vendorsApi.getAll();
-          if (vendorsResponse.data?.data) {
-            setVendors(vendorsResponse.data.data.map((v) => ({
+          const vendorsData = vendorsResponse.data as { data?: Array<{ id?: number; name?: string }> } | Array<{ id?: number; name?: string }> | undefined;
+          if (vendorsData && 'data' in vendorsData && vendorsData.data) {
+            setVendors(vendorsData.data.map((v) => ({
               id: String(v.id),
-              name: v.name,
+              name: v.name || '',
+            })));
+          } else if (Array.isArray(vendorsData)) {
+            setVendors(vendorsData.map((v) => ({
+              id: String(v.id),
+              name: v.name || '',
             })));
           }
         } catch (err) {
@@ -129,11 +134,18 @@ const AddPurchaseInvoicePage: React.FC = () => {
         try {
           const taxesApi = getTaxesApi();
           const taxesResponse = await taxesApi.getAll();
-          if (taxesResponse.data?.data) {
-            setTaxes(taxesResponse.data.data.map((t) => ({
+          const taxesData = taxesResponse.data as { data?: Array<{ id?: number; name?: string; rate?: number; percentage?: number }> } | Array<{ id?: number; name?: string; rate?: number; percentage?: number }> | undefined;
+          if (taxesData && 'data' in taxesData && taxesData.data) {
+            setTaxes(taxesData.data.map((t) => ({
               id: String(t.id),
-              name: t.name,
-              percentage: t.percentage,
+              name: t.name || '',
+              percentage: t.percentage || 0,
+            })));
+          } else if (Array.isArray(taxesData)) {
+            setTaxes(taxesData.map((t) => ({
+              id: String(t.id),
+              name: t.name || '',
+              percentage: t.rate || t.percentage || 0,
             })));
           }
         } catch (err) {
@@ -143,13 +155,13 @@ const AddPurchaseInvoicePage: React.FC = () => {
 
         // Load items from API
         try {
-          const itemsApi = getInventoryItemsApi();
-          const itemsResponse = await itemsApi.getAll();
-          if (itemsResponse.data?.data) {
-            setItems(itemsResponse.data.data.map((i) => ({
+          const itemsApi = getItemsApi();
+          const itemsResponse = await itemsApi.v1ApiItemsGet(true);
+          if (itemsResponse.data) {
+            setItems(itemsResponse.data.map((i: { id?: number; itemName?: string; purchasePrice?: number; unitPrice?: number }) => ({
               id: String(i.id),
-              name: i.name,
-              rate: i.purchasePrice || 0,
+              name: i.itemName || '',
+              rate: i.purchasePrice || i.unitPrice || 0,
             })));
           }
         } catch (err) {
@@ -172,20 +184,26 @@ const AddPurchaseInvoicePage: React.FC = () => {
               const invoice = invoiceResponse.data;
               setFormData({
                 companyId: invoice.companyId || '',
-                vendorId: invoice.vendorId || '',
-                billNumber: invoice.billNumber,
-                date: invoice.date,
+                vendorId: String(invoice.vendorId || ''),
+                billNumber: invoice.billNumber || '',
+                date: invoice.date || '',
                 dueDate: invoice.dueDate || '',
                 paymentMethod: invoice.paymentMethod || '',
                 accountNumber: invoice.accountNumber || '',
                 remarks: invoice.remarks || '',
-                status: invoice.status as InvoiceStatus,
-                taxId: invoice.taxId || '',
+                status: (invoice.status === 'paid' ? 'Paid' : invoice.status === 'overdue' ? 'Overdue' : 'Pending') as InvoiceStatus,
+                taxId: '',
                 paidAmount: invoice.paidAmount || 0,
                 discount: invoice.discount || 0,
               });
-              if (invoice.lineItems) {
-                setLineItems(invoice.lineItems);
+              if (invoice.lines) {
+                setLineItems((invoice.lines as Array<{ id?: number; itemName?: string; quantity?: number; unitPrice?: number; lineTotal?: number }>).map((l) => ({
+                  id: String(l.id || Date.now()),
+                  item: l.itemName || '',
+                  quantity: l.quantity || 0,
+                  rate: l.unitPrice || 0,
+                  amount: l.lineTotal || 0,
+                })));
               }
               if (invoice.receiptImage) {
                 setReceiptImage(invoice.receiptImage);
@@ -298,42 +316,39 @@ const AddPurchaseInvoicePage: React.FC = () => {
     setError('');
 
     try {
-      const company = companies.find((c) => c.id === formData.companyId);
-      const vendor = vendors.find((v) => v.id === formData.vendorId);
-      const firstItem = lineItems.find((l) => l.item)?.item || '';
-      const totalQuantity = lineItems.reduce((sum, l) => sum + (l.quantity || 0), 0);
-
-      const invoiceData = {
-        companyId: formData.companyId,
-        companyName: company?.name || 'GST Gas',
-        vendorId: formData.vendorId,
-        vendorName: vendor?.name || '',
-        billNumber: formData.billNumber,
+      // Prepare API request data
+      const selectedTax = taxes.find((t) => t.id === formData.taxId);
+      const apiData = {
         date: formData.date,
-        dueDate: formData.dueDate,
-        paymentMethod: formData.paymentMethod,
-        accountNumber: formData.accountNumber,
-        remarks: formData.remarks,
-        item: firstItem,
-        quantity: totalQuantity,
-        grossAmount,
-        netAmount: subtotal,
-        taxAmount,
+        dueDate: formData.dueDate || undefined,
+        vendorId: Number(formData.vendorId),
         discount: formData.discount,
         paidAmount: formData.paidAmount,
-        balance,
-        status: formData.status,
-        lineItems,
-        receiptImage,
-        taxId: formData.taxId,
+        paymentMethod: formData.paymentMethod || undefined,
+        accountNumber: formData.accountNumber || undefined,
+        remarks: formData.remarks || undefined,
+        companyId: formData.companyId ? Number(formData.companyId) : 1,
+        lines: lineItems.filter(l => l.item).map((l) => ({
+          itemId: Number(items.find(i => i.name === l.item)?.id) || 0,
+          description: l.item,
+          quantity: l.quantity,
+          unitPrice: l.rate,
+          taxId: formData.taxId ? Number(formData.taxId) : undefined,
+          taxAmount: selectedTax ? (l.amount * selectedTax.percentage) / 100 : 0,
+          lineTotal: l.amount,
+        })),
+        receiptImage: receiptImage || undefined,
       };
 
       // Save via API
       const purchaseInvoicesApi = getPurchaseInvoicesApi();
       if (isEditMode && id) {
-        await purchaseInvoicesApi.update(Number(id), invoiceData);
+        await purchaseInvoicesApi.update(Number(id), {
+          ...apiData,
+          status: formData.status === 'Paid' ? 'paid' : formData.status === 'Overdue' ? 'overdue' : 'draft',
+        });
       } else {
-        await purchaseInvoicesApi.create(invoiceData);
+        await purchaseInvoicesApi.create(apiData);
       }
       setSuccessMessage(isEditMode ? 'Invoice updated successfully!' : 'Invoice created successfully!');
 
@@ -345,7 +360,7 @@ const AddPurchaseInvoicePage: React.FC = () => {
       setError('Failed to save invoice. Please try again.');
       setIsSubmitting(false);
     }
-  }, [formData, companies, vendors, lineItems, grossAmount, subtotal, taxAmount, balance, receiptImage, navigate, isEditMode, id, requiresImageAndAccount]);
+  }, [formData, items, taxes, lineItems, receiptImage, navigate, isEditMode, id, requiresImageAndAccount]);
 
   const handleCancel = useCallback(() => {
     navigate('/purchase/invoice');

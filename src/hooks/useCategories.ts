@@ -25,14 +25,14 @@ export const useCategories = () => {
       const response = await categoriesApi.v1ApiCategoriesGet(true);
       if (response.data) {
         setCategories(
-          response.data.map((c: ApiCategoryResponse) => ({
-            id: c.id,
-            name: c.categoryName,
+          (response.data as ApiCategoryResponse[]).map((c: ApiCategoryResponse) => ({
+            id: String(c.id),
+            name: c.categoryName || '',
             categoryName: c.categoryName,
             description: c.description,
             isActive: c.isActive,
-            createdAt: c.createdAt,
-            updatedAt: c.updatedAt,
+            createdAt: c.createdAt || '',
+            updatedAt: c.updatedAt || '',
           }))
         );
       }

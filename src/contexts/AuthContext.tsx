@@ -70,20 +70,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, [])
 
   const logout = useCallback(async () => {
-    try {
-      // Call logout endpoint to clear httpOnly cookie on server
-      const authApi = getAuthApi()
-      await authApi.v1ApiAuthLogoutPost()
-    } catch (error) {
-      console.error('Logout error:', error)
-    } finally {
-      // Always clear local state regardless of server response
-      setUser(null)
-      localStorage.removeItem(USER_STORAGE_KEY)
-      // Clear any legacy token storage
-      localStorage.removeItem('erp_token')
-      localStorage.removeItem('auth_token')
-    }
+    // Clear local state
+    setUser(null)
+    localStorage.removeItem(USER_STORAGE_KEY)
+    // Clear any legacy token storage
+    localStorage.removeItem('erp_token')
+    localStorage.removeItem('auth_token')
   }, [])
 
   return (

@@ -44,15 +44,15 @@ const mapToBankAccount = (ba: ApiBankAccountResponse, useDefaultActive = false):
   branchCode: ba.branchCode,
   swiftCode: ba.swiftCode,
   iban: ba.iban,
-  accountType: ba.accountType,
-  currency: ba.currency,
-  openingBalance: ba.openingBalance,
-  currentBalance: ba.currentBalance,
+  accountType: (ba.accountType as 'savings' | 'current' | 'checking' | undefined) ?? 'current',
+  currency: ba.currency || '',
+  openingBalance: ba.openingBalance || 0,
+  currentBalance: ba.currentBalance || 0,
   companyId: ba.companyId,
-  companyName: ba.companyName,
+  companyName: ba.companyName || '',
   isActive: useDefaultActive ? (ba.isActive ?? true) : (ba.isActive ?? false),
-  createdAt: ba.createdAt,
-  updatedAt: ba.updatedAt,
+  createdAt: ba.createdAt || '',
+  updatedAt: ba.updatedAt || '',
 });
 
 export const useBankAccounts = (options: UseBankAccountsOptions = {}) => {

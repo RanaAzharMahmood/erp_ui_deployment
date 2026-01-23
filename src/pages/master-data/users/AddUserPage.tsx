@@ -22,7 +22,7 @@ import PageHeader from '../../../components/common/PageHeader';
 import FormSection from '../../../components/common/FormSection';
 import StatusSelector from '../../../components/common/StatusSelector';
 import { ImageUploadSection, CompanyAccessSection } from '../../../components/users/UserFormComponents';
-import { useCompanyAccess, type ExtendedUserCompanyAccess } from '../../../hooks/useCompanyAccess';
+import { useCompanyAccess } from '../../../hooks/useCompanyAccess';
 import { useCompanies } from '../../../hooks';
 import { optimizeImage, validateImage } from '../../../utils/imageOptimizer';
 import type { UserFormData } from '../../../types/common.types';

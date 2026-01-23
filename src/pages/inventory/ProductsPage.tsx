@@ -352,7 +352,11 @@ const ProductsPage: React.FC = () => {
         <Typography variant="h4" fontWeight="bold" mb={3}>
           Products
         </Typography>
-        <TableSkeleton rows={5} columns={6} />
+        <Table>
+          <TableBody>
+            <TableSkeleton rows={5} columns={6} />
+          </TableBody>
+        </Table>
       </Box>
     );
   }

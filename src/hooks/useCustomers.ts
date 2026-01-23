@@ -27,7 +27,7 @@ interface ApiCustomerResponse {
 const mapToCustomer = (c: ApiCustomerResponse, useDefaultActive = false): CustomerData => ({
   id: c.id ?? 0,
   name: c.name ?? '',
-  email: c.email,
+  email: c.email || '',
   phone: c.phone,
   address: c.address,
   city: c.city,
@@ -38,11 +38,11 @@ const mapToCustomer = (c: ApiCustomerResponse, useDefaultActive = false): Custom
   creditLimit: c.creditLimit,
   paymentTerms: c.paymentTerms,
   notes: c.notes,
-  companyId: c.companyId,
+  companyId: c.companyId ?? 0,
   companyName: c.companyName,
   isActive: useDefaultActive ? (c.isActive ?? true) : (c.isActive ?? false),
-  createdAt: c.createdAt,
-  updatedAt: c.updatedAt,
+  createdAt: c.createdAt || '',
+  updatedAt: c.updatedAt || '',
 });
 
 export const useCustomers = (activeOnly: boolean = true) => {

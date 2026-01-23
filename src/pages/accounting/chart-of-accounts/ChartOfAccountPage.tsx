@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Card,
+  Table,
+  TableBody,
   Typography,
   Button,
   TextField,
@@ -549,7 +551,11 @@ const ChartOfAccountPage: React.FC = () => {
     return (
       <Box sx={{ p: 3 }}>
         <Typography variant="h5" sx={{ fontWeight: 600, mb: 3 }}>Chart of Account</Typography>
-        <TableSkeleton rows={10} columns={5} />
+        <Table>
+          <TableBody>
+            <TableSkeleton rows={10} columns={5} />
+          </TableBody>
+        </Table>
       </Box>
     );
   }

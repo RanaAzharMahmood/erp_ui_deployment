@@ -48,7 +48,6 @@ import type {
   TaxOption,
   ItemOption,
   SalesInvoiceOption,
-  RawCompanyData,
   ReturnStatus,
   SelectChangeValue,
 } from '../../../types/invoice.types';
@@ -89,24 +88,14 @@ const AddSalesReturnPage: React.FC = () => {
   const [successMessage, setSuccessMessage] = useState('');
 
   // Derive companies from hook data - use c.name as the hook normalizes to 'name' field
-  const companies: CompanyOption[] = (companiesData || []).map((c: RawCompanyData) => ({ id: c.id, name: c.name }));
+  const companies: CompanyOption[] = (companiesData || []).map((c) => ({ id: c.id, name: c.name || '' }));
 
   // Check if payment method requires image upload and account number
   const requiresImageAndAccount = formData.paymentMethod === 'Bank Transfer (Online)' || formData.paymentMethod === 'Cheque';
 
-  // Generate return number from API
+  // Generate return number (fallback to client-side generation for now)
   const generateReturnNumber = useCallback(async () => {
-    try {
-      const salesReturnsApi = getSalesReturnsApi();
-      const response = await salesReturnsApi.getNextNumber();
-      if (response.data?.nextNumber) {
-        return response.data.nextNumber;
-      }
-    } catch (err) {
-      console.error('Error getting next return number from API:', err);
-      setError('Failed to generate return number. Please try again.');
-    }
-    // Return a placeholder if API fails
+    // TODO: Implement backend endpoint for next return number
     return `SR-${String(Date.now()).slice(-6)}`;
   }, []);
 
@@ -137,8 +126,14 @@ const AddSalesReturnPage: React.FC = () => {
           if (invoicesResponse.data?.data) {
             setSalesInvoices(invoicesResponse.data.data.map((i) => ({
               id: String(i.id),
-              invoiceNumber: i.invoiceNumber,
-              customerId: i.customerId || '',
+              invoiceNumber: i.invoiceNumber || '',
+              customerId: String(i.customerId) || '',
+            })));
+          } else if (invoicesResponse.data && typeof invoicesResponse.data === 'object' && 'data' in invoicesResponse.data && Array.isArray((invoicesResponse.data as { data: unknown }).data)) {
+            setSalesInvoices(((invoicesResponse.data as { data: Array<{ id?: number; invoiceNumber?: string; customerId?: number }> }).data).map((i) => ({
+              id: String(i.id),
+              invoiceNumber: i.invoiceNumber || '',
+              customerId: String(i.customerId) || '',
             })));
           }
         } catch (err) {
@@ -151,17 +146,23 @@ const AddSalesReturnPage: React.FC = () => {
         try {
           const taxesApi = getTaxesApi();
           const taxesResponse = await taxesApi.getAll();
-          if (taxesResponse.data) {
-            setTaxes(taxesResponse.data.map((t: { id?: number; name?: string; rate?: number }) => ({
+          const taxesData = taxesResponse.data as { data?: Array<{ id?: number; name?: string; rate?: number; percentage?: number }> } | Array<{ id?: number; name?: string; rate?: number; percentage?: number }> | undefined;
+          if (taxesData && 'data' in taxesData && taxesData.data) {
+            setTaxes(taxesData.data.map((t) => ({
               id: String(t.id),
               name: t.name || '',
-              percentage: t.rate || 0,
+              percentage: t.percentage || 0,
+            })));
+          } else if (Array.isArray(taxesData)) {
+            setTaxes(taxesData.map((t) => ({
+              id: String(t.id),
+              name: t.name || '',
+              percentage: t.rate || t.percentage || 0,
             })));
           }
         } catch (err) {
           console.error('Error loading taxes from API:', err);
           setTaxes([]);
-          setError('Failed to load taxes. Please refresh the page.');
         }
 
         // Load items from API
@@ -324,11 +325,6 @@ const AddSalesReturnPage: React.FC = () => {
     setError('');
 
     try {
-      const company = companies.find((c) => c.id === formData.companyId);
-      const customer = customers.find((c) => c.id === formData.customerId);
-      const firstItem = lineItems.find((l) => l.item)?.item || '';
-      const totalQuantity = lineItems.reduce((sum, l) => sum + (l.quantity || 0), 0);
-
       // Prepare API request data
       const selectedTax = taxes.find((t) => t.id === formData.taxId);
       const apiData = {
@@ -725,7 +721,7 @@ const AddSalesReturnPage: React.FC = () => {
           <FormSection title="Status" icon={<CircleIcon />} sx={{ mb: 3 }}>
             <Divider sx={{ mb: 2, mt: -1 }} />
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-              {(['Active', 'Completed', 'Pending'] as const).map((status) => (
+              {(['Pending', 'Approved', 'Rejected'] as const).map((status) => (
                 <Box
                   key={status}
                   onClick={() => handleStatusChange(status)}

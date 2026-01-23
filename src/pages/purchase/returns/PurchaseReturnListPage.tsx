@@ -86,18 +86,23 @@ const PurchaseReturnListPage: React.FC = () => {
         const purchaseReturnsApi = getPurchaseReturnsApi();
         const response = await purchaseReturnsApi.getAll();
         if (response.data?.data) {
-          const apiReturns = response.data.data.map((ret) => ({
-            id: String(ret.id),
-            billNumber: ret.billNumber,
-            companyName: ret.companyName || '',
-            vendorName: ret.vendorName || '',
-            item: ret.item || '',
-            quantity: ret.quantity || 0,
-            netAmount: ret.netAmount || 0,
-            status: ret.status as 'Active' | 'Completed' | 'Pending',
-            date: ret.date,
-            createdAt: ret.createdAt || '',
-          }));
+          const apiReturns = response.data.data.map((ret) => {
+            // Get first line item name and total quantity from lines
+            const firstItem = ret.lines?.[0]?.itemName || '';
+            const totalQuantity = ret.lines?.reduce((sum, l) => sum + (l.quantity || 0), 0) || 0;
+            return {
+              id: String(ret.id),
+              billNumber: ret.returnNumber,
+              companyName: ret.companyName || '',
+              vendorName: ret.vendorName || '',
+              item: firstItem,
+              quantity: totalQuantity,
+              netAmount: ret.totalAmount || 0,
+              status: (ret.status === 'completed' ? 'Completed' : ret.status === 'approved' ? 'Active' : 'Pending') as 'Active' | 'Completed' | 'Pending',
+              date: ret.date,
+              createdAt: ret.createdAt || '',
+            };
+          });
           setReturns(apiReturns);
         }
       } catch (err) {
@@ -231,7 +236,11 @@ const PurchaseReturnListPage: React.FC = () => {
     return (
       <Box sx={{ p: 3 }}>
         <Typography variant="h5" sx={{ fontWeight: 600, mb: 3 }}>Purchase Return</Typography>
-        <TableSkeleton rows={5} columns={9} />
+        <Table>
+          <TableBody>
+            <TableSkeleton rows={5} columns={9} />
+          </TableBody>
+        </Table>
       </Box>
     );
   }

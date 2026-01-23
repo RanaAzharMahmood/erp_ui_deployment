@@ -286,7 +286,11 @@ const PartyListPage: React.FC = () => {
     return (
       <Box sx={{ p: 3 }}>
         <PageHeader title="Party" />
-        <TableSkeleton rows={5} columns={7} />
+        <Table>
+          <TableBody>
+            <TableSkeleton rows={5} columns={7} />
+          </TableBody>
+        </Table>
       </Box>
     );
   }

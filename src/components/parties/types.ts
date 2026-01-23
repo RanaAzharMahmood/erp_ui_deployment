@@ -11,6 +11,7 @@ export interface PartyFormData {
   contactNumber: string;
   principalActivity: string;
   companyId: number | '';
+  companyIds: number[];
   status: 'Active' | 'Inactive';
 }
 
@@ -27,6 +28,7 @@ export const initialPartyFormData: PartyFormData = {
   contactNumber: '',
   principalActivity: '',
   companyId: '',
+  companyIds: [],
   status: 'Active',
 };
 
@@ -49,6 +51,7 @@ export interface PartyData {
   contactNumber: string;
   principalActivity: string;
   companyId: number | '';
+  companyIds: number[];
   companyName: string;
   isActive: boolean;
   createdAt: string;

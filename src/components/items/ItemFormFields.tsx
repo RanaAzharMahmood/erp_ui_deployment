@@ -8,7 +8,6 @@ import {
   Select,
   MenuItem,
   Divider,
-  InputLabel,
 } from '@mui/material';
 import { Inventory as InventoryIcon } from '@mui/icons-material';
 import FormSection from '../common/FormSection';

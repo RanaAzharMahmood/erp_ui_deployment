@@ -236,7 +236,11 @@ const SalesReturnListPage: React.FC = () => {
     return (
       <Box sx={{ p: 3 }}>
         <Typography variant="h5" sx={{ fontWeight: 600, mb: 3 }}>Sales Return</Typography>
-        <TableSkeleton rows={5} columns={9} />
+        <Table>
+          <TableBody>
+            <TableSkeleton rows={5} columns={9} />
+          </TableBody>
+        </Table>
       </Box>
     );
   }

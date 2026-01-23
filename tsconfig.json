@@ -18,5 +18,6 @@
     "types": ["vitest/globals"]
   },
   "include": ["src"],
+  "exclude": ["src/generated/api/api_test.spec.ts"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

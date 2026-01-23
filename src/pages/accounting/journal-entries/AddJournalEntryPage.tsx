@@ -232,7 +232,6 @@ const AddJournalEntryPage: React.FC = () => {
     setIsSubmitting(true);
     try {
       const api = getJournalEntriesApi();
-      const company = companies.find((c) => c.id === formData.companyId);
       const entryData = {
         companyId: formData.companyId as number,
         entryNumber: formData.journalNumber,
@@ -241,6 +240,7 @@ const AddJournalEntryPage: React.FC = () => {
         reference: formData.referenceType,
         status: formData.status === 'Draft' ? 'draft' : formData.status === 'Approved' ? 'posted' : 'pending',
         lines: lineItems.map((item) => ({
+          accountId: 0, // TODO: map accountName to accountId
           accountName: item.accountName,
           debit: parseFloat(item.debit) || 0,
           credit: parseFloat(item.credit) || 0,

@@ -3,43 +3,85 @@ import {
   Box,
   Card,
   Typography,
-  FormControl,
-  Select,
-  MenuItem,
-  Button,
   Divider,
 } from '@mui/material';
 import {
   Business as BusinessIcon,
   Circle as CircleIcon,
-  Add as AddIcon,
 } from '@mui/icons-material';
+import Select, { MultiValue } from 'react-select';
 import FormSection from '../common/FormSection';
 import StatusSelector from '../common/StatusSelector';
 import { PartyFormData, Company } from './types';
 
-// Type for select change value (string for most selects, number for IDs, boolean for toggles)
-type SelectChangeValue = string | number | boolean;
+// Type for select change value (string for most selects, number for IDs, boolean for toggles, or array of numbers for multi-select)
+type SelectChangeValue = string | number | boolean | number[];
+
+// Type for react-select option
+interface CompanyOption {
+  value: number;
+  label: string;
+}
 
 interface CompanyStatusSectionProps {
   formData: PartyFormData;
   companies: Company[];
-  selectedCompanies: number[];
   onSelectChange: (name: string, value: SelectChangeValue) => void;
   onStatusChange: (status: 'Active' | 'Inactive') => void;
-  onAddCompany: () => void;
-  mode: 'add' | 'update';
 }
 
 const CompanyStatusSection: React.FC<CompanyStatusSectionProps> = ({
   formData,
   companies,
-  selectedCompanies,
   onSelectChange,
   onStatusChange,
-  onAddCompany,
-  mode,
 }) => {
+  // Convert companies to react-select options
+  const companyOptions: CompanyOption[] = companies.map((company) => ({
+    value: company.id,
+    label: company.name,
+  }));
+
+  // Get selected values for react-select
+  const selectedValues = companyOptions.filter((option) =>
+    formData.companyIds.includes(option.value)
+  );
+
+  // Handle multi-select change
+  const handleCompanyChange = (newValue: MultiValue<CompanyOption>) => {
+    const selectedIds = newValue ? newValue.map((option) => option.value) : [];
+    onSelectChange('companyIds', selectedIds);
+  };
+
+  // Custom styles for react-select to match MUI design
+  const customSelectStyles = {
+    control: (base: any) => ({
+      ...base,
+      minHeight: '40px',
+      backgroundColor: 'white',
+      borderColor: '#E5E7EB',
+      '&:hover': {
+        borderColor: '#D1D5DB',
+      },
+    }),
+    multiValue: (base: any) => ({
+      ...base,
+      backgroundColor: 'rgba(255, 107, 53, 0.1)',
+    }),
+    multiValueLabel: (base: any) => ({
+      ...base,
+      color: '#374151',
+    }),
+    multiValueRemove: (base: any) => ({
+      ...base,
+      color: '#FF6B35',
+      '&:hover': {
+        backgroundColor: 'rgba(255, 107, 53, 0.2)',
+        color: '#FF6B35',
+      },
+    }),
+  };
+
   return (
     <>
       {/* Company Selection Card */}
@@ -64,76 +106,24 @@ const CompanyStatusSection: React.FC<CompanyStatusSectionProps> = ({
             <BusinessIcon sx={{ color: '#FF6B35', fontSize: 20 }} />
           </Box>
           <Typography variant="h6" sx={{ fontWeight: 600 }} id="party-company-section-title">
-            Status
+            Companies
           </Typography>
         </Box>
         <Divider sx={{ mb: 2 }} />
 
-        {mode === 'update' && selectedCompanies.length > 0 ? (
-          <>
-            {selectedCompanies.map((compId) => {
-              const comp = companies.find((c) => c.id === compId);
-              return (
-                <Box key={compId} sx={{ mb: 2 }}>
-                  <Typography variant="body2" sx={{ mb: 0.5, fontWeight: 500 }} id={`party-company-label-${compId}`}>
-                    Select Company
-                  </Typography>
-                  <FormControl fullWidth size="small">
-                    <Select
-                      value={compId}
-                      sx={{ bgcolor: 'white' }}
-                      disabled
-                      aria-labelledby={`party-company-label-${compId}`}
-                    >
-                      <MenuItem value={compId}>{comp?.name}</MenuItem>
-                    </Select>
-                  </FormControl>
-                </Box>
-              );
-            })}
-          </>
-        ) : (
-          <>
-            <Typography variant="body2" sx={{ mb: 0.5, fontWeight: 500 }} id="party-company-select-label">
-              Select Company
-            </Typography>
-            <FormControl fullWidth size="small" sx={{ mb: 2 }}>
-              <Select
-                value={formData.companyId}
-                onChange={(e) => onSelectChange('companyId', e.target.value)}
-                displayEmpty
-                sx={{ bgcolor: 'white' }}
-                aria-labelledby="party-company-select-label"
-              >
-                <MenuItem value="">Select Company</MenuItem>
-                {companies.map((company) => (
-                  <MenuItem key={company.id} value={company.id}>
-                    {company.name}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          </>
-        )}
-
-        <Button
-          variant="outlined"
-          startIcon={<AddIcon />}
-          onClick={onAddCompany}
-          aria-label="Add another company to this party"
-          sx={{
-            mb: mode === 'add' ? 3 : 1,
-            borderColor: '#E5E7EB',
-            color: '#374151',
-            textTransform: 'none',
-            '&:hover': {
-              borderColor: '#D1D5DB',
-              bgcolor: '#F9FAFB',
-            },
-          }}
-        >
-          Add Company
-        </Button>
+        <Typography variant="body2" sx={{ mb: 0.5, fontWeight: 500 }} id="party-company-select-label">
+          Select Companies
+        </Typography>
+        <Select
+          isMulti
+          name="companies"
+          options={companyOptions}
+          value={selectedValues}
+          onChange={handleCompanyChange}
+          placeholder="Select Companies"
+          styles={customSelectStyles}
+          aria-labelledby="party-company-select-label"
+        />
       </Card>
 
       {/* Status Section */}

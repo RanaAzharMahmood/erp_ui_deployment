@@ -43,8 +43,8 @@ const mapToItem = (i: ApiItemResponse, useDefaultActive = false): Item => ({
   isActive: useDefaultActive ? (i.isActive ?? true) : i.isActive,
   openingStock: i.openingStock,
   currentStock: i.currentStock,
-  createdAt: i.createdAt,
-  updatedAt: i.updatedAt,
+  createdAt: i.createdAt ? new Date(i.createdAt) : undefined,
+  updatedAt: i.updatedAt ? new Date(i.updatedAt) : undefined,
 });
 
 export const useItems = (activeOnly: boolean = true, categoryId?: number) => {

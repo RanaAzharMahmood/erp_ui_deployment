@@ -22,31 +22,31 @@ import { CompanyFormFields, CompanyFormSkeleton, LogoUpload } from '../../../com
 import { useCompanyForm } from '../../../hooks/useCompanyForm';
 import { getCompaniesApi } from '../../../generated/api/client';
 import type { Company as ApiCompany } from '../../../generated/api/api';
-import type { Status } from '../../../types/common.types';
+// import type { Status } from '../../../types/common.types';
 
 // Type for company data (includes fields from both API and extended local fields)
-interface LocalStorageCompany {
-  id: number;
-  companyName?: string;
-  name?: string;
-  ntnNumber?: string;
-  website?: string;
-  industry?: string;
-  salesTaxNumber?: string;
-  salesTaxRegistrationNo?: string;
-  companyEmail?: string;
-  address?: string;
-  contactName?: string;
-  contactEmail?: string;
-  contactPhone?: string;
-  phone?: string;
-  status?: Status;
-  logo?: string;
-  logoUrl?: string;
-  user?: string;
-  subscriptionEnd?: string;
-  isActive?: boolean;
-}
+// interface _LocalStorageCompany {
+//   id: number;
+//   companyName?: string;
+//   name?: string;
+//   ntnNumber?: string;
+//   website?: string;
+//   industry?: string;
+//   salesTaxNumber?: string;
+//   salesTaxRegistrationNo?: string;
+//   companyEmail?: string;
+//   address?: string;
+//   contactName?: string;
+//   contactEmail?: string;
+//   contactPhone?: string;
+//   phone?: string;
+//   status?: Status;
+//   logo?: string;
+//   logoUrl?: string;
+//   user?: string;
+//   subscriptionEnd?: string;
+//   isActive?: boolean;
+// }
 
 // Extended company data type that includes both API fields and extended local fields
 type ExtendedCompanyData = ApiCompany & {

@@ -78,6 +78,7 @@ const AddJournalEntryPage = lazy(() => import('./pages/accounting/journal-entrie
 const OtherPaymentsListPage = lazy(() => import('./pages/accounting/other-payments/OtherPaymentsListPage'))
 const AddOtherPaymentsPage = lazy(() => import('./pages/accounting/other-payments/AddOtherPaymentsPage'))
 const ChartOfAccountPage = lazy(() => import('./pages/accounting/chart-of-accounts/ChartOfAccountPage'))
+const AddChartOfAccountPage = lazy(() => import('./pages/accounting/chart-of-accounts/AddChartOfAccountPage'))
 
 // Other
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'))
@@ -431,6 +432,22 @@ function App() {
           element={
             <SuspenseRoute>
               <AddOtherPaymentsPage />
+            </SuspenseRoute>
+          }
+        />
+        <Route
+          path="account/chart-of-account/add"
+          element={
+            <SuspenseRoute>
+              <AddChartOfAccountPage />
+            </SuspenseRoute>
+          }
+        />
+        <Route
+          path="account/chart-of-account/update/:id"
+          element={
+            <SuspenseRoute>
+              <AddChartOfAccountPage />
             </SuspenseRoute>
           }
         />

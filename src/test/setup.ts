@@ -29,24 +29,24 @@ Object.defineProperty(window, 'matchMedia', {
 })
 
 // Mock ResizeObserver - required for some MUI components
-global.ResizeObserver = vi.fn().mockImplementation(() => ({
+globalThis.ResizeObserver = vi.fn().mockImplementation(() => ({
   observe: vi.fn(),
   unobserve: vi.fn(),
   disconnect: vi.fn(),
-}))
+})) as unknown as typeof ResizeObserver
 
 // Mock IntersectionObserver - required for lazy loading and virtualization
-global.IntersectionObserver = vi.fn().mockImplementation(() => ({
+globalThis.IntersectionObserver = vi.fn().mockImplementation(() => ({
   observe: vi.fn(),
   unobserve: vi.fn(),
   disconnect: vi.fn(),
   root: null,
   rootMargin: '',
   thresholds: [],
-}))
+})) as unknown as typeof IntersectionObserver
 
 // Mock scrollTo - required for some router interactions
-window.scrollTo = vi.fn()
+window.scrollTo = vi.fn() as () => void
 
 // Suppress console errors during tests (optional - remove if you want to see errors)
 // vi.spyOn(console, 'error').mockImplementation(() => {})

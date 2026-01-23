@@ -46,7 +46,6 @@ import type {
   CustomerOption,
   TaxOption,
   ItemOption,
-  RawCompanyData,
   InvoiceStatus,
   SelectChangeValue,
 } from '../../../types/invoice.types';
@@ -86,7 +85,7 @@ const AddSalesInvoicePage: React.FC = () => {
   const [successMessage, setSuccessMessage] = useState('');
 
   // Derive companies from hook data - use c.name as the hook normalizes to 'name' field
-  const companies: CompanyOption[] = (companiesData || []).map((c: RawCompanyData) => ({ id: c.id, name: c.name }));
+  const companies: CompanyOption[] = (companiesData || []).map((c) => ({ id: c.id, name: c.name || '' }));
 
   // Check if payment method requires image upload and account number
   const requiresImageAndAccount = formData.paymentMethod === 'Bank Transfer (Online)' || formData.paymentMethod === 'Cheque';
@@ -118,6 +117,11 @@ const AddSalesInvoicePage: React.FC = () => {
               id: String(c.id),
               name: c.name,
             })));
+          } else if (Array.isArray(customersResponse.data)) {
+            setCustomers((customersResponse.data as Array<{ id?: number; name?: string }>).map((c) => ({
+              id: String(c.id),
+              name: c.name || '',
+            })));
           }
         } catch (err) {
           console.error('Error loading customers from API:', err);
@@ -128,11 +132,18 @@ const AddSalesInvoicePage: React.FC = () => {
         try {
           const taxesApi = getTaxesApi();
           const taxesResponse = await taxesApi.getAll();
-          if (taxesResponse.data) {
-            setTaxes(taxesResponse.data.map((t) => ({
+          const taxesData = taxesResponse.data as { data?: Array<{ id?: number; name?: string; rate?: number; percentage?: number }> } | Array<{ id?: number; name?: string; rate?: number; percentage?: number }> | undefined;
+          if (taxesData && 'data' in taxesData && taxesData.data) {
+            setTaxes(taxesData.data.map((t) => ({
               id: String(t.id),
-              name: t.name,
-              percentage: t.rate,
+              name: t.name || '',
+              percentage: t.percentage || 0,
+            })));
+          } else if (Array.isArray(taxesData)) {
+            setTaxes(taxesData.map((t) => ({
+              id: String(t.id),
+              name: t.name || '',
+              percentage: t.rate || t.percentage || 0,
             })));
           }
         } catch (err) {
@@ -144,8 +155,15 @@ const AddSalesInvoicePage: React.FC = () => {
         try {
           const itemsApi = getItemsApi();
           const itemsResponse = await itemsApi.v1ApiItemsGet(true);
-          if (itemsResponse.data) {
-            setItems(itemsResponse.data.map((i: any) => ({
+          const itemsData = itemsResponse.data as { data?: Array<{ id?: number; itemName?: string; salePrice?: number; unitPrice?: number }> } | Array<{ id?: number; itemName?: string; salePrice?: number; unitPrice?: number }> | undefined;
+          if (itemsData && 'data' in itemsData && itemsData.data) {
+            setItems(itemsData.data.map((i) => ({
+              id: String(i.id),
+              name: i.itemName || '',
+              rate: i.salePrice || i.unitPrice || 0,
+            })));
+          } else if (Array.isArray(itemsData)) {
+            setItems(itemsData.map((i) => ({
               id: String(i.id),
               name: i.itemName || '',
               rate: i.salePrice || i.unitPrice || 0,

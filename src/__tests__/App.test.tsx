@@ -6,7 +6,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { screen, waitFor } from '@testing-library/react'
-import { renderWithProviders, renderWithMemoryRouter } from '../test/test-utils'
+import { renderWithMemoryRouter } from '../test/test-utils'
 
 // Mock the AuthContext module
 vi.mock('../contexts/AuthContext', () => ({

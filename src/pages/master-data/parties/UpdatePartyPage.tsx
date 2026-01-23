@@ -19,7 +19,6 @@ const UpdatePartyPage: React.FC = () => {
   const {
     formData,
     companies,
-    selectedCompanies,
     isSubmitting,
     isDeleting,
     loading,
@@ -28,7 +27,6 @@ const UpdatePartyPage: React.FC = () => {
     handleInputChange,
     handleSelectChange,
     handleStatusChange,
-    handleAddCompany,
     handleSubmit,
     handleDelete,
     handleCancel,
@@ -68,11 +66,8 @@ const UpdatePartyPage: React.FC = () => {
           <CompanyStatusSection
             formData={formData}
             companies={companies}
-            selectedCompanies={selectedCompanies}
             onSelectChange={handleSelectChange}
             onStatusChange={handleStatusChange}
-            onAddCompany={handleAddCompany}
-            mode="update"
           />
 
           <DangerZone onDelete={handleDelete} itemName="Party" isDeleting={isDeleting} />

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Alert, Snackbar, CircularProgress } from '@mui/material';
+import { Box, Alert, Snackbar } from '@mui/material';
 import {
   CustomerDetailsCard,
   AddressDetailsCard,

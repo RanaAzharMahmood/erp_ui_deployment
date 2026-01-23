@@ -14,14 +14,12 @@ const AddPartyPage: React.FC = () => {
   const {
     formData,
     companies,
-    selectedCompanies,
     isSubmitting,
     error,
     successMessage,
     handleInputChange,
     handleSelectChange,
     handleStatusChange,
-    handleAddCompany,
     handleSubmit,
     handleCancel,
     setError,
@@ -55,11 +53,8 @@ const AddPartyPage: React.FC = () => {
           <CompanyStatusSection
             formData={formData}
             companies={companies}
-            selectedCompanies={selectedCompanies}
             onSelectChange={handleSelectChange}
             onStatusChange={handleStatusChange}
-            onAddCompany={handleAddCompany}
-            mode="add"
           />
 
           <PartyFormActions

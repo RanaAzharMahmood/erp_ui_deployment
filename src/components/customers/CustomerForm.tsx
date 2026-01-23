@@ -204,7 +204,7 @@ export const CustomerDetailsCard: React.FC<
 
 export const AddressDetailsCard: React.FC<
   Pick<CustomerFormProps, 'formData' | 'fieldErrors' | 'onInputChange'>
-> = ({ formData, fieldErrors = {}, onInputChange }) => {
+> = ({ formData, onInputChange }) => {
   return (
     <Card
       sx={{ p: 3, mb: 3, borderRadius: 2 }}

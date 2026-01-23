@@ -310,7 +310,11 @@ const InventoryListPage: React.FC = () => {
     return (
       <Box sx={{ p: 3 }}>
         <Typography variant="h5" sx={{ fontWeight: 600, mb: 3 }}>Inventory</Typography>
-        <TableSkeleton rows={5} columns={8} />
+        <Table>
+          <TableBody>
+            <TableSkeleton rows={5} columns={8} />
+          </TableBody>
+        </Table>
       </Box>
     );
   }

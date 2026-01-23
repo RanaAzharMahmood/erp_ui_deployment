@@ -86,18 +86,23 @@ const PurchaseInvoiceListPage: React.FC = () => {
         const purchaseInvoicesApi = getPurchaseInvoicesApi();
         const response = await purchaseInvoicesApi.getAll();
         if (response.data?.data) {
-          const apiInvoices = response.data.data.map((inv) => ({
-            id: String(inv.id),
-            billNumber: inv.billNumber,
-            companyName: inv.companyName || '',
-            vendorName: inv.vendorName || '',
-            item: inv.item || '',
-            quantity: inv.quantity || 0,
-            netAmount: inv.netAmount || 0,
-            status: inv.status as 'Active' | 'Paid' | 'Overdue' | 'Pending',
-            date: inv.date,
-            createdAt: inv.createdAt || '',
-          }));
+          const apiInvoices = response.data.data.map((inv) => {
+            // Get first line item name and total quantity from lines
+            const firstItem = inv.lines?.[0]?.itemName || '';
+            const totalQuantity = inv.lines?.reduce((sum, l) => sum + (l.quantity || 0), 0) || 0;
+            return {
+              id: String(inv.id),
+              billNumber: inv.billNumber,
+              companyName: inv.companyName || '',
+              vendorName: inv.vendorName || '',
+              item: firstItem,
+              quantity: totalQuantity,
+              netAmount: inv.totalAmount || 0,
+              status: (inv.status === 'paid' ? 'Paid' : inv.status === 'overdue' ? 'Overdue' : 'Pending') as 'Active' | 'Paid' | 'Overdue' | 'Pending',
+              date: inv.date,
+              createdAt: inv.createdAt || '',
+            };
+          });
           setInvoices(apiInvoices);
         }
       } catch (err) {
@@ -231,7 +236,11 @@ const PurchaseInvoiceListPage: React.FC = () => {
     return (
       <Box sx={{ p: 3 }}>
         <Typography variant="h5" sx={{ fontWeight: 600, mb: 3 }}>Purchase Invoice</Typography>
-        <TableSkeleton rows={5} columns={9} />
+        <Table>
+          <TableBody>
+            <TableSkeleton rows={5} columns={9} />
+          </TableBody>
+        </Table>
       </Box>
     );
   }

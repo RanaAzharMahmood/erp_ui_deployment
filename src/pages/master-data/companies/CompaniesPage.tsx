@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../../../contexts/AuthContext';
+// import { useAuth } from '../../../contexts/AuthContext';
 import {
   Box,
   Button,
@@ -95,10 +95,10 @@ const CompaniesPage: React.FC = () => {
   const debouncedSearch = useDebounce(searchTerm, 300);
 
   // Get current user ID from auth context
-  const { user } = useAuth();
-  const getCurrentUserId = useCallback(() => {
-    return user?.id ? Number(user.id) : 1; // Default fallback
-  }, [user]);
+  // const _user = useAuth();
+  // const _getCurrentUserId = useCallback(() => {
+  //   return _user?.user?.id ? Number(_user.user.id) : 1; // Default fallback
+  // }, [_user]);
 
   // Handle applying saved filter
   useEffect(() => {
@@ -431,8 +431,6 @@ const CompaniesPage: React.FC = () => {
         fields={filterFields}
         onApply={handleApplyFilters}
         onReset={handleResetFilters}
-        pageKey="companies"
-        userId={getCurrentUserId()}
       />
 
       {/* Table */}

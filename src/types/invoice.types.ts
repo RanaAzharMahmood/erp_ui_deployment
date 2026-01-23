@@ -211,7 +211,7 @@ export interface RawPurchaseReturnData {
 // =============================================================================
 
 export type InvoiceStatus = 'Paid' | 'Overdue' | 'Pending';
-export type ReturnStatus = 'Active' | 'Completed' | 'Pending';
+export type ReturnStatus = 'Pending' | 'Approved' | 'Rejected';
 
 export interface SalesInvoiceFormData {
   companyId: number | '';

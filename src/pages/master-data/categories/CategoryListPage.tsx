@@ -262,7 +262,11 @@ const CategoryListPage: React.FC = () => {
     return (
       <Box sx={{ p: 3 }}>
         <Typography variant="h5" sx={{ fontWeight: 600, mb: 3 }}>Categories</Typography>
-        <TableSkeleton rows={5} columns={5} />
+        <Table>
+          <TableBody>
+            <TableSkeleton rows={5} columns={5} />
+          </TableBody>
+        </Table>
       </Box>
     );
   }

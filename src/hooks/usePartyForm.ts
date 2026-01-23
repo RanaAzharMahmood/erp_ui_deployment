@@ -6,7 +6,12 @@ import {
   Company,
 } from '../components/parties/types';
 import { getPartiesApi, getCompaniesApi } from '../generated/api/client';
-import { CreatePartyRequest, UpdatePartyRequest } from '../generated/api';
+import {
+  CreatePartyRequest,
+  UpdatePartyRequest,
+  CreatePartyRequestPartyTypeEnum,
+  UpdatePartyRequestPartyTypeEnum
+} from '../generated/api';
 
 interface UsePartyFormOptions {
   partyId?: string;
@@ -26,7 +31,7 @@ interface ApiError {
 }
 
 // Type for select change value
-type SelectChangeValue = string | number | boolean;
+type SelectChangeValue = string | number | boolean | number[];
 
 interface UsePartyFormReturn {
   formData: PartyFormData;
@@ -40,7 +45,6 @@ interface UsePartyFormReturn {
   handleInputChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
   handleSelectChange: (name: string, value: SelectChangeValue) => void;
   handleStatusChange: (status: 'Active' | 'Inactive') => void;
-  handleAddCompany: () => void;
   handleSubmit: () => Promise<void>;
   handleDelete: () => Promise<void>;
   handleCancel: () => void;
@@ -86,6 +90,7 @@ export const usePartyForm = ({ partyId, mode }: UsePartyFormOptions): UsePartyFo
             const partyResponse = await partiesApi.v1ApiPartiesIdGet(parseInt(partyId, 10));
             if (partyResponse.data) {
               const party = partyResponse.data;
+              const existingCompanyIds = party.companyId ? [party.companyId as number] : [];
               setFormData({
                 partyName: party.partyName || '',
                 partyType: (party.partyType as 'Customer' | 'Vendor' | '') || '',
@@ -99,6 +104,7 @@ export const usePartyForm = ({ partyId, mode }: UsePartyFormOptions): UsePartyFo
                 contactNumber: party.contactNumber || '',
                 principalActivity: party.principalActivity || '',
                 companyId: party.companyId || '',
+                companyIds: existingCompanyIds,
                 status: party.isActive ? 'Active' : 'Inactive',
               });
               if (party.companyId) {
@@ -135,12 +141,6 @@ export const usePartyForm = ({ partyId, mode }: UsePartyFormOptions): UsePartyFo
     setFormData((prev) => ({ ...prev, status }));
   }, []);
 
-  const handleAddCompany = useCallback(() => {
-    if (formData.companyId && !selectedCompanies.includes(formData.companyId as number)) {
-      setSelectedCompanies((prev) => [...prev, formData.companyId as number]);
-    }
-  }, [formData.companyId, selectedCompanies]);
-
   const validateForm = useCallback((): boolean => {
     if (
       !formData.partyName ||
@@ -171,7 +171,9 @@ export const usePartyForm = ({ partyId, mode }: UsePartyFormOptions): UsePartyFo
       if (mode === 'add') {
         const createData: CreatePartyRequest = {
           partyName: formData.partyName,
-          partyType: formData.partyType as 'Customer' | 'Vendor',
+          partyType: formData.partyType === 'Customer'
+            ? CreatePartyRequestPartyTypeEnum.Customer
+            : CreatePartyRequestPartyTypeEnum.Vendor,
           ntnNumber: formData.ntnNumber,
           taxOffice: formData.taxOffice || undefined,
           salesTaxNumber: formData.salesTaxNumber,
@@ -181,7 +183,7 @@ export const usePartyForm = ({ partyId, mode }: UsePartyFormOptions): UsePartyFo
           contactEmail: formData.contactEmail || undefined,
           contactNumber: formData.contactNumber,
           principalActivity: formData.principalActivity || undefined,
-          companyId: formData.companyId ? (formData.companyId as number) : undefined,
+          companyId: formData.companyIds.length > 0 ? formData.companyIds[0] : undefined,
         };
 
         await partiesApi.v1ApiPartiesPost(createData);
@@ -189,7 +191,9 @@ export const usePartyForm = ({ partyId, mode }: UsePartyFormOptions): UsePartyFo
       } else {
         const updateData: UpdatePartyRequest = {
           partyName: formData.partyName,
-          partyType: formData.partyType as 'Customer' | 'Vendor',
+          partyType: formData.partyType === 'Customer'
+            ? UpdatePartyRequestPartyTypeEnum.Customer
+            : UpdatePartyRequestPartyTypeEnum.Vendor,
           ntnNumber: formData.ntnNumber,
           taxOffice: formData.taxOffice || undefined,
           salesTaxNumber: formData.salesTaxNumber,
@@ -199,7 +203,7 @@ export const usePartyForm = ({ partyId, mode }: UsePartyFormOptions): UsePartyFo
           contactEmail: formData.contactEmail || undefined,
           contactNumber: formData.contactNumber,
           principalActivity: formData.principalActivity || undefined,
-          companyId: formData.companyId ? (formData.companyId as number) : undefined,
+          companyId: formData.companyIds.length > 0 ? formData.companyIds[0] : undefined,
           isActive: formData.status === 'Active',
         };
 
@@ -276,7 +280,6 @@ export const usePartyForm = ({ partyId, mode }: UsePartyFormOptions): UsePartyFo
     handleInputChange,
     handleSelectChange,
     handleStatusChange,
-    handleAddCompany,
     handleSubmit,
     handleDelete,
     handleCancel,
