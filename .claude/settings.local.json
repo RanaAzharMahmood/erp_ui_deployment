@@ -6,7 +6,12 @@
       "Bash(npm start)",
       "Bash(npm run dev:*)",
       "Bash(find:*)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nfeat: add GitHub Pages deployment\n\n- Add base path /erp_ui/ to vite.config.ts for GitHub Pages\n- Add GitHub Actions workflow for automatic deployment\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git push:*)",
+      "Bash(git -C .. remote -v)",
+      "Bash(git commit:*)"
     ]
   }
 }
