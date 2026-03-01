@@ -4,7 +4,6 @@ import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Button,
-  Card,
   Chip,
   IconButton,
   MenuItem,
@@ -347,72 +346,71 @@ const CompaniesPage: React.FC = () => {
       <Box
         sx={{
           display: 'flex',
-          justifyContent: 'space-between',
           alignItems: 'center',
-          mb: 3,
-          flexWrap: 'wrap',
+          mb: 2,
           gap: 2,
+          border: '1px solid #E0E0E0',
+          borderRadius: '12px',
+          bgcolor: '#FFFFFF',
+          px: 2,
+          height: 70,
         }}
       >
-        <Typography variant="h4" sx={{ fontWeight: 600 }}>
-          Companies
-        </Typography>
+        {/* Filter Button */}
+        <Button
+          variant="outlined"
+          startIcon={<FilterListIcon />}
+          onClick={(e) => setFilterAnchorEl(e.currentTarget)}
+          sx={{
+            textTransform: 'none',
+            borderColor: '#E0E0E0',
+            color: 'text.primary',
+            bgcolor: '#FFFFFF',
+            '&:hover': {
+              borderColor: '#BDBDBD',
+              bgcolor: 'rgba(0, 0, 0, 0.02)',
+            },
+          }}
+        >
+          Filter
+        </Button>
 
-        {/* Right side controls */}
-        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flex: 1, justifyContent: 'flex-end' }}>
-          {/* Filter Button */}
-          <Button
-            variant="outlined"
-            startIcon={<FilterListIcon />}
-            onClick={(e) => setFilterAnchorEl(e.currentTarget)}
-            sx={{
-              textTransform: 'none',
-              borderColor: '#E0E0E0',
-              color: 'text.primary',
-              '&:hover': {
-                borderColor: '#BDBDBD',
-                bgcolor: 'rgba(0, 0, 0, 0.02)',
-              },
-            }}
-          >
-            Filter
-          </Button>
+        <Box sx={{ flex: 1 }} />
 
-          {/* Search */}
-          <TextField
-            placeholder="Search"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            size="small"
-            sx={{ width: 300 }}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon sx={{ color: 'text.secondary', fontSize: 20 }} />
-                </InputAdornment>
-              ),
-            }}
-          />
+        {/* Search */}
+        <TextField
+          placeholder="Search"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          size="small"
+          sx={{ width: 300 }}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchIcon sx={{ color: 'text.secondary', fontSize: 20 }} />
+              </InputAdornment>
+            ),
+          }}
+        />
 
-          {/* Add Company Button */}
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={() => navigate('/companies/add')}
-            onMouseEnter={handleAddButtonHover}
-            sx={{
-              borderRadius: 2,
-              textTransform: 'none',
-              px: 3,
-              bgcolor: COLORS.primary,
-              '&:hover': {
-                bgcolor: COLORS.primaryHover,
-              },
-            }}
-          >
-            Add Company
-          </Button>
-        </Box>
+        {/* Add Company Button */}
+        <Button
+          variant="contained"
+          startIcon={<AddIcon />}
+          onClick={() => navigate('/companies/add')}
+          onMouseEnter={handleAddButtonHover}
+          sx={{
+            borderRadius: 2,
+            textTransform: 'none',
+            px: 3,
+            bgcolor: COLORS.primary,
+            '&:hover': {
+              bgcolor: COLORS.primaryHover,
+            },
+          }}
+        >
+          Add Company
+        </Button>
       </Box>
 
       {/* Filter Manager */}
@@ -426,10 +424,10 @@ const CompaniesPage: React.FC = () => {
       />
 
       {/* Table */}
-      <Card>
+      <Box sx={{ border: '1px solid #E0E0E0', borderRadius: '12px', overflow: 'hidden', bgcolor: '#FFFFFF' }}>
         <TableContainer>
           <Table aria-label="Companies list">
-            <TableHead>
+            <TableHead sx={{ bgcolor: '#F8FAFC' }}>
               <TableRow>
                 <TableCell scope="col">Logo</TableCell>
                 <TableCell
@@ -615,7 +613,7 @@ const CompaniesPage: React.FC = () => {
             aria-label="Companies table pagination"
           />
         )}
-      </Card>
+      </Box>
 
       {/* Success Snackbar */}
       <Snackbar

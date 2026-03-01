@@ -34,7 +34,7 @@ import FormSection from '../../../components/common/FormSection';
 import ReturnFormSkeleton from '../../../components/common/ReturnFormSkeleton';
 import { useCompanies } from '../../../hooks';
 import {
-  getCustomersApi,
+  getPartiesApi,
   getTaxesApi,
   getItemsApi,
   getSalesInvoicesApi,
@@ -58,6 +58,7 @@ const AddSalesReturnPage: React.FC = () => {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const isEditMode = Boolean(id);
+  const today = new Date().toISOString().split('T')[0];
   const { companies: companiesData } = useCompanies();
 
   const [formData, setFormData] = useState<SalesReturnFormData>({
@@ -65,7 +66,7 @@ const AddSalesReturnPage: React.FC = () => {
     customerId: '',
     returnNumber: '',
     originalInvoice: '',
-    date: '',
+    date: today,
     returnReason: '',
     paymentMethod: '',
     accountNumber: '',
@@ -91,34 +92,42 @@ const AddSalesReturnPage: React.FC = () => {
   const companies: CompanyOption[] = (companiesData || []).map((c) => ({ id: c.id, name: c.name || '' }));
 
   // Check if payment method requires image upload and account number
-  const requiresImageAndAccount = formData.paymentMethod === 'Bank Transfer (Online)' || formData.paymentMethod === 'Cheque';
+  const requiresImageAndAccount = formData.paymentMethod !== '' && formData.paymentMethod !== 'Hand in Cash';
 
-  // Generate return number (fallback to client-side generation for now)
-  const generateReturnNumber = useCallback(async () => {
-    // TODO: Implement backend endpoint for next return number
-    return `SR-${String(Date.now()).slice(-6)}`;
-  }, []);
+  // Generate return number when companyId changes (for new returns only)
+  useEffect(() => {
+    if (isEditMode) return;
+    // TODO: Replace with backend API call when endpoint is available
+    const returnNumber = `SR-${String(Date.now()).slice(-6)}`;
+    setFormData((prev) => ({ ...prev, returnNumber }));
+  }, [formData.companyId, isEditMode]);
+
+  // Fetch customers when companyId changes
+  useEffect(() => {
+    const loadCustomers = async () => {
+      try {
+        const partiesApi = getPartiesApi();
+        const companyIdParam = formData.companyId ? Number(formData.companyId) : undefined;
+        const partiesResponse = await partiesApi.v1ApiPartiesGet(true, 'Customer', companyIdParam);
+        const raw = partiesResponse as any;
+        const partiesList: Array<{ id?: number; partyName?: string; name?: string }> =
+          Array.isArray(raw) ? raw
+          : Array.isArray(raw?.data?.data) ? raw.data.data
+          : Array.isArray(raw?.data) ? raw.data
+          : [];
+        setCustomers(partiesList.map((c) => ({ id: String(c.id), name: c.partyName || c.name || '' })));
+      } catch (err) {
+        console.error('Error loading customers from API:', err);
+        setCustomers([]);
+      }
+    };
+    loadCustomers();
+  }, [formData.companyId]);
 
   // Load data from API
   useEffect(() => {
     const loadData = async () => {
       try {
-        // Load customers from API
-        try {
-          const customersApi = getCustomersApi();
-          const customersResponse = await customersApi.getAll();
-          if (customersResponse.data?.data) {
-            setCustomers(customersResponse.data.data.map((c) => ({
-              id: String(c.id),
-              name: c.name,
-            })));
-          }
-        } catch (err) {
-          console.error('Error loading customers from API:', err);
-          setCustomers([]);
-          setError('Failed to load customers. Please refresh the page.');
-        }
-
         // Load sales invoices from API
         try {
           const invoicesApi = getSalesInvoicesApi();
@@ -182,12 +191,6 @@ const AddSalesReturnPage: React.FC = () => {
           setError('Failed to load items. Please refresh the page.');
         }
 
-        // Generate return number for new returns
-        if (!isEditMode) {
-          const returnNumber = await generateReturnNumber();
-          setFormData((prev) => ({ ...prev, returnNumber }));
-        }
-
         // Load existing return for edit mode
         if (isEditMode && id) {
           try {
@@ -234,7 +237,7 @@ const AddSalesReturnPage: React.FC = () => {
     };
 
     loadData();
-  }, [isEditMode, id, generateReturnNumber]);
+  }, [isEditMode, id]);
 
   const handleInputChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -464,6 +467,7 @@ const AddSalesReturnPage: React.FC = () => {
                   value={formData.date}
                   onChange={handleInputChange}
                   size="small"
+                  inputProps={{ min: today }}
                   sx={{ '& .MuiOutlinedInput-root': { bgcolor: 'white' } }}
                   InputLabelProps={{ shrink: true }}
                 />
@@ -570,9 +574,10 @@ const AddSalesReturnPage: React.FC = () => {
                           fullWidth
                           type="number"
                           value={item.quantity}
-                          onChange={(e) => handleLineItemChange(item.id, 'quantity', parseFloat(e.target.value) || 0)}
+                          onChange={(e) => handleLineItemChange(item.id, 'quantity', Math.max(0, parseFloat(e.target.value) || 0))}
                           placeholder="0"
                           size="small"
+                          inputProps={{ min: 0 }}
                           sx={{ '& .MuiOutlinedInput-root': { bgcolor: 'white' } }}
                         />
                       </TableCell>
@@ -581,9 +586,10 @@ const AddSalesReturnPage: React.FC = () => {
                           fullWidth
                           type="number"
                           value={item.rate}
-                          onChange={(e) => handleLineItemChange(item.id, 'rate', parseFloat(e.target.value) || 0)}
+                          onChange={(e) => handleLineItemChange(item.id, 'rate', Math.max(0, parseFloat(e.target.value) || 0))}
                           placeholder="0.0 PKR"
                           size="small"
+                          inputProps={{ min: 0 }}
                           sx={{ '& .MuiOutlinedInput-root': { bgcolor: 'white' } }}
                         />
                       </TableCell>
@@ -662,8 +668,9 @@ const AddSalesReturnPage: React.FC = () => {
                   <TextField
                     type="number"
                     value={formData.refundAmount}
-                    onChange={(e) => handleSelectChange('refundAmount', parseFloat(e.target.value) || 0)}
+                    onChange={(e) => handleSelectChange('refundAmount', Math.max(0, parseFloat(e.target.value) || 0))}
                     size="small"
+                    inputProps={{ min: 0 }}
                     sx={{ width: 100, '& .MuiOutlinedInput-root': { bgcolor: 'white' } }}
                   />
                 </Box>
@@ -717,66 +724,50 @@ const AddSalesReturnPage: React.FC = () => {
             </FormSection>
           )}
 
-          {/* Status */}
-          <FormSection title="Status" icon={<CircleIcon />} sx={{ mb: 3 }}>
-            <Divider sx={{ mb: 2, mt: -1 }} />
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-              {(['Pending', 'Approved', 'Rejected'] as const).map((status) => (
-                <Box
-                  key={status}
-                  onClick={() => handleStatusChange(status)}
-                  sx={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 1,
-                    cursor: 'pointer',
-                  }}
-                >
+          {/* Status - Only show in edit mode */}
+          {isEditMode && (
+            <FormSection title="Status" icon={<CircleIcon />} sx={{ mb: 3 }}>
+              <Divider sx={{ mb: 2, mt: -1 }} />
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                {(['Pending', 'Approved', 'Rejected'] as const).map((status) => (
                   <Box
+                    key={status}
+                    onClick={() => handleStatusChange(status)}
                     sx={{
-                      width: 16,
-                      height: 16,
-                      borderRadius: '50%',
-                      border: '2px solid #FF6B35',
                       display: 'flex',
                       alignItems: 'center',
-                      justifyContent: 'center',
+                      gap: 1,
+                      cursor: 'pointer',
                     }}
                   >
-                    {formData.status === status && (
-                      <Box
-                        sx={{
-                          width: 8,
-                          height: 8,
-                          borderRadius: '50%',
-                          bgcolor: '#FF6B35',
-                        }}
-                      />
-                    )}
+                    <Box
+                      sx={{
+                        width: 16,
+                        height: 16,
+                        borderRadius: '50%',
+                        border: '2px solid #FF6B35',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      {formData.status === status && (
+                        <Box
+                          sx={{
+                            width: 8,
+                            height: 8,
+                            borderRadius: '50%',
+                            bgcolor: '#FF6B35',
+                          }}
+                        />
+                      )}
+                    </Box>
+                    <Typography variant="body2">{status}</Typography>
                   </Box>
-                  <Typography variant="body2">{status}</Typography>
-                </Box>
-              ))}
-            </Box>
-          </FormSection>
-
-          {/* Download PDF Button */}
-          <Button
-            fullWidth
-            variant="contained"
-            startIcon={<DownloadIcon />}
-            sx={{
-              mb: 3,
-              py: 1.5,
-              textTransform: 'none',
-              bgcolor: '#10B981',
-              '&:hover': {
-                bgcolor: '#059669',
-              },
-            }}
-          >
-            Download PDF
-          </Button>
+                ))}
+              </Box>
+            </FormSection>
+          )}
 
           {/* Action Buttons */}
           <Box sx={{ display: 'flex', gap: 2 }}>

@@ -63,12 +63,13 @@ const DEPOSIT_METHODS = ['Cash', 'Cheque', 'Online Transfer', 'RTGS', 'NEFT'];
 
 const AddBankDepositPage: React.FC = () => {
   const navigate = useNavigate();
+  const today = new Date().toISOString().split('T')[0];
   const [formData, setFormData] = useState<DepositFormData>({
     companyId: '',
     depositEntryNumber: '0000000',
     bankAccount: '',
     depositSlipNumber: '',
-    date: '',
+    date: today,
     note: '',
     referenceType: '',
     accountType: '',
@@ -293,6 +294,7 @@ const AddBankDepositPage: React.FC = () => {
                   size="small"
                   sx={{ '& .MuiOutlinedInput-root': { bgcolor: 'white' } }}
                   InputLabelProps={{ shrink: true }}
+                  inputProps={{ min: today }}
                 />
               </Grid>
               <Grid item xs={12} sm={6}>
@@ -521,24 +523,6 @@ const AddBankDepositPage: React.FC = () => {
               ))}
             </Box>
           </FormSection>
-
-          {/* Download PDF Button */}
-          <Button
-            fullWidth
-            variant="contained"
-            startIcon={<DownloadIcon />}
-            sx={{
-              mb: 3,
-              py: 1.5,
-              textTransform: 'none',
-              bgcolor: '#10B981',
-              '&:hover': {
-                bgcolor: '#059669',
-              },
-            }}
-          >
-            Download PDF
-          </Button>
 
           {/* Action Buttons */}
           <Box sx={{ display: 'flex', gap: 2 }}>

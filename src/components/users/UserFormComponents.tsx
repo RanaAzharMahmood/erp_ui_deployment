@@ -189,7 +189,7 @@ export const CompanyAccessCard = memo(({
   onModuleToggle,
 }: CompanyAccessCardProps) => {
   // Manager and Admin have all permissions (disabled checkboxes, all selected)
-  const isManagerOrAdmin = access.roleId === 2;
+  const isManagerOrAdmin = access.roleId === 1 || access.roleId === 2;
 
   const allSelected = isManagerOrAdmin || PERMISSION_MODULES.every(module =>
     module.permissions.every(perm => access.modulePermissions[module.id]?.includes(perm))

@@ -1,8 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Box,
-  Card,
-  CardContent,
   Typography,
   Button,
   Table,
@@ -348,10 +346,7 @@ const ProductsPage: React.FC = () => {
 
   if (loading) {
     return (
-      <Box>
-        <Typography variant="h4" fontWeight="bold" mb={3}>
-          Products
-        </Typography>
+      <Box sx={{ p: 3 }}>
         <Table>
           <TableBody>
             <TableSkeleton rows={5} columns={6} />
@@ -363,21 +358,24 @@ const ProductsPage: React.FC = () => {
 
   return (
     <Box>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-        <Typography variant="h4" fontWeight="bold">
-          Products
-        </Typography>
+      {/* Toolbar */}
+      <Box sx={{ display: 'flex', alignItems: 'center', mb: 2, gap: 2, border: '1px solid #E0E0E0', borderRadius: '12px', bgcolor: '#FFFFFF', px: 2, height: 70 }}>
+        <Box sx={{ flexGrow: 1 }} />
         <Button
           variant="contained"
           startIcon={<AddIcon />}
           onClick={() => handleOpen()}
+          sx={{
+            bgcolor: COLORS.primary,
+            textTransform: 'none',
+            '&:hover': { bgcolor: COLORS.primaryHover },
+          }}
         >
           Add Product
         </Button>
       </Box>
 
-      <Card>
-        <CardContent>
+      <Box sx={{ border: '1px solid #E0E0E0', borderRadius: '12px', overflow: 'hidden', bgcolor: '#FFFFFF' }}>
           {sortedProducts.length === 0 ? (
             <Box textAlign="center" py={4}>
               <Typography variant="body1" color="text.secondary">
@@ -388,7 +386,7 @@ const ProductsPage: React.FC = () => {
             <TableContainer>
               <Table aria-label="Products list">
                 <TableHead>
-                  <TableRow>
+                  <TableRow sx={{ bgcolor: '#F8FAFC' }}>
                     <TableCell
                       scope="col"
                       aria-sort={orderBy === 'name' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
@@ -547,8 +545,7 @@ const ProductsPage: React.FC = () => {
               </Table>
             </TableContainer>
           )}
-        </CardContent>
-      </Card>
+      </Box>
 
       {/* Create/Edit Product Dialog */}
       <Dialog open={open} onClose={handleClose} maxWidth="md" fullWidth>

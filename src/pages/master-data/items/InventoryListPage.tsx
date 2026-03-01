@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
-  Card,
   Table,
   TableBody,
   TableCell,
@@ -309,7 +308,6 @@ const InventoryListPage: React.FC = () => {
   if (loading) {
     return (
       <Box sx={{ p: 3 }}>
-        <Typography variant="h5" sx={{ fontWeight: 600, mb: 3 }}>Inventory</Typography>
         <Table>
           <TableBody>
             <TableSkeleton rows={5} columns={8} />
@@ -320,16 +318,9 @@ const InventoryListPage: React.FC = () => {
   }
 
   return (
-    <Box sx={{ p: 3, bgcolor: '#F9FAFB', minHeight: '100vh' }}>
-      {/* Header */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h5" sx={{ fontWeight: 600 }}>
-          Inventory
-        </Typography>
-      </Box>
-
+    <Box>
       {/* Toolbar */}
-      <Card sx={{ p: 2, mb: 3, display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', mb: 2, gap: 2, border: '1px solid #E0E0E0', borderRadius: '12px', bgcolor: '#FFFFFF', px: 2, height: 70, flexWrap: 'wrap' }}>
         <Button
           variant="outlined"
           startIcon={<FilterIcon />}
@@ -411,7 +402,7 @@ const InventoryListPage: React.FC = () => {
         >
           Add Item
         </Button>
-      </Card>
+      </Box>
 
       {/* Filter Popover */}
       <Popover
@@ -421,7 +412,7 @@ const InventoryListPage: React.FC = () => {
         anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
         transformOrigin={{ vertical: 'top', horizontal: 'left' }}
       >
-        <Box sx={{ p: 2, width: 300, border: '2px solid #FF6B35', borderRadius: 1 }}>
+        <Box sx={{ p: 2, width: 300, bgcolor: '#F8FAFC', borderRadius: '12px' }}>
           <FormControl fullWidth size="small" sx={{ mb: 2 }}>
             <InputLabel>Select Company</InputLabel>
             <Select
@@ -512,11 +503,11 @@ const InventoryListPage: React.FC = () => {
       </Popover>
 
       {/* Table */}
-      <Card sx={{ boxShadow: 'none', border: '1px solid #E5E7EB' }}>
+      <Box sx={{ border: '1px solid #E0E0E0', borderRadius: '12px', overflow: 'hidden', bgcolor: '#FFFFFF' }}>
         <TableContainer>
           <Table aria-label="Inventory items list">
-            <TableHead>
-              <TableRow sx={{ bgcolor: '#F9FAFB' }}>
+            <TableHead sx={{ bgcolor: '#F8FAFC' }}>
+              <TableRow>
                 <TableCell
                   scope="col"
                   sx={{ fontWeight: 600, color: '#374151' }}
@@ -670,7 +661,7 @@ const InventoryListPage: React.FC = () => {
             </TableBody>
           </Table>
         </TableContainer>
-      </Card>
+      </Box>
 
       <ConfirmDialog
         open={deleteDialog.open}

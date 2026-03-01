@@ -56,7 +56,6 @@ const UpdatePartyPage: React.FC = () => {
             companies={companies}
             onInputChange={handleInputChange}
             onSelectChange={handleSelectChange}
-            showCompanySelector
             title="Customer Details"
           />
         </Grid>

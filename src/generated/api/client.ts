@@ -2210,8 +2210,9 @@ export class SalesInvoicesApi {
     return response.json();
   }
 
-  async getNextNumber(): Promise<SalesInvoiceApiResponse<{ nextNumber: string }>> {
-    const url = `${this.basePath}/v1/api/sales-invoices/next-number`;
+  async getNextNumber(companyId?: number): Promise<SalesInvoiceApiResponse<{ nextNumber: string }>> {
+    const params = companyId ? `?companyId=${companyId}` : '';
+    const url = `${this.basePath}/v1/api/sales-invoices/next-number${params}`;
 
     const response = await this.fetch(url, {
       method: 'GET',
@@ -2476,8 +2477,9 @@ export class PurchaseInvoicesApi {
     return response.json();
   }
 
-  async getNextNumber(): Promise<PurchaseInvoiceApiResponse<{ nextNumber: string }>> {
-    const url = `${this.basePath}/v1/api/purchase-invoices/next-number`;
+  async getNextNumber(companyId?: number): Promise<PurchaseInvoiceApiResponse<{ nextNumber: string }>> {
+    const params = companyId ? `?companyId=${companyId}` : '';
+    const url = `${this.basePath}/v1/api/purchase-invoices/next-number${params}`;
 
     const response = await this.fetch(url, {
       method: 'GET',
@@ -2725,8 +2727,9 @@ export class PurchaseReturnsApi {
     return response.json();
   }
 
-  async getNextNumber(): Promise<PurchaseReturnApiResponse<{ nextNumber: string }>> {
-    const url = `${this.basePath}/v1/api/purchase-returns/next-number`;
+  async getNextNumber(companyId?: number): Promise<PurchaseReturnApiResponse<{ nextNumber: string }>> {
+    const params = companyId ? `?companyId=${companyId}` : '';
+    const url = `${this.basePath}/v1/api/purchase-returns/next-number${params}`;
 
     const response = await this.fetch(url, {
       method: 'GET',

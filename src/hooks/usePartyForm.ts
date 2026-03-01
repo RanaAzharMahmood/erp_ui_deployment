@@ -147,7 +147,14 @@ export const usePartyForm = ({ partyId, mode }: UsePartyFormOptions): UsePartyFo
   );
 
   const handleSelectChange = useCallback((name: string, value: SelectChangeValue) => {
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    setFormData((prev) => {
+      const updated = { ...prev, [name]: value };
+      // Keep companyId in sync with companyIds selection
+      if (name === 'companyIds' && Array.isArray(value)) {
+        updated.companyId = value.length > 0 ? value[0] : '';
+      }
+      return updated;
+    });
     // Clear field error when selection changes
     setFieldErrors((prev) => {
       if (prev[name]) {

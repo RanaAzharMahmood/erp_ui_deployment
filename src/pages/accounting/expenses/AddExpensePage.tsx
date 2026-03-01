@@ -57,11 +57,12 @@ const PAYMENT_METHODS = ['Cash', 'Cheque', 'Bank Transfer', 'Online', 'Credit Ca
 
 const AddExpensePage: React.FC = () => {
   const navigate = useNavigate();
+  const today = new Date().toISOString().split('T')[0];
   const [formData, setFormData] = useState<ExpenseFormData>({
     companyId: '',
     payFor: '',
-    date: '',
-    payDate: '',
+    date: today,
+    payDate: today,
     paymentMethod: '',
     remarks: '',
     status: 'Paid',
@@ -258,6 +259,7 @@ const AddExpensePage: React.FC = () => {
                   size="small"
                   sx={{ '& .MuiOutlinedInput-root': { bgcolor: 'white' } }}
                   InputLabelProps={{ shrink: true }}
+                  inputProps={{ min: today }}
                 />
               </Grid>
               <Grid item xs={12} sm={6}>
@@ -273,6 +275,7 @@ const AddExpensePage: React.FC = () => {
                   size="small"
                   sx={{ '& .MuiOutlinedInput-root': { bgcolor: 'white' } }}
                   InputLabelProps={{ shrink: true }}
+                  inputProps={{ min: today }}
                 />
               </Grid>
               <Grid item xs={12} sm={6}>
@@ -400,13 +403,17 @@ const AddExpensePage: React.FC = () => {
                     ))}
                   </Select>
                 </FormControl>
-                <Button
-                  variant="text"
-                  startIcon={<AddIcon />}
-                  sx={{ color: '#FF6B35', textTransform: 'none' }}
-                >
-                  Add Discount
-                </Button>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Typography variant="body2" color="text.secondary">Discount:</Typography>
+                  <Typography variant="body2">PKR</Typography>
+                  <TextField
+                    type="number"
+                    value={formData.discount}
+                    onChange={(e) => handleSelectChange('discount', parseFloat(e.target.value) || 0)}
+                    size="small"
+                    sx={{ width: 100, '& .MuiOutlinedInput-root': { bgcolor: 'white' } }}
+                  />
+                </Box>
               </Box>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <Typography variant="body2" color="text.secondary">Paid Amount:</Typography>
@@ -508,24 +515,6 @@ const AddExpensePage: React.FC = () => {
               ))}
             </Box>
           </FormSection>
-
-          {/* Download PDF Button */}
-          <Button
-            fullWidth
-            variant="contained"
-            startIcon={<DownloadIcon />}
-            sx={{
-              mb: 3,
-              py: 1.5,
-              textTransform: 'none',
-              bgcolor: '#10B981',
-              '&:hover': {
-                bgcolor: '#059669',
-              },
-            }}
-          >
-            Download PDF
-          </Button>
 
           {/* Action Buttons */}
           <Box sx={{ display: 'flex', gap: 2 }}>

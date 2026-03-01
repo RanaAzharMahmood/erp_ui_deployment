@@ -9,7 +9,7 @@ import {
   Business as BusinessIcon,
   Circle as CircleIcon,
 } from '@mui/icons-material';
-import Select, { MultiValue } from 'react-select';
+import Select, { SingleValue } from 'react-select';
 import FormSection from '../common/FormSection';
 import StatusSelector from '../common/StatusSelector';
 import { PartyFormData, Company } from './types';
@@ -42,14 +42,14 @@ const CompanyStatusSection: React.FC<CompanyStatusSectionProps> = ({
     label: company.name,
   }));
 
-  // Get selected values for react-select
-  const selectedValues = companyOptions.filter((option) =>
+  // Get selected value for react-select (single)
+  const selectedValue = companyOptions.find((option) =>
     formData.companyIds.includes(option.value)
-  );
+  ) || null;
 
-  // Handle multi-select change
-  const handleCompanyChange = (newValue: MultiValue<CompanyOption>) => {
-    const selectedIds = newValue ? newValue.map((option) => option.value) : [];
+  // Handle single-select change
+  const handleCompanyChange = (newValue: SingleValue<CompanyOption>) => {
+    const selectedIds = newValue ? [newValue.value] : [];
     onSelectChange('companyIds', selectedIds);
   };
 
@@ -64,21 +64,9 @@ const CompanyStatusSection: React.FC<CompanyStatusSectionProps> = ({
         borderColor: '#D1D5DB',
       },
     }),
-    multiValue: (base: any) => ({
-      ...base,
-      backgroundColor: 'rgba(255, 107, 53, 0.1)',
-    }),
-    multiValueLabel: (base: any) => ({
+    singleValue: (base: any) => ({
       ...base,
       color: '#374151',
-    }),
-    multiValueRemove: (base: any) => ({
-      ...base,
-      color: '#FF6B35',
-      '&:hover': {
-        backgroundColor: 'rgba(255, 107, 53, 0.2)',
-        color: '#FF6B35',
-      },
     }),
     menuPortal: (base: any) => ({
       ...base,
@@ -110,21 +98,21 @@ const CompanyStatusSection: React.FC<CompanyStatusSectionProps> = ({
             <BusinessIcon sx={{ color: '#FF6B35', fontSize: 20 }} />
           </Box>
           <Typography variant="h6" sx={{ fontWeight: 600 }} id="party-company-section-title">
-            Companies
+            Company
           </Typography>
         </Box>
         <Divider sx={{ mb: 2 }} />
 
         <Typography variant="body2" sx={{ mb: 0.5, fontWeight: 500 }} id="party-company-select-label">
-          Select Companies
+          Select Company
         </Typography>
         <Select
-          isMulti
-          name="companies"
+          name="company"
           options={companyOptions}
-          value={selectedValues}
+          value={selectedValue}
           onChange={handleCompanyChange}
-          placeholder="Select Companies"
+          placeholder="Select Company"
+          isClearable
           styles={customSelectStyles}
           menuPortalTarget={document.body}
           aria-labelledby="party-company-select-label"

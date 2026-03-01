@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Button,
-  Card,
   Chip,
   IconButton,
   MenuItem,
@@ -212,46 +211,18 @@ const VendorsPage: React.FC = () => {
 
   return (
     <Box sx={{ p: 3 }}>
-      {/* Header */}
+      {/* Toolbar */}
       <Box
         sx={{
           display: 'flex',
-          justifyContent: 'space-between',
           alignItems: 'center',
-          mb: 3,
-          flexWrap: 'wrap',
+          mb: 2,
           gap: 2,
-        }}
-      >
-        <Typography variant="h4" sx={{ fontWeight: 600 }}>
-          Vendors
-        </Typography>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={() => navigate('/vendor/add')}
-          sx={{
-            borderRadius: 2,
-            textTransform: 'none',
-            px: 3,
-            bgcolor: COLORS.primary,
-            '&:hover': {
-              bgcolor: COLORS.primaryHover,
-            },
-          }}
-        >
-          Add Vendor
-        </Button>
-      </Box>
-
-      {/* Filters */}
-      <Box
-        sx={{
-          mb: 3,
-          display: 'flex',
-          gap: 2,
-          flexWrap: 'wrap',
-          alignItems: 'center',
+          border: '1px solid #E0E0E0',
+          borderRadius: '12px',
+          bgcolor: '#FFFFFF',
+          px: 2,
+          height: 70,
         }}
       >
         <FormControl size="small" sx={{ minWidth: 150 }}>
@@ -289,13 +260,31 @@ const VendorsPage: React.FC = () => {
             ),
           }}
         />
+
+        <Button
+          variant="contained"
+          startIcon={<AddIcon />}
+          onClick={() => navigate('/vendor/add')}
+          sx={{
+            borderRadius: 2,
+            textTransform: 'none',
+            px: 3,
+            bgcolor: COLORS.primary,
+            '&:hover': {
+              bgcolor: COLORS.primaryHover,
+            },
+            whiteSpace: 'nowrap',
+          }}
+        >
+          Add Vendor
+        </Button>
       </Box>
 
       {/* Table */}
-      <Card>
+      <Box sx={{ border: '1px solid #E0E0E0', borderRadius: '12px', overflow: 'hidden', bgcolor: '#FFFFFF' }}>
         <TableContainer>
           <Table aria-label="Vendors list">
-            <TableHead>
+            <TableHead sx={{ bgcolor: '#F8FAFC' }}>
               <TableRow>
                 <TableCell
                   scope="col"
@@ -476,7 +465,7 @@ const VendorsPage: React.FC = () => {
             aria-label="Vendors table pagination"
           />
         )}
-      </Card>
+      </Box>
 
       {/* Success Snackbar */}
       <Snackbar

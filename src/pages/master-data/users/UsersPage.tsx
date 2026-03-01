@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Button,
-  Card,
   Chip,
   IconButton,
   MenuItem,
@@ -379,10 +378,14 @@ const UsersPage: React.FC = () => {
       <Box
         sx={{
           display: 'flex',
-          justifyContent: 'space-between',
           alignItems: 'center',
-          mb: 3,
+          mb: 2,
           gap: 2,
+          border: '1px solid #E0E0E0',
+          borderRadius: '12px',
+          bgcolor: '#FFFFFF',
+          px: 2,
+          height: 70,
         }}
       >
         <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
@@ -396,7 +399,7 @@ const UsersPage: React.FC = () => {
               color: 'text.primary',
               '&:hover': {
                 borderColor: '#BDBDBD',
-                bgcolor: 'rgba(0, 0, 0, 0.02)',
+                bgcolor: '#FFFFFF',
               },
             }}
           >
@@ -447,10 +450,10 @@ const UsersPage: React.FC = () => {
       />
 
       {/* Table */}
-      <Card sx={{ boxShadow: 1 }}>
+      <Box sx={{ border: '1px solid #E0E0E0', borderRadius: '12px', overflow: 'hidden', bgcolor: '#FFFFFF' }}>
         <TableContainer>
           <Table aria-label="Users list">
-            <TableHead sx={{ bgcolor: 'rgba(0, 0, 0, 0.02)' }}>
+            <TableHead sx={{ bgcolor: '#F8FAFC' }}>
               <TableRow>
                 <TableCell
                   scope="col"
@@ -633,7 +636,7 @@ const UsersPage: React.FC = () => {
             aria-label="Users table pagination"
           />
         )}
-      </Card>
+      </Box>
 
       {/* Success Snackbar */}
       <Snackbar

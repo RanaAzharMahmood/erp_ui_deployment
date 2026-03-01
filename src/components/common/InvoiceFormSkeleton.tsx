@@ -171,16 +171,6 @@ const InvoiceFormSkeleton: React.FC = () => {
             </Box>
           </Card>
 
-          {/* Download PDF Button Skeleton */}
-          <Skeleton
-            variant="rounded"
-            height={48}
-            sx={{
-              mb: 3,
-              borderRadius: 1,
-              bgcolor: 'rgba(16, 185, 129, 0.2)',
-            }}
-          />
 
           {/* Action Buttons Skeleton */}
           <Box sx={{ display: 'flex', gap: 2 }}>

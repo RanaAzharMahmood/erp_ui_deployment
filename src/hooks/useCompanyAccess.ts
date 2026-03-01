@@ -90,9 +90,25 @@ export const useCompanyAccess = ({
       roleName === 'Admin' ? 1 : roleName === 'Manager' ? 2 : 3;
 
     setExtendedCompanyAccess((prev) =>
-      prev.map((access) =>
-        access.companyId === companyId ? { ...access, roleId, roleName } : access
-      )
+      prev.map((access) => {
+        if (access.companyId !== companyId) return access;
+
+        // Manager/Admin get all permissions auto-selected
+        const isManagerOrAdmin = roleId === 1 || roleId === 2;
+        const newModulePermissions: Record<string, string[]> = {};
+        if (isManagerOrAdmin) {
+          PERMISSION_MODULES.forEach((module) => {
+            newModulePermissions[module.id] = [...module.permissions];
+          });
+        }
+
+        return {
+          ...access,
+          roleId,
+          roleName,
+          modulePermissions: isManagerOrAdmin ? newModulePermissions : access.modulePermissions,
+        };
+      })
     );
   }, []);
 

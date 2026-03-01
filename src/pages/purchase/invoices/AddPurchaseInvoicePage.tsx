@@ -34,7 +34,7 @@ import FormSection from '../../../components/common/FormSection';
 import InvoiceFormSkeleton from '../../../components/common/InvoiceFormSkeleton';
 import { useCompanies } from '../../../hooks';
 import {
-  getVendorsApi,
+  getPartiesApi,
   getTaxesApi,
   getItemsApi,
   getPurchaseInvoicesApi,
@@ -56,13 +56,14 @@ const AddPurchaseInvoicePage: React.FC = () => {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const isEditMode = Boolean(id);
+  const today = new Date().toISOString().split('T')[0];
   const { companies: companiesData } = useCompanies();
 
   const [formData, setFormData] = useState<PurchaseInvoiceFormData>({
     companyId: '',
     vendorId: '',
     billNumber: '',
-    date: '',
+    date: today,
     dueDate: '',
     paymentMethod: '',
     accountNumber: '',
@@ -88,48 +89,52 @@ const AddPurchaseInvoicePage: React.FC = () => {
   const companies: CompanyOption[] = (companiesData || []).map((c) => ({ id: c.id, name: c.name || '' }));
 
   // Check if payment method requires image upload and account number
-  const requiresImageAndAccount = formData.paymentMethod === 'Bank Transfer (Online)' || formData.paymentMethod === 'Cheque';
+  const requiresImageAndAccount = formData.paymentMethod !== '' && formData.paymentMethod !== 'Hand in Cash';
 
-  // Generate bill number from API
-  const generateBillNumber = useCallback(async () => {
-    try {
-      const purchaseInvoicesApi = getPurchaseInvoicesApi();
-      const response = await purchaseInvoicesApi.getNextNumber();
-      if (response.data?.nextNumber) {
-        return response.data.nextNumber;
+  // Fetch bill number when companyId changes (for new invoices only)
+  useEffect(() => {
+    if (isEditMode) return;
+    const fetchBillNumber = async () => {
+      try {
+        const api = getPurchaseInvoicesApi();
+        const companyId = formData.companyId ? Number(formData.companyId) : undefined;
+        const response = await api.getNextNumber(companyId);
+        if (response.data?.nextNumber) {
+          setFormData((prev) => ({ ...prev, billNumber: response.data.nextNumber }));
+        }
+      } catch (err) {
+        console.error('Error fetching next bill number from API:', err);
       }
-    } catch (err) {
-      console.error('Error getting next bill number from API:', err);
-    }
-    // Return default format on API failure
-    return `PI-${String(1).padStart(6, '0')}`;
-  }, []);
+    };
+    fetchBillNumber();
+  }, [formData.companyId, isEditMode]);
+
+  // Fetch vendors when companyId changes
+  useEffect(() => {
+    const loadVendors = async () => {
+      try {
+        const partiesApi = getPartiesApi();
+        const companyIdParam = formData.companyId ? Number(formData.companyId) : undefined;
+        const partiesResponse = await partiesApi.v1ApiPartiesGet(true, 'Vendor', companyIdParam);
+        const raw = partiesResponse as any;
+        const partiesList: Array<{ id?: number; partyName?: string; name?: string }> =
+          Array.isArray(raw) ? raw
+          : Array.isArray(raw?.data?.data) ? raw.data.data
+          : Array.isArray(raw?.data) ? raw.data
+          : [];
+        setVendors(partiesList.map((c) => ({ id: String(c.id), name: c.partyName || c.name || '' })));
+      } catch (err) {
+        console.error('Error loading vendors from API:', err);
+        setVendors([]);
+      }
+    };
+    loadVendors();
+  }, [formData.companyId]);
 
   // Load data from API
   useEffect(() => {
     const loadData = async () => {
       try {
-        // Load vendors from API
-        try {
-          const vendorsApi = getVendorsApi();
-          const vendorsResponse = await vendorsApi.getAll();
-          const vendorsData = vendorsResponse.data as { data?: Array<{ id?: number; name?: string }> } | Array<{ id?: number; name?: string }> | undefined;
-          if (vendorsData && 'data' in vendorsData && vendorsData.data) {
-            setVendors(vendorsData.data.map((v) => ({
-              id: String(v.id),
-              name: v.name || '',
-            })));
-          } else if (Array.isArray(vendorsData)) {
-            setVendors(vendorsData.map((v) => ({
-              id: String(v.id),
-              name: v.name || '',
-            })));
-          }
-        } catch (err) {
-          console.error('Error loading vendors from API:', err);
-          setVendors([]);
-        }
-
         // Load taxes from API
         try {
           const taxesApi = getTaxesApi();
@@ -167,12 +172,6 @@ const AddPurchaseInvoicePage: React.FC = () => {
         } catch (err) {
           console.error('Error loading items from API:', err);
           setItems([]);
-        }
-
-        // Generate bill number for new invoices
-        if (!isEditMode) {
-          const billNumber = await generateBillNumber();
-          setFormData((prev) => ({ ...prev, billNumber }));
         }
 
         // Load existing invoice for edit mode
@@ -224,7 +223,7 @@ const AddPurchaseInvoicePage: React.FC = () => {
     };
 
     loadData();
-  }, [isEditMode, id, generateBillNumber]);
+  }, [isEditMode, id]);
 
   const handleInputChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -441,6 +440,7 @@ const AddPurchaseInvoicePage: React.FC = () => {
                   value={formData.date}
                   onChange={handleInputChange}
                   size="small"
+                  inputProps={{ min: today }}
                   sx={{ '& .MuiOutlinedInput-root': { bgcolor: 'white' } }}
                   InputLabelProps={{ shrink: true }}
                 />
@@ -456,6 +456,7 @@ const AddPurchaseInvoicePage: React.FC = () => {
                   value={formData.dueDate}
                   onChange={handleInputChange}
                   size="small"
+                  inputProps={{ min: today }}
                   sx={{ '& .MuiOutlinedInput-root': { bgcolor: 'white' } }}
                   InputLabelProps={{ shrink: true }}
                 />
@@ -548,9 +549,10 @@ const AddPurchaseInvoicePage: React.FC = () => {
                           fullWidth
                           type="number"
                           value={item.quantity}
-                          onChange={(e) => handleLineItemChange(item.id, 'quantity', parseFloat(e.target.value) || 0)}
+                          onChange={(e) => handleLineItemChange(item.id, 'quantity', Math.max(0, parseFloat(e.target.value) || 0))}
                           placeholder="0"
                           size="small"
+                          inputProps={{ min: 0 }}
                           sx={{ '& .MuiOutlinedInput-root': { bgcolor: 'white' } }}
                         />
                       </TableCell>
@@ -559,9 +561,10 @@ const AddPurchaseInvoicePage: React.FC = () => {
                           fullWidth
                           type="number"
                           value={item.rate}
-                          onChange={(e) => handleLineItemChange(item.id, 'rate', parseFloat(e.target.value) || 0)}
+                          onChange={(e) => handleLineItemChange(item.id, 'rate', Math.max(0, parseFloat(e.target.value) || 0))}
                           placeholder="0.0 PKR"
                           size="small"
+                          inputProps={{ min: 0 }}
                           sx={{ '& .MuiOutlinedInput-root': { bgcolor: 'white' } }}
                         />
                       </TableCell>
@@ -632,13 +635,18 @@ const AddPurchaseInvoicePage: React.FC = () => {
                     ))}
                   </Select>
                 </FormControl>
-                <Button
-                  variant="text"
-                  startIcon={<AddIcon />}
-                  sx={{ color: '#FF6B35', textTransform: 'none' }}
-                >
-                  Add Discount
-                </Button>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Typography variant="body2" color="text.secondary">Discount:</Typography>
+                  <Typography variant="body2">PKR</Typography>
+                  <TextField
+                    type="number"
+                    value={formData.discount}
+                    onChange={(e) => handleSelectChange('discount', Math.max(0, parseFloat(e.target.value) || 0))}
+                    size="small"
+                    inputProps={{ min: 0 }}
+                    sx={{ width: 100, '& .MuiOutlinedInput-root': { bgcolor: 'white' } }}
+                  />
+                </Box>
               </Box>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <Typography variant="body2" color="text.secondary">Paid Amount:</Typography>
@@ -647,8 +655,9 @@ const AddPurchaseInvoicePage: React.FC = () => {
                   <TextField
                     type="number"
                     value={formData.paidAmount}
-                    onChange={(e) => handleSelectChange('paidAmount', parseFloat(e.target.value) || 0)}
+                    onChange={(e) => handleSelectChange('paidAmount', Math.max(0, parseFloat(e.target.value) || 0))}
                     size="small"
+                    inputProps={{ min: 0 }}
                     sx={{ width: 100, '& .MuiOutlinedInput-root': { bgcolor: 'white' } }}
                   />
                 </Box>
@@ -704,66 +713,50 @@ const AddPurchaseInvoicePage: React.FC = () => {
             </FormSection>
           )}
 
-          {/* Status */}
-          <FormSection title="Status" icon={<CircleIcon />} sx={{ mb: 3 }}>
-            <Divider sx={{ mb: 2, mt: -1 }} />
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-              {(['Paid', 'Overdue', 'Pending'] as const).map((status) => (
-                <Box
-                  key={status}
-                  onClick={() => handleStatusChange(status)}
-                  sx={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 1,
-                    cursor: 'pointer',
-                  }}
-                >
+          {/* Status - Only show in edit mode */}
+          {isEditMode && (
+            <FormSection title="Status" icon={<CircleIcon />} sx={{ mb: 3 }}>
+              <Divider sx={{ mb: 2, mt: -1 }} />
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                {(['Paid', 'Overdue', 'Pending'] as const).map((status) => (
                   <Box
+                    key={status}
+                    onClick={() => handleStatusChange(status)}
                     sx={{
-                      width: 16,
-                      height: 16,
-                      borderRadius: '50%',
-                      border: '2px solid #FF6B35',
                       display: 'flex',
                       alignItems: 'center',
-                      justifyContent: 'center',
+                      gap: 1,
+                      cursor: 'pointer',
                     }}
                   >
-                    {formData.status === status && (
-                      <Box
-                        sx={{
-                          width: 8,
-                          height: 8,
-                          borderRadius: '50%',
-                          bgcolor: '#FF6B35',
-                        }}
-                      />
-                    )}
+                    <Box
+                      sx={{
+                        width: 16,
+                        height: 16,
+                        borderRadius: '50%',
+                        border: '2px solid #FF6B35',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      {formData.status === status && (
+                        <Box
+                          sx={{
+                            width: 8,
+                            height: 8,
+                            borderRadius: '50%',
+                            bgcolor: '#FF6B35',
+                          }}
+                        />
+                      )}
+                    </Box>
+                    <Typography variant="body2">{status}</Typography>
                   </Box>
-                  <Typography variant="body2">{status}</Typography>
-                </Box>
-              ))}
-            </Box>
-          </FormSection>
-
-          {/* Download PDF Button */}
-          <Button
-            fullWidth
-            variant="contained"
-            startIcon={<DownloadIcon />}
-            sx={{
-              mb: 3,
-              py: 1.5,
-              textTransform: 'none',
-              bgcolor: '#10B981',
-              '&:hover': {
-                bgcolor: '#059669',
-              },
-            }}
-          >
-            Download PDF
-          </Button>
+                ))}
+              </Box>
+            </FormSection>
+          )}
 
           {/* Action Buttons */}
           <Box sx={{ display: 'flex', gap: 2 }}>

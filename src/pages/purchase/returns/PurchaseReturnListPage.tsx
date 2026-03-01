@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
-  Card,
   Table,
   TableBody,
   TableCell,
@@ -235,7 +234,6 @@ const PurchaseReturnListPage: React.FC = () => {
   if (loading) {
     return (
       <Box sx={{ p: 3 }}>
-        <Typography variant="h5" sx={{ fontWeight: 600, mb: 3 }}>Purchase Return</Typography>
         <Table>
           <TableBody>
             <TableSkeleton rows={5} columns={9} />
@@ -246,16 +244,9 @@ const PurchaseReturnListPage: React.FC = () => {
   }
 
   return (
-    <Box sx={{ p: 3, bgcolor: '#F9FAFB', minHeight: '100vh' }}>
-      {/* Header */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h5" sx={{ fontWeight: 600 }}>
-          Purchase Return
-        </Typography>
-      </Box>
-
+    <Box sx={{ p: 3 }}>
       {/* Toolbar */}
-      <Card sx={{ p: 2, mb: 3, display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', mb: 2, gap: 2, border: '1px solid #E0E0E0', borderRadius: '12px', bgcolor: '#FFFFFF', px: 2, height: 70 }}>
         <Button
           variant="outlined"
           startIcon={<FilterIcon />}
@@ -324,7 +315,7 @@ const PurchaseReturnListPage: React.FC = () => {
         >
           Return Purchase Invoice
         </Button>
-      </Card>
+      </Box>
 
       {/* Filter Popover */}
       <Popover
@@ -334,7 +325,7 @@ const PurchaseReturnListPage: React.FC = () => {
         anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
         transformOrigin={{ vertical: 'top', horizontal: 'left' }}
       >
-        <Box sx={{ p: 2, width: 350, border: `2px solid ${COLORS.primary}`, borderRadius: 1 }}>
+        <Box sx={{ p: 2, width: 350, bgcolor: '#F8FAFC', borderRadius: '12px' }}>
           <FormControl fullWidth size="small" sx={{ mb: 2 }}>
             <InputLabel>Select Company</InputLabel>
             <Select
@@ -436,11 +427,11 @@ const PurchaseReturnListPage: React.FC = () => {
       </Popover>
 
       {/* Table */}
-      <Card sx={{ boxShadow: 'none', border: '1px solid #E5E7EB' }}>
+      <Box sx={{ border: '1px solid #E0E0E0', borderRadius: '12px', overflow: 'hidden', bgcolor: '#FFFFFF' }}>
         <TableContainer>
           <Table aria-label="Purchase returns list">
             <TableHead>
-              <TableRow sx={{ bgcolor: '#F9FAFB' }}>
+              <TableRow sx={{ bgcolor: '#F8FAFC' }}>
                 <TableCell
                   scope="col"
                   sx={{ fontWeight: 600, color: '#374151' }}
@@ -612,7 +603,7 @@ const PurchaseReturnListPage: React.FC = () => {
             </TableBody>
           </Table>
         </TableContainer>
-      </Card>
+      </Box>
 
       {/* Success Snackbar */}
       <Snackbar

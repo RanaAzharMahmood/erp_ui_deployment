@@ -35,7 +35,7 @@ import InvoiceFormSkeleton from '../../../components/common/InvoiceFormSkeleton'
 import { useCompanies } from '../../../hooks';
 import {
   getSalesInvoicesApi,
-  getCustomersApi,
+  getPartiesApi,
   getTaxesApi,
   getItemsApi,
 } from '../../../generated/api/client';
@@ -56,13 +56,14 @@ const AddSalesInvoicePage: React.FC = () => {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const isEditMode = Boolean(id);
+  const today = new Date().toISOString().split('T')[0];
   const { companies: companiesData } = useCompanies();
 
   const [formData, setFormData] = useState<SalesInvoiceFormData>({
     companyId: '',
     customerId: '',
     invoiceNumber: '',
-    date: '',
+    date: today,
     dueDate: '',
     paymentMethod: '',
     accountNumber: '',
@@ -87,47 +88,55 @@ const AddSalesInvoicePage: React.FC = () => {
   // Derive companies from hook data - use c.name as the hook normalizes to 'name' field
   const companies: CompanyOption[] = (companiesData || []).map((c) => ({ id: c.id, name: c.name || '' }));
 
-  // Check if payment method requires image upload and account number
-  const requiresImageAndAccount = formData.paymentMethod === 'Bank Transfer (Online)' || formData.paymentMethod === 'Cheque';
+  // Check if payment method requires image upload and account number (any non-cash method)
+  const requiresImageAndAccount = formData.paymentMethod !== '' && formData.paymentMethod !== 'Hand in Cash';
 
-  // Generate invoice number from API
-  const generateInvoiceNumber = useCallback(async () => {
-    try {
-      const api = getSalesInvoicesApi();
-      const response = await api.getNextNumber();
-      return response.data.nextNumber;
-    } catch (err) {
-      console.error('Error fetching next invoice number from API:', err);
-      setError('Failed to generate invoice number. Please try again.');
-      return '';
-    }
-  }, []);
+  // Fetch invoice number when companyId changes (for new invoices only)
+  useEffect(() => {
+    if (isEditMode) return;
+    const fetchInvoiceNumber = async () => {
+      try {
+        const api = getSalesInvoicesApi();
+        const companyId = formData.companyId ? Number(formData.companyId) : undefined;
+        const response = await api.getNextNumber(companyId);
+        setFormData((prev) => ({ ...prev, invoiceNumber: response.data.nextNumber }));
+      } catch (err) {
+        console.error('Error fetching next invoice number from API:', err);
+      }
+    };
+    fetchInvoiceNumber();
+  }, [formData.companyId, isEditMode]);
+
+  // Fetch customers when companyId changes
+  useEffect(() => {
+    const loadCustomers = async () => {
+      try {
+        const partiesApi = getPartiesApi();
+        const companyIdParam = formData.companyId ? Number(formData.companyId) : undefined;
+        const partiesResponse = await partiesApi.v1ApiPartiesGet(true, 'Customer', companyIdParam);
+        const raw = partiesResponse as any;
+        const partiesList: Array<{ id?: number; partyName?: string; name?: string }> =
+          Array.isArray(raw) ? raw
+          : Array.isArray(raw?.data?.data) ? raw.data.data
+          : Array.isArray(raw?.data) ? raw.data
+          : [];
+        setCustomers(partiesList.map((c) => ({
+          id: String(c.id),
+          name: c.partyName || c.name || '',
+        })));
+      } catch (err) {
+        console.error('Error loading customers from API:', err);
+        setCustomers([]);
+      }
+    };
+    loadCustomers();
+  }, [formData.companyId]);
 
   // Load data from API
   useEffect(() => {
     const loadData = async () => {
       setIsLoading(true);
       try {
-        // Load customers from API
-        try {
-          const customersApi = getCustomersApi();
-          const customersResponse = await customersApi.getAll();
-          if (customersResponse.data?.data) {
-            setCustomers(customersResponse.data.data.map((c) => ({
-              id: String(c.id),
-              name: c.name,
-            })));
-          } else if (Array.isArray(customersResponse.data)) {
-            setCustomers((customersResponse.data as Array<{ id?: number; name?: string }>).map((c) => ({
-              id: String(c.id),
-              name: c.name || '',
-            })));
-          }
-        } catch (err) {
-          console.error('Error loading customers from API:', err);
-          setCustomers([]);
-        }
-
         // Load taxes from API
         try {
           const taxesApi = getTaxesApi();
@@ -174,19 +183,15 @@ const AddSalesInvoicePage: React.FC = () => {
           setItems([]);
         }
 
-        // Generate invoice number for new invoices
-        if (!isEditMode) {
-          const invoiceNumber = await generateInvoiceNumber();
-          setFormData((prev) => ({ ...prev, invoiceNumber }));
-        }
-
         // Load existing invoice for edit mode
         if (isEditMode && id) {
           try {
             const api = getSalesInvoicesApi();
             const response = await api.getById(Number(id));
-            const invoice = response.data;
+            const invoice = response.data as any;
             if (invoice) {
+              // Extract taxId from first line item if available
+              const lineTaxId = invoice.lines?.[0]?.taxId ? String(invoice.lines[0].taxId) : '';
               setFormData({
                 companyId: invoice.companyId || '',
                 customerId: String(invoice.customerId) || '',
@@ -195,14 +200,14 @@ const AddSalesInvoicePage: React.FC = () => {
                 dueDate: invoice.dueDate || '',
                 paymentMethod: invoice.paymentMethod || '',
                 accountNumber: invoice.accountNumber || '',
-                remarks: invoice.remarks || '',
+                remarks: invoice.notes || invoice.remarks || '',
                 status: invoice.status === 'paid' ? 'Paid' : invoice.status === 'overdue' ? 'Overdue' : 'Pending',
-                taxId: '',
+                taxId: lineTaxId,
                 paidAmount: invoice.paidAmount || 0,
-                discount: invoice.discount || 0,
+                discount: invoice.discountAmount ?? invoice.discount ?? 0,
               });
               if (invoice.lines) {
-                setLineItems(invoice.lines.map((l) => ({
+                setLineItems(invoice.lines.map((l: any) => ({
                   id: String(l.id || Date.now()),
                   item: l.itemName || '',
                   quantity: l.quantity,
@@ -228,7 +233,7 @@ const AddSalesInvoicePage: React.FC = () => {
     };
 
     loadData();
-  }, [isEditMode, id, generateInvoiceNumber]);
+  }, [isEditMode, id]);
 
   const handleInputChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -247,10 +252,12 @@ const AddSalesInvoicePage: React.FC = () => {
   }, []);
 
   const handleLineItemChange = useCallback((id: string, field: string, value: string | number) => {
+    // Prevent negative values for numeric fields
+    const sanitizedValue = (field === 'quantity' || field === 'rate') && typeof value === 'number' && value < 0 ? 0 : value;
     setLineItems((prev) =>
       prev.map((item) => {
         if (item.id === id) {
-          const updated = { ...item, [field]: value };
+          const updated = { ...item, [field]: sanitizedValue };
           // Auto-calculate amount
           if (field === 'quantity' || field === 'rate') {
             updated.amount = updated.quantity * updated.rate;
@@ -444,6 +451,7 @@ const AddSalesInvoicePage: React.FC = () => {
                   value={formData.date}
                   onChange={handleInputChange}
                   size="small"
+                  inputProps={{ min: today }}
                   sx={{ '& .MuiOutlinedInput-root': { bgcolor: 'white' } }}
                   InputLabelProps={{ shrink: true }}
                 />
@@ -459,6 +467,7 @@ const AddSalesInvoicePage: React.FC = () => {
                   value={formData.dueDate}
                   onChange={handleInputChange}
                   size="small"
+                  inputProps={{ min: today }}
                   sx={{ '& .MuiOutlinedInput-root': { bgcolor: 'white' } }}
                   InputLabelProps={{ shrink: true }}
                 />
@@ -551,9 +560,10 @@ const AddSalesInvoicePage: React.FC = () => {
                           fullWidth
                           type="number"
                           value={item.quantity}
-                          onChange={(e) => handleLineItemChange(item.id, 'quantity', parseFloat(e.target.value) || 0)}
+                          onChange={(e) => handleLineItemChange(item.id, 'quantity', Math.max(0, parseFloat(e.target.value) || 0))}
                           placeholder="0"
                           size="small"
+                          inputProps={{ min: 0 }}
                           sx={{ '& .MuiOutlinedInput-root': { bgcolor: 'white' } }}
                         />
                       </TableCell>
@@ -562,9 +572,10 @@ const AddSalesInvoicePage: React.FC = () => {
                           fullWidth
                           type="number"
                           value={item.rate}
-                          onChange={(e) => handleLineItemChange(item.id, 'rate', parseFloat(e.target.value) || 0)}
+                          onChange={(e) => handleLineItemChange(item.id, 'rate', Math.max(0, parseFloat(e.target.value) || 0))}
                           placeholder="0.0 PKR"
                           size="small"
+                          inputProps={{ min: 0 }}
                           sx={{ '& .MuiOutlinedInput-root': { bgcolor: 'white' } }}
                         />
                       </TableCell>
@@ -635,13 +646,18 @@ const AddSalesInvoicePage: React.FC = () => {
                     ))}
                   </Select>
                 </FormControl>
-                <Button
-                  variant="text"
-                  startIcon={<AddIcon />}
-                  sx={{ color: '#FF6B35', textTransform: 'none' }}
-                >
-                  Add Discount
-                </Button>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Typography variant="body2" color="text.secondary">Discount:</Typography>
+                  <Typography variant="body2">PKR</Typography>
+                  <TextField
+                    type="number"
+                    value={formData.discount}
+                    onChange={(e) => handleSelectChange('discount', Math.max(0, parseFloat(e.target.value) || 0))}
+                    size="small"
+                    inputProps={{ min: 0 }}
+                    sx={{ width: 100, '& .MuiOutlinedInput-root': { bgcolor: 'white' } }}
+                  />
+                </Box>
               </Box>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <Typography variant="body2" color="text.secondary">Paid Amount:</Typography>
@@ -650,13 +666,19 @@ const AddSalesInvoicePage: React.FC = () => {
                   <TextField
                     type="number"
                     value={formData.paidAmount}
-                    onChange={(e) => handleSelectChange('paidAmount', parseFloat(e.target.value) || 0)}
+                    onChange={(e) => handleSelectChange('paidAmount', Math.max(0, parseFloat(e.target.value) || 0))}
                     size="small"
+                    inputProps={{ min: 0 }}
                     sx={{ width: 100, '& .MuiOutlinedInput-root': { bgcolor: 'white' } }}
                   />
                 </Box>
                 <Typography variant="body2" color="text.secondary" sx={{ ml: 4 }}>Balance:</Typography>
-                <Typography variant="body2" sx={{ fontWeight: 500 }}>{balance.toFixed(1)} PKR</Typography>
+                <Typography variant="body2" sx={{ fontWeight: 500 }}>{balance.toFixed(2)} PKR</Typography>
+              </Box>
+              <Divider />
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Typography variant="body1" sx={{ fontWeight: 600 }}>Total Amount:</Typography>
+                <Typography variant="body1" sx={{ fontWeight: 600, color: '#FF6B35' }}>{subtotal.toFixed(2)} PKR</Typography>
               </Box>
             </Box>
           </FormSection>
@@ -707,66 +729,50 @@ const AddSalesInvoicePage: React.FC = () => {
             </FormSection>
           )}
 
-          {/* Status */}
-          <FormSection title="Status" icon={<CircleIcon />} sx={{ mb: 3 }}>
-            <Divider sx={{ mb: 2, mt: -1 }} />
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-              {(['Paid', 'Overdue', 'Pending'] as const).map((status) => (
-                <Box
-                  key={status}
-                  onClick={() => handleStatusChange(status)}
-                  sx={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 1,
-                    cursor: 'pointer',
-                  }}
-                >
+          {/* Status - Only show in edit mode */}
+          {isEditMode && (
+            <FormSection title="Status" icon={<CircleIcon />} sx={{ mb: 3 }}>
+              <Divider sx={{ mb: 2, mt: -1 }} />
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                {(['Paid', 'Overdue', 'Pending'] as const).map((status) => (
                   <Box
+                    key={status}
+                    onClick={() => handleStatusChange(status)}
                     sx={{
-                      width: 16,
-                      height: 16,
-                      borderRadius: '50%',
-                      border: '2px solid #FF6B35',
                       display: 'flex',
                       alignItems: 'center',
-                      justifyContent: 'center',
+                      gap: 1,
+                      cursor: 'pointer',
                     }}
                   >
-                    {formData.status === status && (
-                      <Box
-                        sx={{
-                          width: 8,
-                          height: 8,
-                          borderRadius: '50%',
-                          bgcolor: '#FF6B35',
-                        }}
-                      />
-                    )}
+                    <Box
+                      sx={{
+                        width: 16,
+                        height: 16,
+                        borderRadius: '50%',
+                        border: '2px solid #FF6B35',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      {formData.status === status && (
+                        <Box
+                          sx={{
+                            width: 8,
+                            height: 8,
+                            borderRadius: '50%',
+                            bgcolor: '#FF6B35',
+                          }}
+                        />
+                      )}
+                    </Box>
+                    <Typography variant="body2">{status}</Typography>
                   </Box>
-                  <Typography variant="body2">{status}</Typography>
-                </Box>
-              ))}
-            </Box>
-          </FormSection>
-
-          {/* Download PDF Button */}
-          <Button
-            fullWidth
-            variant="contained"
-            startIcon={<DownloadIcon />}
-            sx={{
-              mb: 3,
-              py: 1.5,
-              textTransform: 'none',
-              bgcolor: '#10B981',
-              '&:hover': {
-                bgcolor: '#059669',
-              },
-            }}
-          >
-            Download PDF
-          </Button>
+                ))}
+              </Box>
+            </FormSection>
+          )}
 
           {/* Action Buttons */}
           <Box sx={{ display: 'flex', gap: 2 }}>

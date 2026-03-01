@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
-  Card,
   Table,
   TableBody,
   TableCell,
@@ -43,9 +42,10 @@ interface SalesInvoice {
   invoiceNumber: string;
   companyName: string;
   customerName: string;
-  item: string;
-  quantity: number;
-  netAmount: number;
+  totalAmount: number;
+  paidAmount: number;
+  balance: number;
+  paymentMethod: string;
   status: 'Active' | 'Paid' | 'Overdue' | 'Pending';
   date: string;
   createdAt: string;
@@ -86,18 +86,18 @@ const SalesInvoiceListPage: React.FC = () => {
         const salesInvoicesApi = getSalesInvoicesApi();
         const response = await salesInvoicesApi.getAll();
         if (response.data?.data) {
-          const apiInvoices = response.data.data.map((inv) => {
-            // Get first line item name and total quantity from lines
-            const firstItem = inv.lines?.[0]?.itemName || '';
-            const totalQuantity = inv.lines?.reduce((sum, l) => sum + (l.quantity || 0), 0) || 0;
+          const apiInvoices = response.data.data.map((inv: any) => {
+            const total = inv.totalAmount || 0;
+            const paid = inv.paidAmount || 0;
             return {
               id: String(inv.id),
               invoiceNumber: inv.invoiceNumber,
               companyName: inv.companyName || '',
               customerName: inv.customerName || '',
-              item: firstItem,
-              quantity: totalQuantity,
-              netAmount: inv.totalAmount || 0,
+              totalAmount: total,
+              paidAmount: paid,
+              balance: total - paid,
+              paymentMethod: inv.paymentMethod || '-',
               status: (inv.status === 'paid' ? 'Paid' : inv.status === 'overdue' ? 'Overdue' : 'Pending') as 'Active' | 'Paid' | 'Overdue' | 'Pending',
               date: inv.date,
               createdAt: inv.createdAt || '',
@@ -130,7 +130,7 @@ const SalesInvoiceListPage: React.FC = () => {
         invoice.invoiceNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
         invoice.companyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
         invoice.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        invoice.item.toLowerCase().includes(searchTerm.toLowerCase());
+        invoice.paymentMethod.toLowerCase().includes(searchTerm.toLowerCase());
 
       const matchesCompany = !filters.company || invoice.companyName === filters.company;
       const matchesCustomer = !filters.customer || invoice.customerName === filters.customer;
@@ -145,7 +145,7 @@ const SalesInvoiceListPage: React.FC = () => {
       let bValue: string | number = b[orderBy];
 
       // Handle numeric sorting
-      if (orderBy === 'quantity' || orderBy === 'netAmount') {
+      if (orderBy === 'totalAmount' || orderBy === 'paidAmount' || orderBy === 'balance') {
         aValue = Number(aValue) || 0;
         bValue = Number(bValue) || 0;
       } else {
@@ -246,16 +246,9 @@ const SalesInvoiceListPage: React.FC = () => {
   }
 
   return (
-    <Box sx={{ p: 3, bgcolor: '#F9FAFB', minHeight: '100vh' }}>
-      {/* Header */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h5" sx={{ fontWeight: 600 }}>
-          Sales Invoice
-        </Typography>
-      </Box>
-
+    <Box sx={{ p: 3 }}>
       {/* Toolbar */}
-      <Card sx={{ p: 2, mb: 3, display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', mb: 2, gap: 2, border: '1px solid #E0E0E0', borderRadius: '12px', bgcolor: '#FFFFFF', px: 2, height: 70 }}>
         <Button
           variant="outlined"
           startIcon={<FilterIcon />}
@@ -324,7 +317,7 @@ const SalesInvoiceListPage: React.FC = () => {
         >
           Add Sales Invoice
         </Button>
-      </Card>
+      </Box>
 
       {/* Filter Popover */}
       <Popover
@@ -334,7 +327,7 @@ const SalesInvoiceListPage: React.FC = () => {
         anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
         transformOrigin={{ vertical: 'top', horizontal: 'left' }}
       >
-        <Box sx={{ p: 2, width: 350, border: `2px solid ${COLORS.primary}`, borderRadius: 1 }}>
+        <Box sx={{ p: 2, width: 350, bgcolor: '#F8FAFC', borderRadius: '12px' }}>
           <FormControl fullWidth size="small" sx={{ mb: 2 }}>
             <InputLabel>Select Company</InputLabel>
             <Select
@@ -437,11 +430,11 @@ const SalesInvoiceListPage: React.FC = () => {
       </Popover>
 
       {/* Table */}
-      <Card sx={{ boxShadow: 'none', border: '1px solid #E5E7EB' }}>
+      <Box sx={{ border: '1px solid #E0E0E0', borderRadius: '12px', overflow: 'hidden', bgcolor: '#FFFFFF' }}>
         <TableContainer>
           <Table aria-label="Sales invoices list">
             <TableHead>
-              <TableRow sx={{ bgcolor: '#F9FAFB' }}>
+              <TableRow sx={{ bgcolor: '#F8FAFC' }}>
                 <TableCell
                   scope="col"
                   sx={{ fontWeight: 600, color: '#374151' }}
@@ -484,40 +477,53 @@ const SalesInvoiceListPage: React.FC = () => {
                 <TableCell
                   scope="col"
                   sx={{ fontWeight: 600, color: '#374151' }}
-                  aria-sort={orderBy === 'item' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                  aria-sort={orderBy === 'totalAmount' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
                 >
                   <TableSortLabel
-                    active={orderBy === 'item'}
-                    direction={orderBy === 'item' ? order : 'asc'}
-                    onClick={() => handleSort('item')}
+                    active={orderBy === 'totalAmount'}
+                    direction={orderBy === 'totalAmount' ? order : 'asc'}
+                    onClick={() => handleSort('totalAmount')}
                   >
-                    Item
+                    Total Amount
                   </TableSortLabel>
                 </TableCell>
                 <TableCell
                   scope="col"
                   sx={{ fontWeight: 600, color: '#374151' }}
-                  aria-sort={orderBy === 'quantity' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                  aria-sort={orderBy === 'paidAmount' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
                 >
                   <TableSortLabel
-                    active={orderBy === 'quantity'}
-                    direction={orderBy === 'quantity' ? order : 'asc'}
-                    onClick={() => handleSort('quantity')}
+                    active={orderBy === 'paidAmount'}
+                    direction={orderBy === 'paidAmount' ? order : 'asc'}
+                    onClick={() => handleSort('paidAmount')}
                   >
-                    Quantity
+                    Paid Amount
                   </TableSortLabel>
                 </TableCell>
                 <TableCell
                   scope="col"
                   sx={{ fontWeight: 600, color: '#374151' }}
-                  aria-sort={orderBy === 'netAmount' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                  aria-sort={orderBy === 'balance' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
                 >
                   <TableSortLabel
-                    active={orderBy === 'netAmount'}
-                    direction={orderBy === 'netAmount' ? order : 'asc'}
-                    onClick={() => handleSort('netAmount')}
+                    active={orderBy === 'balance'}
+                    direction={orderBy === 'balance' ? order : 'asc'}
+                    onClick={() => handleSort('balance')}
                   >
-                    Net Amount
+                    Balance
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell
+                  scope="col"
+                  sx={{ fontWeight: 600, color: '#374151' }}
+                  aria-sort={orderBy === 'paymentMethod' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'paymentMethod'}
+                    direction={orderBy === 'paymentMethod' ? order : 'asc'}
+                    onClick={() => handleSort('paymentMethod')}
+                  >
+                    Payment
                   </TableSortLabel>
                 </TableCell>
                 <TableCell
@@ -552,7 +558,7 @@ const SalesInvoiceListPage: React.FC = () => {
             <TableBody>
               {filteredAndSortedInvoices.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} align="center" sx={{ py: 8 }}>
+                  <TableCell colSpan={10} align="center" sx={{ py: 8 }}>
                     <Typography color="text.secondary">
                       No sales invoices found. Click "Add Sales Invoice" to add one.
                     </Typography>
@@ -564,9 +570,10 @@ const SalesInvoiceListPage: React.FC = () => {
                     <TableCell>{invoice.invoiceNumber}</TableCell>
                     <TableCell>{invoice.companyName}</TableCell>
                     <TableCell>{invoice.customerName}</TableCell>
-                    <TableCell>{invoice.item}</TableCell>
-                    <TableCell>{invoice.quantity}</TableCell>
-                    <TableCell>{invoice.netAmount.toFixed(1)} PKR</TableCell>
+                    <TableCell>{invoice.totalAmount.toFixed(2)} PKR</TableCell>
+                    <TableCell>{invoice.paidAmount.toFixed(2)} PKR</TableCell>
+                    <TableCell sx={{ color: invoice.balance > 0 ? '#EF4444' : '#10B981', fontWeight: 500 }}>{invoice.balance.toFixed(2)} PKR</TableCell>
+                    <TableCell>{invoice.paymentMethod}</TableCell>
                     <TableCell>
                       <Chip
                         label={invoice.status}
@@ -619,7 +626,7 @@ const SalesInvoiceListPage: React.FC = () => {
             </TableBody>
           </Table>
         </TableContainer>
-      </Card>
+      </Box>
 
       {/* Success Snackbar */}
       <Snackbar

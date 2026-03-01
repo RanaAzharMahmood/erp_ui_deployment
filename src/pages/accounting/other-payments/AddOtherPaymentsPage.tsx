@@ -27,7 +27,7 @@ import {
   Circle as CircleIcon,
   Add as AddIcon,
   Close as CloseIcon,
-  Download as DownloadIcon,
+
 } from '@mui/icons-material';
 import PageHeader from '../../../components/common/PageHeader';
 import FormSection from '../../../components/common/FormSection';
@@ -499,27 +499,6 @@ const AddOtherPaymentsPage: React.FC = () => {
                 </Box>
               ))}
             </Card>
-
-            {/* Download PDF Button */}
-            <Button
-              fullWidth
-              variant="outlined"
-              startIcon={<DownloadIcon />}
-              sx={{
-                mb: 2,
-                py: 1.5,
-                borderColor: '#10B981',
-                color: '#10B981',
-                bgcolor: 'rgba(16, 185, 129, 0.1)',
-                textTransform: 'none',
-                '&:hover': {
-                  borderColor: '#059669',
-                  bgcolor: 'rgba(16, 185, 129, 0.2)',
-                },
-              }}
-            >
-              Download PDF
-            </Button>
 
             {/* Action Buttons */}
             <Box sx={{ display: 'flex', gap: 2 }}>

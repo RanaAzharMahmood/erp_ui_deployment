@@ -143,7 +143,7 @@ const FilterManager: React.FC<FilterManagerProps> = ({
       }}
       sx={{ mt: 1 }}
     >
-      <Card sx={{ p: 3, minWidth: 400, border: '2px solid #FF6B35' }}>
+      <Card sx={{ p: 3, minWidth: 400, boxShadow: '0 4px 20px rgba(0,0,0,0.08)', borderRadius: '12px', bgcolor: '#F8FAFC' }}>
         <Grid container spacing={2}>
           {/* Filter Fields */}
           {fields.map((field) => (

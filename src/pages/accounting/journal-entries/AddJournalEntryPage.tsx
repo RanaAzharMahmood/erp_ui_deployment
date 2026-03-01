@@ -27,7 +27,7 @@ import {
   Circle as CircleIcon,
   Add as AddIcon,
   Close as CloseIcon,
-  Download as DownloadIcon,
+
   Save as SaveIcon,
 } from '@mui/icons-material';
 import PageHeader from '../../../components/common/PageHeader';
@@ -75,11 +75,12 @@ const AddJournalEntryPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const isEditMode = Boolean(id);
   const navigate = useNavigate();
+  const today = new Date().toISOString().split('T')[0];
 
   const [formData, setFormData] = useState<JournalEntryFormData>({
     companyId: '',
     journalNumber: '',
-    date: '',
+    date: today,
     memo: '',
     paymentMethod: '',
     referenceType: '',
@@ -324,6 +325,7 @@ const AddJournalEntryPage: React.FC = () => {
                     onChange={(e) => handleInputChange('date', e.target.value)}
                     InputLabelProps={{ shrink: true }}
                     sx={{ bgcolor: 'white' }}
+                    inputProps={{ min: today }}
                   />
                 </Grid>
 
@@ -606,27 +608,6 @@ const AddJournalEntryPage: React.FC = () => {
                 </Box>
               ))}
             </Card>
-
-            {/* Download PDF Button */}
-            <Button
-              fullWidth
-              variant="outlined"
-              startIcon={<DownloadIcon />}
-              sx={{
-                mb: 2,
-                py: 1.5,
-                borderColor: '#10B981',
-                color: '#10B981',
-                bgcolor: 'rgba(16, 185, 129, 0.1)',
-                textTransform: 'none',
-                '&:hover': {
-                  borderColor: '#059669',
-                  bgcolor: 'rgba(16, 185, 129, 0.2)',
-                },
-              }}
-            >
-              Download PDF
-            </Button>
 
             {/* Action Buttons */}
             <Box sx={{ display: 'flex', gap: 2 }}>

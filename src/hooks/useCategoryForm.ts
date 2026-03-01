@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getCategoriesApi, getCompaniesApi } from '../generated/api/client';
+import { useCompanies } from './useCompanies';
+import { getCategoriesApi } from '../generated/api/client';
 
 export interface CategoryFormData {
   categoryName: string;
@@ -20,12 +21,6 @@ export interface UseCategoryFormOptions {
 }
 
 export type CategoryFieldErrors = Record<string, string>;
-
-// Type for API company response
-interface ApiCompanyResponse {
-  id?: number;
-  companyName?: string;
-}
 
 // Type for API category response
 interface ApiCategoryResponse {
@@ -77,59 +72,52 @@ export const useCategoryForm = ({
   const navigate = useNavigate();
   const [formData, setFormData] = useState<CategoryFormData>(initialFormData);
   const [fieldErrors, setFieldErrors] = useState<CategoryFieldErrors>({});
-  const [companies, setCompanies] = useState<Company[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [loading, setLoading] = useState(mode === 'edit');
 
-  // Load companies and category data (for edit mode)
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        // Load companies from API
-        const companiesApi = getCompaniesApi();
-        const companiesResponse = await companiesApi.v1ApiCompaniesGet(true);
-        if (companiesResponse.data) {
-          setCompanies(
-            companiesResponse.data.map((c: ApiCompanyResponse) => ({
-              id: c.id ?? 0,
-              name: c.companyName ?? '',
-            }))
-          );
-        }
+  // Use the shared companies hook (proven to work across other pages)
+  const { companies: companiesData, refetch: refetchCompanies } = useCompanies();
+  const companies: Company[] = companiesData.map((c) => ({ id: c.id, name: c.name }));
 
-        // Load category data for edit mode
-        if (mode === 'edit' && categoryId) {
-          const categoriesApi = getCategoriesApi();
-          const categoryResponse = await categoriesApi.v1ApiCategoriesIdGet(Number(categoryId));
-          if (categoryResponse.data) {
-            const category = categoryResponse.data as ApiCategoryResponse;
-            setFormData({
-              categoryName: category.categoryName || '',
-              companyId: category.companyId || '',
-              description: category.description || '',
-              status: category.isActive ? 'Active' : 'Inactive',
-            });
-          }
+  // Refetch companies on mount to ensure fresh data
+  useEffect(() => {
+    refetchCompanies();
+  }, [refetchCompanies]);
+
+  // Load category data for edit mode
+  useEffect(() => {
+    const loadCategoryData = async () => {
+      if (mode !== 'edit' || !categoryId) return;
+
+      try {
+        const categoriesApi = getCategoriesApi();
+        const categoryResponse = await categoriesApi.v1ApiCategoriesIdGet(Number(categoryId));
+        if (categoryResponse.data) {
+          const category = categoryResponse.data as ApiCategoryResponse;
+          setFormData({
+            categoryName: category.categoryName || '',
+            companyId: category.companyId || '',
+            description: category.description || '',
+            status: category.isActive ? 'Active' : 'Inactive',
+          });
         }
       } catch (err: unknown) {
-        console.error('Error loading data:', err);
+        console.error('Error loading category:', err);
         const apiError = err as ApiError;
         if (apiError.status === 401) {
           setError('Session expired. Please login again.');
         } else {
-          setError('Failed to load data. Please try again.');
+          setError('Failed to load category data. Please try again.');
         }
       } finally {
-        if (mode === 'edit') {
-          setLoading(false);
-        }
+        setLoading(false);
       }
     };
 
-    loadData();
+    loadCategoryData();
   }, [categoryId, mode]);
 
   const handleInputChange = useCallback(
@@ -190,7 +178,8 @@ export const useCategoryForm = ({
         await categoriesApi.v1ApiCategoriesPost({
           categoryName: formData.categoryName,
           description: formData.description || undefined,
-        });
+          companyId: formData.companyId ? Number(formData.companyId) : undefined,
+        } as Parameters<typeof categoriesApi.v1ApiCategoriesPost>[0] & { companyId?: number });
         setSuccessMessage('Category created successfully!');
       } else {
         await categoriesApi.v1ApiCategoriesIdPut(
@@ -198,7 +187,8 @@ export const useCategoryForm = ({
             categoryName: formData.categoryName,
             description: formData.description || undefined,
             isActive: formData.status === 'Active',
-          },
+            companyId: formData.companyId ? Number(formData.companyId) : undefined,
+          } as Parameters<typeof categoriesApi.v1ApiCategoriesIdPut>[0] & { companyId?: number },
           Number(categoryId)
         );
         setSuccessMessage('Category updated successfully!');

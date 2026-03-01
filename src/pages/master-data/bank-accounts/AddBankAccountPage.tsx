@@ -48,6 +48,7 @@ const AddBankAccountPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const isEditMode = Boolean(id);
   const navigate = useNavigate();
+  const today = new Date().toISOString().split('T')[0];
 
   const [formData, setFormData] = useState<BankAccountFormData>({
     companyId: '',
@@ -55,7 +56,7 @@ const AddBankAccountPage: React.FC = () => {
     accountTitle: '',
     accountNumber: '',
     branchName: '',
-    date: '',
+    date: today,
     details: '',
     status: 'Active',
   });
@@ -268,6 +269,7 @@ const AddBankAccountPage: React.FC = () => {
                     onChange={(e) => handleInputChange('date', e.target.value)}
                     InputLabelProps={{ shrink: true }}
                     sx={{ bgcolor: 'white' }}
+                    inputProps={{ min: today }}
                   />
                 </Grid>
 

@@ -34,7 +34,7 @@ import FormSection from '../../../components/common/FormSection';
 import ReturnFormSkeleton from '../../../components/common/ReturnFormSkeleton';
 import { useCompanies } from '../../../hooks';
 import {
-  getVendorsApi,
+  getPartiesApi,
   getTaxesApi,
   getItemsApi,
   getPurchaseInvoicesApi,
@@ -58,6 +58,7 @@ const AddPurchaseReturnPage: React.FC = () => {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const isEditMode = Boolean(id);
+  const today = new Date().toISOString().split('T')[0];
   const { companies: companiesData } = useCompanies();
 
   const [formData, setFormData] = useState<PurchaseReturnFormData>({
@@ -65,7 +66,7 @@ const AddPurchaseReturnPage: React.FC = () => {
     vendorId: '',
     billNumber: '',
     originalInvoice: '',
-    date: '',
+    date: today,
     returnReason: '',
     paymentMethod: '',
     accountNumber: '',
@@ -91,40 +92,52 @@ const AddPurchaseReturnPage: React.FC = () => {
   const companies: CompanyOption[] = (companiesData || []).map((c) => ({ id: c.id, name: c.name || '' }));
 
   // Check if payment method requires image upload and account number
-  const requiresImageAndAccount = formData.paymentMethod === 'Bank Transfer (Online)' || formData.paymentMethod === 'Cheque';
+  const requiresImageAndAccount = formData.paymentMethod !== '' && formData.paymentMethod !== 'Hand in Cash';
 
-  // Generate return number
-  const generateReturnNumber = useCallback(() => {
-    // Generate a unique return number based on timestamp
-    const timestamp = Date.now();
-    return `PR-${String(timestamp).slice(-6).padStart(6, '0')}`;
-  }, []);
+  // Fetch return number when companyId changes (for new returns only)
+  useEffect(() => {
+    if (isEditMode) return;
+    const fetchReturnNumber = async () => {
+      try {
+        const api = getPurchaseReturnsApi();
+        const companyId = formData.companyId ? Number(formData.companyId) : undefined;
+        const response = await api.getNextNumber(companyId);
+        if (response.data?.nextNumber) {
+          setFormData((prev) => ({ ...prev, billNumber: response.data.nextNumber }));
+        }
+      } catch (err) {
+        console.error('Error fetching next return number from API:', err);
+      }
+    };
+    fetchReturnNumber();
+  }, [formData.companyId, isEditMode]);
+
+  // Fetch vendors when companyId changes
+  useEffect(() => {
+    const loadVendors = async () => {
+      try {
+        const partiesApi = getPartiesApi();
+        const companyIdParam = formData.companyId ? Number(formData.companyId) : undefined;
+        const partiesResponse = await partiesApi.v1ApiPartiesGet(true, 'Vendor', companyIdParam);
+        const raw = partiesResponse as any;
+        const partiesList: Array<{ id?: number; partyName?: string; name?: string }> =
+          Array.isArray(raw) ? raw
+          : Array.isArray(raw?.data?.data) ? raw.data.data
+          : Array.isArray(raw?.data) ? raw.data
+          : [];
+        setVendors(partiesList.map((c) => ({ id: String(c.id), name: c.partyName || c.name || '' })));
+      } catch (err) {
+        console.error('Error loading vendors from API:', err);
+        setVendors([]);
+      }
+    };
+    loadVendors();
+  }, [formData.companyId]);
 
   // Load data
   useEffect(() => {
     const loadData = async () => {
       try {
-        // Load vendors from API
-        try {
-          const vendorsApi = getVendorsApi();
-          const vendorsResponse = await vendorsApi.getAll();
-          const vendorsData = vendorsResponse.data as { data?: Array<{ id?: number; name?: string }> } | Array<{ id?: number; name?: string }> | undefined;
-          if (vendorsData && 'data' in vendorsData && vendorsData.data) {
-            setVendors(vendorsData.data.map((v) => ({
-              id: String(v.id),
-              name: v.name || '',
-            })));
-          } else if (Array.isArray(vendorsData)) {
-            setVendors(vendorsData.map((v) => ({
-              id: String(v.id),
-              name: v.name || '',
-            })));
-          }
-        } catch (err) {
-          console.error('Error loading vendors from API:', err);
-          setVendors([]);
-        }
-
         // Load purchase invoices from API
         try {
           const invoicesApi = getPurchaseInvoicesApi();
@@ -186,11 +199,6 @@ const AddPurchaseReturnPage: React.FC = () => {
           setItems([]);
         }
 
-        // Generate return number for new returns
-        if (!isEditMode) {
-          setFormData((prev) => ({ ...prev, billNumber: generateReturnNumber() }));
-        }
-
         // Load existing return for edit mode
         if (isEditMode && id) {
           try {
@@ -238,7 +246,7 @@ const AddPurchaseReturnPage: React.FC = () => {
     };
 
     loadData();
-  }, [isEditMode, id, generateReturnNumber]);
+  }, [isEditMode, id]);
 
   const handleInputChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -468,6 +476,7 @@ const AddPurchaseReturnPage: React.FC = () => {
                   value={formData.date}
                   onChange={handleInputChange}
                   size="small"
+                  inputProps={{ min: today }}
                   sx={{ '& .MuiOutlinedInput-root': { bgcolor: 'white' } }}
                   InputLabelProps={{ shrink: true }}
                 />
@@ -574,9 +583,10 @@ const AddPurchaseReturnPage: React.FC = () => {
                           fullWidth
                           type="number"
                           value={item.quantity}
-                          onChange={(e) => handleLineItemChange(item.id, 'quantity', parseFloat(e.target.value) || 0)}
+                          onChange={(e) => handleLineItemChange(item.id, 'quantity', Math.max(0, parseFloat(e.target.value) || 0))}
                           placeholder="0"
                           size="small"
+                          inputProps={{ min: 0 }}
                           sx={{ '& .MuiOutlinedInput-root': { bgcolor: 'white' } }}
                         />
                       </TableCell>
@@ -585,9 +595,10 @@ const AddPurchaseReturnPage: React.FC = () => {
                           fullWidth
                           type="number"
                           value={item.rate}
-                          onChange={(e) => handleLineItemChange(item.id, 'rate', parseFloat(e.target.value) || 0)}
+                          onChange={(e) => handleLineItemChange(item.id, 'rate', Math.max(0, parseFloat(e.target.value) || 0))}
                           placeholder="0.0 PKR"
                           size="small"
+                          inputProps={{ min: 0 }}
                           sx={{ '& .MuiOutlinedInput-root': { bgcolor: 'white' } }}
                         />
                       </TableCell>
@@ -666,8 +677,9 @@ const AddPurchaseReturnPage: React.FC = () => {
                   <TextField
                     type="number"
                     value={formData.refundAmount}
-                    onChange={(e) => handleSelectChange('refundAmount', parseFloat(e.target.value) || 0)}
+                    onChange={(e) => handleSelectChange('refundAmount', Math.max(0, parseFloat(e.target.value) || 0))}
                     size="small"
+                    inputProps={{ min: 0 }}
                     sx={{ width: 100, '& .MuiOutlinedInput-root': { bgcolor: 'white' } }}
                   />
                 </Box>
@@ -721,66 +733,50 @@ const AddPurchaseReturnPage: React.FC = () => {
             </FormSection>
           )}
 
-          {/* Status */}
-          <FormSection title="Status" icon={<CircleIcon />} sx={{ mb: 3 }}>
-            <Divider sx={{ mb: 2, mt: -1 }} />
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-              {(['Pending', 'Approved', 'Rejected'] as const).map((status) => (
-                <Box
-                  key={status}
-                  onClick={() => handleStatusChange(status)}
-                  sx={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 1,
-                    cursor: 'pointer',
-                  }}
-                >
+          {/* Status - Only show in edit mode */}
+          {isEditMode && (
+            <FormSection title="Status" icon={<CircleIcon />} sx={{ mb: 3 }}>
+              <Divider sx={{ mb: 2, mt: -1 }} />
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                {(['Pending', 'Approved', 'Rejected'] as const).map((status) => (
                   <Box
+                    key={status}
+                    onClick={() => handleStatusChange(status)}
                     sx={{
-                      width: 16,
-                      height: 16,
-                      borderRadius: '50%',
-                      border: '2px solid #FF6B35',
                       display: 'flex',
                       alignItems: 'center',
-                      justifyContent: 'center',
+                      gap: 1,
+                      cursor: 'pointer',
                     }}
                   >
-                    {formData.status === status && (
-                      <Box
-                        sx={{
-                          width: 8,
-                          height: 8,
-                          borderRadius: '50%',
-                          bgcolor: '#FF6B35',
-                        }}
-                      />
-                    )}
+                    <Box
+                      sx={{
+                        width: 16,
+                        height: 16,
+                        borderRadius: '50%',
+                        border: '2px solid #FF6B35',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      {formData.status === status && (
+                        <Box
+                          sx={{
+                            width: 8,
+                            height: 8,
+                            borderRadius: '50%',
+                            bgcolor: '#FF6B35',
+                          }}
+                        />
+                      )}
+                    </Box>
+                    <Typography variant="body2">{status}</Typography>
                   </Box>
-                  <Typography variant="body2">{status}</Typography>
-                </Box>
-              ))}
-            </Box>
-          </FormSection>
-
-          {/* Download PDF Button */}
-          <Button
-            fullWidth
-            variant="contained"
-            startIcon={<DownloadIcon />}
-            sx={{
-              mb: 3,
-              py: 1.5,
-              textTransform: 'none',
-              bgcolor: '#10B981',
-              '&:hover': {
-                bgcolor: '#059669',
-              },
-            }}
-          >
-            Download PDF
-          </Button>
+                ))}
+              </Box>
+            </FormSection>
+          )}
 
           {/* Action Buttons */}
           <Box sx={{ display: 'flex', gap: 2 }}>

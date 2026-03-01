@@ -61,7 +61,7 @@ const DashboardLayout: React.FC = () => {
   }
 
   return (
-    <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: '#F5F5F5' }}>
+    <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: '#F8FAFC' }}>
       {/* AppBar - Full width on mobile/tablet, adjusted on md+ */}
       <AppBar
         position="fixed"
@@ -69,9 +69,8 @@ const DashboardLayout: React.FC = () => {
         sx={{
           width: { xs: '100%', md: `calc(100% - ${DRAWER_WIDTH}px)` },
           ml: { xs: 0, md: `${DRAWER_WIDTH}px` },
-          bgcolor: 'white',
+          bgcolor: '#F8FAFC',
           color: '#1A1A1A',
-          borderBottom: '1px solid #E0E0E0',
         }}
       >
         <Toolbar sx={{ justifyContent: 'space-between' }}>
@@ -192,7 +191,7 @@ const DashboardLayout: React.FC = () => {
           flexGrow: 1,
           width: { xs: '100%', md: `calc(100% - ${DRAWER_WIDTH}px)` },
           minHeight: '100vh',
-          bgcolor: '#F5F5F5',
+          bgcolor: '#F8FAFC',
         }}
       >
         <Toolbar />
