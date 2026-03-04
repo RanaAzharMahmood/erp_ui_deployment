@@ -294,35 +294,6 @@ const LoginPage: React.FC = () => {
               />
             </Box>
 
-            {/* Remember Me */}
-            <Box sx={{ mb: 4 }}>
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={rememberMe}
-                    onChange={(e) => setRememberMe(e.target.checked)}
-                    inputProps={{
-                      'aria-label': 'Remember me on this device',
-                    }}
-                    sx={{
-                      color: '#CCCCCC',
-                      '&.Mui-checked': {
-                        color: '#FF6B35',
-                      },
-                    }}
-                  />
-                }
-                label={
-                  <Typography
-                    variant="body2"
-                    sx={{ fontSize: '14px', color: '#666666' }}
-                  >
-                    Remember Me
-                  </Typography>
-                }
-              />
-            </Box>
-
             {/* Login Button */}
             <Button
               type="submit"

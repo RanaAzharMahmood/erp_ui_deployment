@@ -202,11 +202,7 @@ export type VendorFormValues = z.infer<typeof vendorSchema>;
 export const itemSchema = z.object({
   itemCode: z
     .string()
-    .min(1, 'Item code is required')
-    .max(50, 'Item code must be less than 50 characters'),
-  itemHashCode: z
-    .string()
-    .max(50, 'Item hash code must be less than 50 characters')
+    .max(50, 'Item code must be less than 50 characters')
     .optional()
     .or(z.literal('')),
   itemName: z
@@ -265,7 +261,7 @@ export const itemSchema = z.object({
   companyId: z.union([
     z.number().positive('Please select a company'),
     z.literal(''),
-  ]).optional(),
+  ]).refine((val) => val !== '', 'Please select a company'),
   description: z
     .string()
     .max(500, 'Description must be less than 500 characters')

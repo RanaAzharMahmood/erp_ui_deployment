@@ -55,6 +55,7 @@ const UpdateUserPage: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState<string>('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [successMessage, setSuccessMessage] = useState<string>('');
   const [deleteDialog, setDeleteDialog] = useState<{ open: boolean }>({
     open: false,
@@ -240,6 +241,7 @@ const UpdateUserPage: React.FC = () => {
 
     setIsSubmitting(true);
     setError('');
+    setFieldErrors({});
 
     try {
       const usersApi = getUsersApi();
@@ -275,25 +277,23 @@ const UpdateUserPage: React.FC = () => {
       console.error('Error updating user:', err);
 
       // Try to extract detailed error message from API response
-      let errorMessage = 'Failed to update user. Please try again.';
-      try {
-        if (err && typeof err === 'object' && 'json' in err) {
-          const errorResponse = await (err as { json: () => Promise<{ message?: string; data?: Record<string, string> }> }).json();
-          if (errorResponse.data && typeof errorResponse.data === 'object') {
-            // Format validation errors
-            const validationErrors = Object.entries(errorResponse.data)
-              .map(([field, message]) => `${field}: ${message}`)
-              .join(', ');
-            errorMessage = validationErrors || errorResponse.message || errorMessage;
-          } else if (errorResponse.message) {
-            errorMessage = errorResponse.message;
+      const apiError = err as { json?: () => Promise<{ message?: string; data?: Record<string, string> }> };
+      if (apiError.json) {
+        try {
+          const errorData = await apiError.json();
+          if (errorData.data && typeof errorData.data === 'object') {
+            setFieldErrors(errorData.data);
+            const errorMessages = Object.values(errorData.data);
+            setError(errorMessages.join('. '));
+          } else {
+            setError(errorData.message || 'Failed to update user. Please try again.');
           }
+        } catch {
+          setError('Failed to update user. Please try again.');
         }
-      } catch {
-        // Use default error message if parsing fails
+      } else {
+        setError('Failed to update user. Please try again.');
       }
-
-      setError(errorMessage);
     } finally {
       setIsSubmitting(false);
     }
@@ -365,6 +365,8 @@ const UpdateUserPage: React.FC = () => {
                   onChange={handleInputChange}
                   placeholder="John"
                   size="small"
+                  error={!!fieldErrors.firstName}
+                  helperText={fieldErrors.firstName}
                   sx={{ '& .MuiOutlinedInput-root': { bgcolor: 'white' } }}
                 />
               </Grid>
@@ -379,6 +381,8 @@ const UpdateUserPage: React.FC = () => {
                   onChange={handleInputChange}
                   placeholder="Harry"
                   size="small"
+                  error={!!fieldErrors.lastName}
+                  helperText={fieldErrors.lastName}
                   sx={{ '& .MuiOutlinedInput-root': { bgcolor: 'white' } }}
                 />
               </Grid>
@@ -393,12 +397,14 @@ const UpdateUserPage: React.FC = () => {
                   onChange={handleInputChange}
                   placeholder="00000-0000000-0"
                   size="small"
+                  error={!!fieldErrors.cnic}
+                  helperText={fieldErrors.cnic}
                   sx={{ '& .MuiOutlinedInput-root': { bgcolor: 'white' } }}
                 />
               </Grid>
               <Grid item xs={12} sm={6}>
                 <Typography variant="body2" sx={{ mb: 0.5, fontWeight: 500 }}>
-                  Phone *
+                  Phone
                 </Typography>
                 <TextField
                   fullWidth
@@ -407,7 +413,8 @@ const UpdateUserPage: React.FC = () => {
                   onChange={handleInputChange}
                   placeholder="+92 123 4567"
                   size="small"
-                  required
+                  error={!!fieldErrors.phone}
+                  helperText={fieldErrors.phone || 'e.g. +92 300 1234567'}
                   sx={{ '& .MuiOutlinedInput-root': { bgcolor: 'white' } }}
                 />
               </Grid>
@@ -422,12 +429,14 @@ const UpdateUserPage: React.FC = () => {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Leave blank to keep current"
                   size="small"
+                  error={!!fieldErrors.password}
+                  helperText={fieldErrors.password || 'Min 6 characters'}
                   sx={{ '& .MuiOutlinedInput-root': { bgcolor: 'white' } }}
                 />
               </Grid>
               <Grid item xs={12}>
                 <Typography variant="body2" sx={{ mb: 0.5, fontWeight: 500 }}>
-                  Email
+                  Email *
                 </Typography>
                 <TextField
                   fullWidth
@@ -437,6 +446,9 @@ const UpdateUserPage: React.FC = () => {
                   onChange={handleInputChange}
                   placeholder="example@example.com"
                   size="small"
+                  required
+                  error={!!fieldErrors.email}
+                  helperText={fieldErrors.email}
                   sx={{ '& .MuiOutlinedInput-root': { bgcolor: 'white' } }}
                 />
               </Grid>

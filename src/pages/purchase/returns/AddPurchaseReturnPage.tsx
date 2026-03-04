@@ -35,7 +35,6 @@ import ReturnFormSkeleton from '../../../components/common/ReturnFormSkeleton';
 import { useCompanies } from '../../../hooks';
 import {
   getPartiesApi,
-  getTaxesApi,
   getItemsApi,
   getPurchaseInvoicesApi,
   getPurchaseReturnsApi,
@@ -45,7 +44,6 @@ import type {
   PurchaseReturnFormData,
   CompanyOption,
   VendorOption,
-  TaxOption,
   ItemOption,
   PurchaseInvoiceOption,
   ReturnStatus,
@@ -72,17 +70,19 @@ const AddPurchaseReturnPage: React.FC = () => {
     accountNumber: '',
     remarks: '',
     status: 'Pending',
-    taxId: '',
     refundAmount: 0,
   });
   const [lineItems, setLineItems] = useState<LineItem[]>([
-    { id: '1', item: '', quantity: 0, rate: 0, amount: 0 },
+    { id: '1', itemId: '', quantity: 0, rate: 0, amount: 0 },
   ]);
   const [vendors, setVendors] = useState<VendorOption[]>([]);
   const [purchaseInvoices, setPurchaseInvoices] = useState<PurchaseInvoiceOption[]>([]);
-  const [taxes, setTaxes] = useState<TaxOption[]>([]);
   const [items, setItems] = useState<ItemOption[]>([]);
   const [receiptImage, setReceiptImage] = useState<string>('');
+  const [invoiceDiscount, setInvoiceDiscount] = useState(0);
+  const [invoiceTax, setInvoiceTax] = useState(0);
+  const [invoicePaidAmount, setInvoicePaidAmount] = useState(0);
+  const [originalStatus, setOriginalStatus] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(isEditMode);
   const [error, setError] = useState('');
@@ -134,64 +134,86 @@ const AddPurchaseReturnPage: React.FC = () => {
     loadVendors();
   }, [formData.companyId]);
 
-  // Load data
+  // Load purchase invoices filtered by company
+  useEffect(() => {
+    const loadInvoices = async () => {
+      if (!formData.companyId) {
+        setPurchaseInvoices([]);
+        return;
+      }
+      try {
+        const invoicesApi = getPurchaseInvoicesApi();
+        const invoicesResponse = await invoicesApi.getAll({ companyId: Number(formData.companyId), excludeReturned: !isEditMode, stockConfirmed: true });
+        if (invoicesResponse.data?.data) {
+          setPurchaseInvoices(invoicesResponse.data.data.map((i) => ({
+            id: String(i.id),
+            billNumber: i.billNumber || '',
+            vendorId: String(i.vendorId) || '',
+          })));
+        }
+      } catch (err) {
+        console.error('Error loading purchase invoices from API:', err);
+        setPurchaseInvoices([]);
+      }
+    };
+    loadInvoices();
+  }, [formData.companyId]);
+
+  // Prefill line items when an invoice is selected
+  useEffect(() => {
+    if (!formData.originalInvoice) return;
+    const loadInvoiceDetails = async () => {
+      try {
+        const invoicesApi = getPurchaseInvoicesApi();
+        const response = await invoicesApi.getById(Number(formData.originalInvoice));
+        const inv = response.data;
+        if (inv?.lines && inv.lines.length > 0) {
+          setLineItems(inv.lines.map((l) => ({
+            id: String(l.id || Date.now()),
+            itemId: String(l.itemId),
+            quantity: l.quantity,
+            rate: l.unitPrice,
+            amount: l.lineTotal,
+          })));
+        }
+        // Prefill invoice summary fields
+        if (inv) {
+          setInvoiceDiscount(inv.discountAmount || 0);
+          setInvoiceTax(inv.taxAmount || 0);
+          setInvoicePaidAmount(inv.paidAmount || 0);
+          setFormData((prev) => ({ ...prev, refundAmount: inv.paidAmount || 0 }));
+        }
+      } catch (err) {
+        console.error('Error loading invoice details:', err);
+      }
+    };
+    loadInvoiceDetails();
+  }, [formData.originalInvoice]);
+
+  // Load items and existing return data
   useEffect(() => {
     const loadData = async () => {
       try {
-        // Load purchase invoices from API
-        try {
-          const invoicesApi = getPurchaseInvoicesApi();
-          const invoicesResponse = await invoicesApi.getAll();
-          if (invoicesResponse.data?.data) {
-            setPurchaseInvoices(invoicesResponse.data.data.map((i) => ({
-              id: String(i.id),
-              billNumber: i.billNumber || '',
-              vendorId: String(i.vendorId) || '',
-            })));
-          } else if (invoicesResponse.data && typeof invoicesResponse.data === 'object' && 'data' in invoicesResponse.data && Array.isArray((invoicesResponse.data as { data: unknown }).data)) {
-            setPurchaseInvoices(((invoicesResponse.data as { data: Array<{ id?: number; billNumber?: string; vendorId?: number }> }).data).map((i) => ({
-              id: String(i.id),
-              billNumber: i.billNumber || '',
-              vendorId: String(i.vendorId) || '',
-            })));
-          }
-        } catch (err) {
-          console.error('Error loading purchase invoices from API:', err);
-          setPurchaseInvoices([]);
-        }
-
-        // Load taxes from API
-        try {
-          const taxesApi = getTaxesApi();
-          const taxesResponse = await taxesApi.getAll();
-          const taxesData = taxesResponse.data as { data?: Array<{ id?: number; name?: string; rate?: number; percentage?: number }> } | Array<{ id?: number; name?: string; rate?: number; percentage?: number }> | undefined;
-          if (taxesData && 'data' in taxesData && taxesData.data) {
-            setTaxes(taxesData.data.map((t) => ({
-              id: String(t.id),
-              name: t.name || '',
-              percentage: t.percentage || 0,
-            })));
-          } else if (Array.isArray(taxesData)) {
-            setTaxes(taxesData.map((t) => ({
-              id: String(t.id),
-              name: t.name || '',
-              percentage: t.rate || t.percentage || 0,
-            })));
-          }
-        } catch (err) {
-          console.error('Error loading taxes from API:', err);
-          setTaxes([]);
-        }
-
         // Load inventory items from API
         try {
           const itemsApi = getItemsApi();
-          const itemsResponse = await itemsApi.v1ApiItemsGet(true);
-          if (itemsResponse.data) {
-            setItems(itemsResponse.data.map((i: { id?: number; itemName?: string; purchasePrice?: number; unitPrice?: number }) => ({
+          const itemsResponse = await itemsApi.v1ApiItemsGet(undefined);
+          const itemsData = itemsResponse.data as { data?: Array<{ id?: number; itemName?: string; purchasePrice?: number; unitPrice?: number }> } | Array<{ id?: number; itemName?: string; purchasePrice?: number; unitPrice?: number }> | undefined;
+          if (itemsData && 'data' in itemsData && itemsData.data) {
+            setItems(itemsData.data.map((i) => ({
               id: String(i.id),
               name: i.itemName || '',
               rate: i.purchasePrice || i.unitPrice || 0,
+              currentStock: (i as any).currentStock || 0,
+              isActive: (i as any).isActive !== false,
+            })));
+          } else if (Array.isArray(itemsData)) {
+            setItems(itemsData.map((i) => ({
+              id: String(i.id),
+              name: i.itemName || '',
+              rate: i.purchasePrice || i.unitPrice || 0,
+              currentStock: (i as any).currentStock || 0,
+              isActive: (i as any).isActive !== false,
             })));
           }
         } catch (err) {
@@ -206,6 +228,8 @@ const AddPurchaseReturnPage: React.FC = () => {
             const returnResponse = await purchaseReturnsApi.getById(Number(id));
             if (returnResponse.data) {
               const returnData = returnResponse.data;
+              const mappedStatus = (returnData.status === 'approved' || returnData.status === 'completed' ? 'Approved' : returnData.status === 'cancelled' ? 'Rejected' : 'Pending') as ReturnStatus;
+              setOriginalStatus(mappedStatus);
               setFormData({
                 companyId: returnData.companyId || '',
                 vendorId: String(returnData.vendorId) || '',
@@ -216,14 +240,13 @@ const AddPurchaseReturnPage: React.FC = () => {
                 paymentMethod: '',
                 accountNumber: '',
                 remarks: returnData.notes || '',
-                status: (returnData.status === 'approved' || returnData.status === 'completed' ? 'Approved' : returnData.status === 'cancelled' ? 'Rejected' : 'Pending') as ReturnStatus,
-                taxId: '',
+                status: mappedStatus,
                 refundAmount: returnData.totalAmount || 0,
               });
               if (returnData.lines) {
                 setLineItems(returnData.lines.map((l) => ({
                   id: String(l.id || Date.now()),
-                  item: l.itemName || '',
+                  itemId: String(l.itemId),
                   quantity: l.quantity,
                   rate: l.unitPrice,
                   amount: l.lineTotal,
@@ -256,9 +279,27 @@ const AddPurchaseReturnPage: React.FC = () => {
     []
   );
 
-  const handleSelectChange = useCallback((name: string, value: SelectChangeValue) => {
-    setFormData((prev) => ({ ...prev, [name]: value }));
+  const resetInvoiceSummary = useCallback(() => {
+    setInvoiceDiscount(0);
+    setInvoiceTax(0);
+    setInvoicePaidAmount(0);
   }, []);
+
+  const handleSelectChange = useCallback((name: string, value: SelectChangeValue) => {
+    if (name === 'companyId') {
+      // Reset vendor, invoice, and line items when company changes
+      setFormData((prev) => ({ ...prev, companyId: value as number | '', vendorId: '', originalInvoice: '', refundAmount: 0 }));
+      setLineItems([{ id: '1', itemId: '', quantity: 0, rate: 0, amount: 0 }]);
+      resetInvoiceSummary();
+    } else if (name === 'vendorId') {
+      // Reset invoice when vendor changes
+      setFormData((prev) => ({ ...prev, vendorId: String(value), originalInvoice: '', refundAmount: 0 }));
+      setLineItems([{ id: '1', itemId: '', quantity: 0, rate: 0, amount: 0 }]);
+      resetInvoiceSummary();
+    } else {
+      setFormData((prev) => ({ ...prev, [name]: value }));
+    }
+  }, [resetInvoiceSummary]);
 
   const handleStatusChange = useCallback((status: ReturnStatus) => {
     setFormData((prev) => ({ ...prev, status }));
@@ -274,8 +315,8 @@ const AddPurchaseReturnPage: React.FC = () => {
             updated.amount = updated.quantity * updated.rate;
           }
           // If item is selected, auto-fill rate
-          if (field === 'item') {
-            const selectedItem = items.find((i) => i.name === value);
+          if (field === 'itemId') {
+            const selectedItem = items.find((i) => i.id === value);
             if (selectedItem) {
               updated.rate = selectedItem.rate;
               updated.amount = updated.quantity * selectedItem.rate;
@@ -291,7 +332,7 @@ const AddPurchaseReturnPage: React.FC = () => {
   const handleAddLineItem = useCallback(() => {
     setLineItems((prev) => [
       ...prev,
-      { id: String(Date.now()), item: '', quantity: 0, rate: 0, amount: 0 },
+      { id: String(Date.now()), itemId: '', quantity: 0, rate: 0, amount: 0 },
     ]);
   }, []);
 
@@ -312,9 +353,7 @@ const AddPurchaseReturnPage: React.FC = () => {
 
   // Calculate totals
   const grossAmount = lineItems.reduce((sum, item) => sum + (item.amount || 0), 0);
-  const selectedTax = taxes.find((t) => t.id === formData.taxId);
-  const taxAmount = selectedTax ? (grossAmount * selectedTax.percentage) / 100 : 0;
-  const netAmount = grossAmount + taxAmount;
+  const netAmount = grossAmount - invoiceDiscount + invoiceTax;
 
   const handleSubmit = useCallback(async () => {
     if (!formData.vendorId || !formData.date) {
@@ -338,7 +377,6 @@ const AddPurchaseReturnPage: React.FC = () => {
 
     try {
       // Prepare API request data
-      const selectedTax = taxes.find((t) => t.id === formData.taxId);
       const apiData = {
         date: formData.date,
         vendorId: Number(formData.vendorId),
@@ -346,13 +384,12 @@ const AddPurchaseReturnPage: React.FC = () => {
         reason: formData.returnReason || undefined,
         notes: formData.remarks || undefined,
         companyId: formData.companyId ? Number(formData.companyId) : 1,
-        lines: lineItems.filter(l => l.item).map((l) => ({
-          itemId: Number(items.find(i => i.name === l.item)?.id) || 0,
-          description: l.item,
+        lines: lineItems.filter(l => l.itemId).map((l) => ({
+          itemId: Number(l.itemId),
+          description: items.find(i => i.id === l.itemId)?.name || '',
           quantity: l.quantity,
           unitPrice: l.rate,
-          taxId: formData.taxId ? Number(formData.taxId) : undefined,
-          taxAmount: selectedTax ? (l.amount * selectedTax.percentage) / 100 : 0,
+          taxAmount: 0,
           lineTotal: l.amount,
         })),
       };
@@ -360,7 +397,19 @@ const AddPurchaseReturnPage: React.FC = () => {
       // Save via API
       const purchaseReturnsApi = getPurchaseReturnsApi();
       if (isEditMode && id) {
-        await purchaseReturnsApi.update(Number(id), apiData);
+        // Only call update if the return is still in draft status
+        if (originalStatus === 'Pending') {
+          await purchaseReturnsApi.update(Number(id), apiData);
+        }
+
+        // Handle status changes via dedicated API endpoints
+        if (formData.status !== originalStatus) {
+          if (formData.status === 'Approved') {
+            await purchaseReturnsApi.approve(Number(id));
+          } else if (formData.status === 'Rejected') {
+            await purchaseReturnsApi.cancel(Number(id));
+          }
+        }
       } else {
         await purchaseReturnsApi.create(apiData);
       }
@@ -371,14 +420,18 @@ const AddPurchaseReturnPage: React.FC = () => {
       }, 1500);
     } catch (err: unknown) {
       console.error('Error saving return:', err);
-      setError('Failed to save return. Please try again.');
+      const message = err instanceof Error ? err.message : 'Failed to save return. Please try again.';
+      setError(message);
       setIsSubmitting(false);
     }
-  }, [formData, items, taxes, lineItems, receiptImage, navigate, isEditMode, id, requiresImageAndAccount]);
+  }, [formData, items, lineItems, receiptImage, navigate, isEditMode, id, requiresImageAndAccount]);
 
   const handleCancel = useCallback(() => {
     navigate('/purchase/return');
   }, [navigate]);
+
+  // Whether an invoice has been selected (lock down prefilled fields)
+  const hasInvoice = Boolean(formData.originalInvoice);
 
   // Filter invoices by selected vendor
   const filteredInvoices = purchaseInvoices.filter((inv) => !formData.vendorId || inv.vendorId === formData.vendorId);
@@ -407,7 +460,8 @@ const AddPurchaseReturnPage: React.FC = () => {
                     value={formData.companyId}
                     onChange={(e) => handleSelectChange('companyId', e.target.value as SelectChangeValue)}
                     displayEmpty
-                    sx={{ bgcolor: 'white' }}
+                    disabled={hasInvoice}
+                    sx={{ bgcolor: hasInvoice ? '#F3F4F6' : 'white' }}
                   >
                     {companies.map((comp) => (
                       <MenuItem key={comp.id} value={comp.id}>{comp.name}</MenuItem>
@@ -438,7 +492,8 @@ const AddPurchaseReturnPage: React.FC = () => {
                     value={formData.vendorId}
                     onChange={(e) => handleSelectChange('vendorId', e.target.value as SelectChangeValue)}
                     displayEmpty
-                    sx={{ bgcolor: 'white' }}
+                    disabled={hasInvoice}
+                    sx={{ bgcolor: hasInvoice ? '#F3F4F6' : 'white' }}
                   >
                     <MenuItem value="" disabled>Select Vendor</MenuItem>
                     {vendors.map((vendor) => (
@@ -456,7 +511,8 @@ const AddPurchaseReturnPage: React.FC = () => {
                     value={formData.originalInvoice}
                     onChange={(e) => handleSelectChange('originalInvoice', e.target.value as SelectChangeValue)}
                     displayEmpty
-                    sx={{ bgcolor: 'white' }}
+                    disabled={isEditMode}
+                    sx={{ bgcolor: isEditMode ? '#F3F4F6' : 'white' }}
                   >
                     <MenuItem value="">Select Invoice</MenuItem>
                     {filteredInvoices.map((inv) => (
@@ -566,14 +622,17 @@ const AddPurchaseReturnPage: React.FC = () => {
                       <TableCell>
                         <FormControl fullWidth size="small">
                           <Select
-                            value={item.item}
-                            onChange={(e) => handleLineItemChange(item.id, 'item', e.target.value as string)}
+                            value={item.itemId}
+                            onChange={(e) => handleLineItemChange(item.id, 'itemId', e.target.value as string)}
                             displayEmpty
-                            sx={{ bgcolor: 'white' }}
+                            disabled={hasInvoice}
+                            sx={{ bgcolor: hasInvoice ? '#F3F4F6' : 'white' }}
                           >
                             <MenuItem value="" disabled>Select Item</MenuItem>
                             {items.map((i) => (
-                              <MenuItem key={i.id} value={i.name}>{i.name}</MenuItem>
+                              <MenuItem key={i.id} value={i.id} disabled={!i.isActive} sx={!i.isActive ? { opacity: 0.5 } : undefined}>
+                                {i.name}{!i.isActive ? ' (Inactive)' : ''} — Stock: {i.currentStock}
+                              </MenuItem>
                             ))}
                           </Select>
                         </FormControl>
@@ -586,8 +645,9 @@ const AddPurchaseReturnPage: React.FC = () => {
                           onChange={(e) => handleLineItemChange(item.id, 'quantity', Math.max(0, parseFloat(e.target.value) || 0))}
                           placeholder="0"
                           size="small"
+                          disabled={hasInvoice}
                           inputProps={{ min: 0 }}
-                          sx={{ '& .MuiOutlinedInput-root': { bgcolor: 'white' } }}
+                          sx={{ '& .MuiOutlinedInput-root': { bgcolor: hasInvoice ? '#F3F4F6' : 'white' } }}
                         />
                       </TableCell>
                       <TableCell>
@@ -598,8 +658,9 @@ const AddPurchaseReturnPage: React.FC = () => {
                           onChange={(e) => handleLineItemChange(item.id, 'rate', Math.max(0, parseFloat(e.target.value) || 0))}
                           placeholder="0.0 PKR"
                           size="small"
+                          disabled={hasInvoice}
                           inputProps={{ min: 0 }}
-                          sx={{ '& .MuiOutlinedInput-root': { bgcolor: 'white' } }}
+                          sx={{ '& .MuiOutlinedInput-root': { bgcolor: hasInvoice ? '#F3F4F6' : 'white' } }}
                         />
                       </TableCell>
                       <TableCell>
@@ -612,6 +673,7 @@ const AddPurchaseReturnPage: React.FC = () => {
                           sx={{ '& .MuiOutlinedInput-root': { bgcolor: '#F3F4F6' } }}
                         />
                       </TableCell>
+                      {!hasInvoice && (
                       <TableCell>
                         <IconButton
                           size="small"
@@ -621,12 +683,14 @@ const AddPurchaseReturnPage: React.FC = () => {
                           <CloseIcon fontSize="small" />
                         </IconButton>
                       </TableCell>
+                      )}
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
             </TableContainer>
 
+            {!hasInvoice && (
             <Button
               variant="outlined"
               startIcon={<AddIcon />}
@@ -644,31 +708,31 @@ const AddPurchaseReturnPage: React.FC = () => {
             >
               Add Line Item
             </Button>
+            )}
 
             {/* Summary Section */}
             <Divider sx={{ my: 3 }} />
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, maxWidth: 400, ml: 'auto' }}>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Typography variant="body2" color="text.secondary">Gross:</Typography>
+                <Typography variant="body2" color="text.secondary">Gross Amount:</Typography>
                 <Typography variant="body2" sx={{ fontWeight: 500 }}>{grossAmount.toFixed(2)} PKR</Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ ml: 4 }}>Net Amount</Typography>
-                <Typography variant="body2" sx={{ fontWeight: 500 }}>{netAmount.toFixed(2)} PKR</Typography>
               </Box>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Typography variant="body2" color="text.secondary">Discount:</Typography>
+                <Typography variant="body2" sx={{ fontWeight: 500 }}>- {invoiceDiscount.toFixed(2)} PKR</Typography>
+              </Box>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <Typography variant="body2" color="text.secondary">Tax:</Typography>
-                <FormControl size="small" sx={{ minWidth: 120 }}>
-                  <Select
-                    value={formData.taxId}
-                    onChange={(e) => handleSelectChange('taxId', e.target.value as SelectChangeValue)}
-                    displayEmpty
-                    sx={{ bgcolor: 'white' }}
-                  >
-                    <MenuItem value="">Select Tax</MenuItem>
-                    {taxes.map((tax) => (
-                      <MenuItem key={tax.id} value={tax.id}>{tax.name} ({tax.percentage}%)</MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
+                <Typography variant="body2" sx={{ fontWeight: 500 }}>{invoiceTax.toFixed(2)} PKR</Typography>
+              </Box>
+              <Divider />
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>Net Amount:</Typography>
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>{netAmount.toFixed(2)} PKR</Typography>
+              </Box>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Typography variant="body2" color="text.secondary">Actual Paid Amount:</Typography>
+                <Typography variant="body2" sx={{ fontWeight: 500 }}>{invoicePaidAmount.toFixed(2)} PKR</Typography>
               </Box>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <Typography variant="body2" color="text.secondary">Refund Amount:</Typography>
@@ -680,7 +744,7 @@ const AddPurchaseReturnPage: React.FC = () => {
                     onChange={(e) => handleSelectChange('refundAmount', Math.max(0, parseFloat(e.target.value) || 0))}
                     size="small"
                     inputProps={{ min: 0 }}
-                    sx={{ width: 100, '& .MuiOutlinedInput-root': { bgcolor: 'white' } }}
+                    sx={{ width: 120, '& .MuiOutlinedInput-root': { bgcolor: 'white' } }}
                   />
                 </Box>
               </Box>
@@ -738,15 +802,20 @@ const AddPurchaseReturnPage: React.FC = () => {
             <FormSection title="Status" icon={<CircleIcon />} sx={{ mb: 3 }}>
               <Divider sx={{ mb: 2, mt: -1 }} />
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                {(['Pending', 'Approved', 'Rejected'] as const).map((status) => (
+                {(['Pending', 'Approved', 'Rejected'] as const).map((status) => {
+                  const isDisabled = (status === 'Pending' && originalStatus !== 'Pending')
+                    || (originalStatus === 'Approved' && status !== 'Approved' && status !== 'Rejected')
+                    || (originalStatus === 'Rejected');
+                  return (
                   <Box
                     key={status}
-                    onClick={() => handleStatusChange(status)}
+                    onClick={() => !isDisabled && handleStatusChange(status)}
                     sx={{
                       display: 'flex',
                       alignItems: 'center',
                       gap: 1,
-                      cursor: 'pointer',
+                      cursor: isDisabled ? 'not-allowed' : 'pointer',
+                      opacity: isDisabled ? 0.4 : 1,
                     }}
                   >
                     <Box
@@ -773,7 +842,8 @@ const AddPurchaseReturnPage: React.FC = () => {
                     </Box>
                     <Typography variant="body2">{status}</Typography>
                   </Box>
-                ))}
+                  );
+                })}
               </Box>
             </FormSection>
           )}

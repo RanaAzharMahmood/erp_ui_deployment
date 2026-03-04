@@ -19,6 +19,8 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  Checkbox,
+  FormControlLabel,
 } from '@mui/material';
 import {
   Receipt as ReceiptIcon,
@@ -28,6 +30,7 @@ import {
   Close as CloseIcon,
   Download as DownloadIcon,
   Save as SaveIcon,
+  Inventory as InventoryIcon,
 } from '@mui/icons-material';
 import PageHeader from '../../../components/common/PageHeader';
 import FormSection from '../../../components/common/FormSection';
@@ -72,9 +75,10 @@ const AddPurchaseInvoicePage: React.FC = () => {
     taxId: '',
     paidAmount: 0,
     discount: 0,
+    stockConfirmed: false,
   });
   const [lineItems, setLineItems] = useState<LineItem[]>([
-    { id: '1', item: '', quantity: 0, rate: 0, amount: 0 },
+    { id: '1', itemId: '', quantity: 0, rate: 0, amount: 0 },
   ]);
   const [vendors, setVendors] = useState<VendorOption[]>([]);
   const [taxes, setTaxes] = useState<TaxOption[]>([]);
@@ -161,12 +165,14 @@ const AddPurchaseInvoicePage: React.FC = () => {
         // Load items from API
         try {
           const itemsApi = getItemsApi();
-          const itemsResponse = await itemsApi.v1ApiItemsGet(true);
+          const itemsResponse = await itemsApi.v1ApiItemsGet(undefined);
           if (itemsResponse.data) {
-            setItems(itemsResponse.data.map((i: { id?: number; itemName?: string; purchasePrice?: number; unitPrice?: number }) => ({
+            setItems(itemsResponse.data.map((i: { id?: number; itemName?: string; purchasePrice?: number; unitPrice?: number; currentStock?: number; isActive?: boolean }) => ({
               id: String(i.id),
               name: i.itemName || '',
               rate: i.purchasePrice || i.unitPrice || 0,
+              currentStock: i.currentStock || 0,
+              isActive: i.isActive !== false,
             })));
           }
         } catch (err) {
@@ -180,7 +186,7 @@ const AddPurchaseInvoicePage: React.FC = () => {
             const purchaseInvoicesApi = getPurchaseInvoicesApi();
             const invoiceResponse = await purchaseInvoicesApi.getById(Number(id));
             if (invoiceResponse.data) {
-              const invoice = invoiceResponse.data;
+              const invoice = invoiceResponse.data as any;
               setFormData({
                 companyId: invoice.companyId || '',
                 vendorId: String(invoice.vendorId || ''),
@@ -193,12 +199,13 @@ const AddPurchaseInvoicePage: React.FC = () => {
                 status: (invoice.status === 'paid' ? 'Paid' : invoice.status === 'overdue' ? 'Overdue' : 'Pending') as InvoiceStatus,
                 taxId: '',
                 paidAmount: invoice.paidAmount || 0,
-                discount: invoice.discount || 0,
+                discount: invoice.discountAmount || 0,
+                stockConfirmed: invoice.stockConfirmed || false,
               });
               if (invoice.lines) {
-                setLineItems((invoice.lines as Array<{ id?: number; itemName?: string; quantity?: number; unitPrice?: number; lineTotal?: number }>).map((l) => ({
+                setLineItems((invoice.lines as Array<{ id?: number; itemId?: number; itemName?: string; quantity?: number; unitPrice?: number; lineTotal?: number }>).map((l) => ({
                   id: String(l.id || Date.now()),
-                  item: l.itemName || '',
+                  itemId: String(l.itemId),
                   quantity: l.quantity || 0,
                   rate: l.unitPrice || 0,
                   amount: l.lineTotal || 0,
@@ -251,8 +258,8 @@ const AddPurchaseInvoicePage: React.FC = () => {
             updated.amount = updated.quantity * updated.rate;
           }
           // If item is selected, auto-fill rate
-          if (field === 'item') {
-            const selectedItem = items.find((i) => i.name === value);
+          if (field === 'itemId') {
+            const selectedItem = items.find((i) => i.id === value);
             if (selectedItem) {
               updated.rate = selectedItem.rate;
               updated.amount = updated.quantity * selectedItem.rate;
@@ -268,7 +275,7 @@ const AddPurchaseInvoicePage: React.FC = () => {
   const handleAddLineItem = useCallback(() => {
     setLineItems((prev) => [
       ...prev,
-      { id: String(Date.now()), item: '', quantity: 0, rate: 0, amount: 0 },
+      { id: String(Date.now()), itemId: '', quantity: 0, rate: 0, amount: 0 },
     ]);
   }, []);
 
@@ -327,9 +334,9 @@ const AddPurchaseInvoicePage: React.FC = () => {
         accountNumber: formData.accountNumber || undefined,
         remarks: formData.remarks || undefined,
         companyId: formData.companyId ? Number(formData.companyId) : 1,
-        lines: lineItems.filter(l => l.item).map((l) => ({
-          itemId: Number(items.find(i => i.name === l.item)?.id) || 0,
-          description: l.item,
+        lines: lineItems.filter(l => l.itemId).map((l) => ({
+          itemId: Number(l.itemId),
+          description: items.find(i => i.id === l.itemId)?.name || '',
           quantity: l.quantity,
           unitPrice: l.rate,
           taxId: formData.taxId ? Number(formData.taxId) : undefined,
@@ -337,6 +344,7 @@ const AddPurchaseInvoicePage: React.FC = () => {
           lineTotal: l.amount,
         })),
         receiptImage: receiptImage || undefined,
+        stockConfirmed: formData.stockConfirmed,
       };
 
       // Save via API
@@ -356,7 +364,9 @@ const AddPurchaseInvoicePage: React.FC = () => {
       }, 1500);
     } catch (err: unknown) {
       console.error('Error saving invoice:', err);
-      setError('Failed to save invoice. Please try again.');
+      const apiError = err as { response?: { data?: { message?: string } } };
+      const message = apiError?.response?.data?.message || 'Failed to save invoice. Please try again.';
+      setError(message);
       setIsSubmitting(false);
     }
   }, [formData, items, taxes, lineItems, receiptImage, navigate, isEditMode, id, requiresImageAndAccount]);
@@ -532,14 +542,16 @@ const AddPurchaseInvoicePage: React.FC = () => {
                       <TableCell>
                         <FormControl fullWidth size="small">
                           <Select
-                            value={item.item}
-                            onChange={(e) => handleLineItemChange(item.id, 'item', e.target.value as string)}
+                            value={item.itemId}
+                            onChange={(e) => handleLineItemChange(item.id, 'itemId', e.target.value as string)}
                             displayEmpty
                             sx={{ bgcolor: 'white' }}
                           >
                             <MenuItem value="" disabled>Select Item</MenuItem>
                             {items.map((i) => (
-                              <MenuItem key={i.id} value={i.name}>{i.name}</MenuItem>
+                              <MenuItem key={i.id} value={i.id} disabled={!i.isActive} sx={!i.isActive ? { opacity: 0.5 } : undefined}>
+                                {i.name}{!i.isActive ? ' (Inactive)' : ''} — Stock: {i.currentStock}
+                              </MenuItem>
                             ))}
                           </Select>
                         </FormControl>
@@ -712,6 +724,22 @@ const AddPurchaseInvoicePage: React.FC = () => {
               />
             </FormSection>
           )}
+
+          {/* Stock Received Checkbox */}
+          <FormSection title="Stock Confirmation" icon={<InventoryIcon />} sx={{ mb: 3 }}>
+            <Divider sx={{ mb: 2, mt: -1 }} />
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={formData.stockConfirmed}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, stockConfirmed: e.target.checked }))}
+                  disabled={formData.stockConfirmed && isEditMode}
+                  sx={{ color: '#FF6B35', '&.Mui-checked': { color: '#FF6B35' } }}
+                />
+              }
+              label="Stock Received"
+            />
+          </FormSection>
 
           {/* Status - Only show in edit mode */}
           {isEditMode && (

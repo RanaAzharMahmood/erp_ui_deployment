@@ -44,55 +44,17 @@ const ItemFormFields: React.FC<ItemFormFieldsProps> = ({
             sx={{ mb: 0.5, fontWeight: 500 }}
             id="item-code-label"
           >
-            Item Id *
+            Item Code
           </Typography>
           <TextField
             fullWidth
             name="itemCode"
-            value={formData.itemCode}
-            onChange={onInputChange}
-            placeholder="G1215"
+            value={formData.itemCode || 'Auto-generated'}
             size="small"
-            error={!!fieldErrors.itemCode}
-            helperText={fieldErrors.itemCode}
-            sx={{ '& .MuiOutlinedInput-root': { bgcolor: 'white' } }}
+            disabled
+            sx={{ '& .MuiOutlinedInput-root': { bgcolor: '#F3F4F6' } }}
             inputProps={{
-              'aria-required': true,
-              'aria-invalid': !!fieldErrors.itemCode,
-              'aria-describedby': fieldErrors.itemCode ? 'item-code-error' : undefined,
               'aria-labelledby': 'item-code-label',
-            }}
-            FormHelperTextProps={{
-              id: 'item-code-error',
-            }}
-          />
-        </Grid>
-        <Grid item xs={12} sm={6}>
-          <Typography
-            variant="body2"
-            sx={{ mb: 0.5, fontWeight: 500 }}
-            id="item-hashcode-label"
-          >
-            Item Hash Code *
-          </Typography>
-          <TextField
-            fullWidth
-            name="itemHashCode"
-            value={formData.itemHashCode}
-            onChange={onInputChange}
-            placeholder="REW01245"
-            size="small"
-            error={!!fieldErrors.itemHashCode}
-            helperText={fieldErrors.itemHashCode}
-            sx={{ '& .MuiOutlinedInput-root': { bgcolor: 'white' } }}
-            inputProps={{
-              'aria-required': true,
-              'aria-invalid': !!fieldErrors.itemHashCode,
-              'aria-describedby': fieldErrors.itemHashCode ? 'item-hashcode-error' : undefined,
-              'aria-labelledby': 'item-hashcode-label',
-            }}
-            FormHelperTextProps={{
-              id: 'item-hashcode-error',
             }}
           />
         </Grid>
@@ -129,6 +91,35 @@ const ItemFormFields: React.FC<ItemFormFieldsProps> = ({
           <Typography
             variant="body2"
             sx={{ mb: 0.5, fontWeight: 500 }}
+            id="item-company-label"
+          >
+            Company *
+          </Typography>
+          <FormControl fullWidth size="small" error={!!fieldErrors.companyId}>
+            <Select
+              value={formData.companyId}
+              onChange={(e) => onSelectChange('companyId', e.target.value)}
+              displayEmpty
+              sx={{ bgcolor: 'white' }}
+              aria-required="true"
+              aria-invalid={!!fieldErrors.companyId}
+              aria-describedby={fieldErrors.companyId ? 'item-company-error' : undefined}
+              aria-labelledby="item-company-label"
+            >
+              <MenuItem value="" disabled>Select Company</MenuItem>
+              {companies.map((comp) => (
+                <MenuItem key={comp.id} value={comp.id}>{comp.name}</MenuItem>
+              ))}
+            </Select>
+            {fieldErrors.companyId && (
+              <FormHelperText id="item-company-error">{fieldErrors.companyId}</FormHelperText>
+            )}
+          </FormControl>
+        </Grid>
+        <Grid item xs={12} sm={6}>
+          <Typography
+            variant="body2"
+            sx={{ mb: 0.5, fontWeight: 500 }}
             id="item-category-label"
           >
             Category *
@@ -138,13 +129,14 @@ const ItemFormFields: React.FC<ItemFormFieldsProps> = ({
               value={formData.categoryId}
               onChange={(e) => onSelectChange('categoryId', e.target.value)}
               displayEmpty
+              disabled={!formData.companyId}
               sx={{ bgcolor: 'white' }}
               aria-required="true"
               aria-invalid={!!fieldErrors.categoryId}
               aria-describedby={fieldErrors.categoryId ? 'item-category-error' : undefined}
               aria-labelledby="item-category-label"
             >
-              <MenuItem value="" disabled>Select Category</MenuItem>
+              <MenuItem value="" disabled>{formData.companyId ? 'Select Category' : 'Select Company first'}</MenuItem>
               {categories.map((cat) => (
                 <MenuItem key={cat.id} value={cat.id}>{cat.name}</MenuItem>
               ))}
@@ -170,6 +162,8 @@ const ItemFormFields: React.FC<ItemFormFieldsProps> = ({
             placeholder="00"
             size="small"
             type="number"
+            error={!!fieldErrors.unitPrice}
+            helperText={fieldErrors.unitPrice}
             sx={{ '& .MuiOutlinedInput-root': { bgcolor: 'white' } }}
             inputProps={{
               'aria-labelledby': 'item-unitprice-label',
@@ -192,6 +186,8 @@ const ItemFormFields: React.FC<ItemFormFieldsProps> = ({
             placeholder="00"
             size="small"
             type="number"
+            error={!!fieldErrors.purchasePrice}
+            helperText={fieldErrors.purchasePrice}
             sx={{ '& .MuiOutlinedInput-root': { bgcolor: 'white' } }}
             inputProps={{
               'aria-labelledby': 'item-purchaseprice-label',
@@ -214,6 +210,8 @@ const ItemFormFields: React.FC<ItemFormFieldsProps> = ({
             placeholder="00"
             size="small"
             type="number"
+            error={!!fieldErrors.salePrice}
+            helperText={fieldErrors.salePrice}
             sx={{ '& .MuiOutlinedInput-root': { bgcolor: 'white' } }}
             inputProps={{
               'aria-labelledby': 'item-saleprice-label',
@@ -228,7 +226,7 @@ const ItemFormFields: React.FC<ItemFormFieldsProps> = ({
           >
             Measuring Units
           </Typography>
-          <FormControl fullWidth size="small">
+          <FormControl fullWidth size="small" error={!!fieldErrors.unitOfMeasure}>
             <Select
               value={formData.unitOfMeasure}
               onChange={(e) => onSelectChange('unitOfMeasure', e.target.value)}
@@ -241,6 +239,9 @@ const ItemFormFields: React.FC<ItemFormFieldsProps> = ({
                 <MenuItem key={unit} value={unit}>{unit}</MenuItem>
               ))}
             </Select>
+            {fieldErrors.unitOfMeasure && (
+              <FormHelperText>{fieldErrors.unitOfMeasure}</FormHelperText>
+            )}
           </FormControl>
         </Grid>
         <Grid item xs={12} sm={6}>
@@ -259,6 +260,8 @@ const ItemFormFields: React.FC<ItemFormFieldsProps> = ({
             placeholder="Enter Open Stocks in  KG"
             size="small"
             type="number"
+            error={!!fieldErrors.openingStock}
+            helperText={fieldErrors.openingStock}
             sx={{ '& .MuiOutlinedInput-root': { bgcolor: 'white' } }}
             inputProps={{
               'aria-labelledby': 'item-openingstock-label',
@@ -281,34 +284,13 @@ const ItemFormFields: React.FC<ItemFormFieldsProps> = ({
             placeholder="Enter Close Stocks in  KG"
             size="small"
             type="number"
+            error={!!fieldErrors.closingStock}
+            helperText={fieldErrors.closingStock}
             sx={{ '& .MuiOutlinedInput-root': { bgcolor: 'white' } }}
             inputProps={{
               'aria-labelledby': 'item-closingstock-label',
             }}
           />
-        </Grid>
-        <Grid item xs={12} sm={6}>
-          <Typography
-            variant="body2"
-            sx={{ mb: 0.5, fontWeight: 500 }}
-            id="item-company-label"
-          >
-            Company
-          </Typography>
-          <FormControl fullWidth size="small">
-            <Select
-              value={formData.companyId}
-              onChange={(e) => onSelectChange('companyId', e.target.value)}
-              displayEmpty
-              sx={{ bgcolor: 'white' }}
-              aria-labelledby="item-company-label"
-            >
-              <MenuItem value="" disabled>Select Company</MenuItem>
-              {companies.map((comp) => (
-                <MenuItem key={comp.id} value={comp.id}>{comp.name}</MenuItem>
-              ))}
-            </Select>
-          </FormControl>
         </Grid>
         <Grid item xs={12}>
           <Typography
@@ -327,6 +309,8 @@ const ItemFormFields: React.FC<ItemFormFieldsProps> = ({
             multiline
             rows={4}
             size="small"
+            error={!!fieldErrors.description}
+            helperText={fieldErrors.description}
             sx={{ '& .MuiOutlinedInput-root': { bgcolor: 'white' } }}
             inputProps={{
               'aria-labelledby': 'item-description-label',

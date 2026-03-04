@@ -8,7 +8,7 @@
 
 export interface LineItem {
   id: string;
-  item: string;
+  itemId: string;
   quantity: number;
   rate: number;
   amount: number;
@@ -45,6 +45,8 @@ export interface ItemOption {
   id: string;
   name: string;
   rate: number;
+  currentStock: number;
+  isActive: boolean;
 }
 
 export interface SalesInvoiceOption {
@@ -226,6 +228,7 @@ export interface SalesInvoiceFormData {
   taxId: string;
   paidAmount: number;
   discount: number;
+  stockConfirmed: boolean;
 }
 
 export interface PurchaseInvoiceFormData {
@@ -241,6 +244,7 @@ export interface PurchaseInvoiceFormData {
   taxId: string;
   paidAmount: number;
   discount: number;
+  stockConfirmed: boolean;
 }
 
 export interface SalesReturnFormData {
@@ -254,7 +258,6 @@ export interface SalesReturnFormData {
   accountNumber: string;
   remarks: string;
   status: ReturnStatus;
-  taxId: string;
   refundAmount: number;
 }
 
@@ -269,7 +272,6 @@ export interface PurchaseReturnFormData {
   accountNumber: string;
   remarks: string;
   status: ReturnStatus;
-  taxId: string;
   refundAmount: number;
 }
 

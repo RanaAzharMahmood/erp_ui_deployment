@@ -45,7 +45,7 @@ interface PurchaseReturn {
   item: string;
   quantity: number;
   netAmount: number;
-  status: 'Active' | 'Completed' | 'Pending';
+  status: 'Pending' | 'Approved' | 'Rejected';
   date: string;
   createdAt: string;
 }
@@ -83,7 +83,7 @@ const PurchaseReturnListPage: React.FC = () => {
     const loadReturns = async () => {
       try {
         const purchaseReturnsApi = getPurchaseReturnsApi();
-        const response = await purchaseReturnsApi.getAll();
+        const response = await purchaseReturnsApi.getAll({ isActive: true });
         if (response.data?.data) {
           const apiReturns = response.data.data.map((ret) => {
             // Get first line item name and total quantity from lines
@@ -97,7 +97,7 @@ const PurchaseReturnListPage: React.FC = () => {
               item: firstItem,
               quantity: totalQuantity,
               netAmount: ret.totalAmount || 0,
-              status: (ret.status === 'completed' ? 'Completed' : ret.status === 'approved' ? 'Active' : 'Pending') as 'Active' | 'Completed' | 'Pending',
+              status: (ret.status === 'approved' || ret.status === 'completed' ? 'Approved' : ret.status === 'cancelled' ? 'Rejected' : 'Pending') as PurchaseReturn['status'],
               date: ret.date,
               createdAt: ret.createdAt || '',
             };
@@ -383,9 +383,9 @@ const PurchaseReturnListPage: React.FC = () => {
               label="Status"
             >
               <MenuItem value="">All</MenuItem>
-              <MenuItem value="Active">Active</MenuItem>
-              <MenuItem value="Completed">Completed</MenuItem>
               <MenuItem value="Pending">Pending</MenuItem>
+              <MenuItem value="Approved">Approved</MenuItem>
+              <MenuItem value="Rejected">Rejected</MenuItem>
             </Select>
           </FormControl>
 
@@ -562,16 +562,22 @@ const PurchaseReturnListPage: React.FC = () => {
                         label={returnItem.status}
                         size="small"
                         sx={{
-                          bgcolor: returnItem.status === 'Active' || returnItem.status === 'Completed'
+                          bgcolor: returnItem.status === 'Approved'
                             ? 'rgba(16, 185, 129, 0.1)'
+                            : returnItem.status === 'Rejected'
+                            ? 'rgba(239, 68, 68, 0.1)'
                             : 'rgba(251, 191, 36, 0.1)',
-                          color: returnItem.status === 'Active' || returnItem.status === 'Completed'
+                          color: returnItem.status === 'Approved'
                             ? '#10B981'
+                            : returnItem.status === 'Rejected'
+                            ? '#EF4444'
                             : '#F59E0B',
                           fontWeight: 500,
                           border: `1px solid ${
-                            returnItem.status === 'Active' || returnItem.status === 'Completed'
+                            returnItem.status === 'Approved'
                               ? '#10B981'
+                              : returnItem.status === 'Rejected'
+                              ? '#EF4444'
                               : '#F59E0B'
                           }`,
                         }}

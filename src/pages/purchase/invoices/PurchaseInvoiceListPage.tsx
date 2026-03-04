@@ -188,7 +188,9 @@ const PurchaseInvoiceListPage: React.FC = () => {
         setSuccessMessage('Purchase invoice deleted successfully!');
       } catch (err) {
         console.error('Error deleting purchase invoice:', err);
-        setError('Failed to delete purchase invoice. Please try again.');
+        const apiError = err as { response?: { data?: { message?: string } } };
+        const message = apiError?.response?.data?.message || 'Failed to delete purchase invoice. Please try again.';
+        setError(message);
       } finally {
         setDeleting(false);
       }

@@ -20,7 +20,7 @@ interface ApiCategoryResponse {
 // Type for API company response
 interface ApiCompanyResponse {
   id?: number;
-  companyName?: string;
+  name?: string;
 }
 
 // Type for API item response
@@ -42,7 +42,7 @@ interface ApiItemResponse {
 // Type for API error with json method
 interface ApiError {
   status?: number;
-  json?: () => Promise<{ message?: string }>;
+  json?: () => Promise<{ message?: string; data?: Record<string, string> }>;
 }
 
 // Type for select change value
@@ -84,22 +84,10 @@ export function useItemForm(options: UseItemFormOptions = {}): UseItemFormReturn
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
 
-  // Load categories and companies from API
+  // Load companies and existing item data from API
   useEffect(() => {
     const loadData = async () => {
       try {
-        // Load categories from API
-        const categoriesApi = getCategoriesApi();
-        const categoriesResponse = await categoriesApi.v1ApiCategoriesGet(true);
-        if (categoriesResponse.data) {
-          setCategories(
-            categoriesResponse.data.map((c: ApiCategoryResponse) => ({
-              id: c.id ?? 0,
-              name: c.categoryName ?? '',
-            }))
-          );
-        }
-
         // Load companies from API
         const companiesApi = getCompaniesApi();
         const companiesResponse = await companiesApi.v1ApiCompaniesGet(true);
@@ -107,7 +95,7 @@ export function useItemForm(options: UseItemFormOptions = {}): UseItemFormReturn
           setCompanies(
             companiesResponse.data.map((c: ApiCompanyResponse) => ({
               id: c.id ?? 0,
-              name: c.companyName ?? '',
+              name: c.name ?? '',
             }))
           );
         }
@@ -120,7 +108,6 @@ export function useItemForm(options: UseItemFormOptions = {}): UseItemFormReturn
             const item = itemResponse.data as ApiItemResponse;
             setFormData({
               itemCode: item.itemCode || '',
-              itemHashCode: '',
               itemName: item.itemName || '',
               categoryId: item.categoryId || '',
               unitPrice: String(item.unitPrice || ''),
@@ -151,6 +138,58 @@ export function useItemForm(options: UseItemFormOptions = {}): UseItemFormReturn
     loadData();
   }, [itemId]);
 
+  // Load categories filtered by company and fetch next item code when companyId changes
+  useEffect(() => {
+    const loadCategories = async () => {
+      if (!formData.companyId) {
+        setCategories([]);
+        return;
+      }
+      try {
+        const categoriesApi = getCategoriesApi();
+        const categoriesResponse = await categoriesApi.v1ApiCategoriesGet(true, Number(formData.companyId));
+        if (categoriesResponse.data) {
+          setCategories(
+            categoriesResponse.data.map((c: ApiCategoryResponse) => ({
+              id: c.id ?? 0,
+              name: c.categoryName ?? '',
+            }))
+          );
+        }
+      } catch (err: unknown) {
+        console.error('Error loading categories:', err);
+        setCategories([]);
+      }
+    };
+
+    // Fetch next item code for display (create mode only)
+    const fetchNextItemCode = async () => {
+      if (itemId) return; // Skip in edit mode
+      try {
+        const baseUrl = import.meta.env.VITE_API_URL || import.meta.env.REACT_APP_API_URL || 'http://localhost:8000';
+        const companyParam = formData.companyId ? `?companyId=${formData.companyId}` : '';
+        const token = localStorage.getItem('token') || localStorage.getItem('authToken');
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+        const response = await fetch(`${baseUrl}/v1/api/items/next-code${companyParam}`, {
+          credentials: 'include',
+          headers,
+        });
+        if (response.ok) {
+          const data = await response.json();
+          if (data.nextItemCode) {
+            setFormData((prev) => ({ ...prev, itemCode: data.nextItemCode }));
+          }
+        }
+      } catch {
+        // Silently fail — itemCode will show "Auto-generated" placeholder
+      }
+    };
+
+    loadCategories();
+    fetchNextItemCode();
+  }, [formData.companyId, itemId]);
+
   const handleInputChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
       const { name, value } = e.target;
@@ -158,7 +197,8 @@ export function useItemForm(options: UseItemFormOptions = {}): UseItemFormReturn
       // Clear field error when user starts typing
       setFieldErrors((prev) => {
         if (prev[name]) {
-          const { [name]: _, ...rest } = prev;
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const { [name]: _removed, ...rest } = prev;
           return rest;
         }
         return prev;
@@ -168,15 +208,26 @@ export function useItemForm(options: UseItemFormOptions = {}): UseItemFormReturn
   );
 
   const handleSelectChange = useCallback((name: string, value: SelectChangeValue) => {
-    setFormData((prev) => ({ ...prev, [name]: value }));
-    // Clear field error when selection changes
-    setFieldErrors((prev) => {
-      if (prev[name]) {
-        const { [name]: _, ...rest } = prev;
+    if (name === 'companyId') {
+      // Reset categoryId when company changes
+      setFormData((prev) => ({ ...prev, companyId: value as number | '', categoryId: '' }));
+      setFieldErrors((prev) => {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { companyId: _c, categoryId: _cat, ...rest } = prev;
         return rest;
-      }
-      return prev;
-    });
+      });
+    } else {
+      setFormData((prev) => ({ ...prev, [name]: value }));
+      // Clear field error when selection changes
+      setFieldErrors((prev) => {
+        if (prev[name]) {
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const { [name]: _removed, ...rest } = prev;
+          return rest;
+        }
+        return prev;
+      });
+    }
   }, []);
 
   const handleStatusChange = useCallback((status: 'Active' | 'Prospect' | 'Inactive') => {
@@ -207,14 +258,15 @@ export function useItemForm(options: UseItemFormOptions = {}): UseItemFormReturn
 
     setIsSubmitting(true);
     setError('');
+    setFieldErrors({});
 
     try {
       const itemsApi = getItemsApi();
 
       await itemsApi.v1ApiItemsPost({
-        itemCode: formData.itemCode,
         itemName: formData.itemName,
         categoryId: Number(formData.categoryId),
+        companyId: Number(formData.companyId),
         description: formData.description || undefined,
         unitPrice: parseFloat(formData.unitPrice) || 0,
         purchasePrice: parseFloat(formData.purchasePrice) || 0,
@@ -238,7 +290,13 @@ export function useItemForm(options: UseItemFormOptions = {}): UseItemFormReturn
       if (apiError.json) {
         try {
           const errorData = await apiError.json();
-          setError(errorData.message || 'Failed to create item.');
+          if (errorData.data && typeof errorData.data === 'object') {
+            setFieldErrors(errorData.data);
+            const errorMessages = Object.values(errorData.data);
+            setError(errorMessages.join('. '));
+          } else {
+            setError(errorData.message || 'Failed to create item.');
+          }
         } catch {
           setError('Failed to create item. Please try again.');
         }
@@ -254,6 +312,7 @@ export function useItemForm(options: UseItemFormOptions = {}): UseItemFormReturn
 
     setIsSubmitting(true);
     setError('');
+    setFieldErrors({});
 
     try {
       const itemsApi = getItemsApi();
@@ -263,6 +322,7 @@ export function useItemForm(options: UseItemFormOptions = {}): UseItemFormReturn
           itemCode: formData.itemCode,
           itemName: formData.itemName,
           categoryId: Number(formData.categoryId),
+          companyId: Number(formData.companyId),
           description: formData.description || undefined,
           unitPrice: parseFloat(formData.unitPrice) || 0,
           purchasePrice: parseFloat(formData.purchasePrice) || 0,
@@ -289,7 +349,13 @@ export function useItemForm(options: UseItemFormOptions = {}): UseItemFormReturn
       if (apiError.json) {
         try {
           const errorData = await apiError.json();
-          setError(errorData.message || 'Failed to update item.');
+          if (errorData.data && typeof errorData.data === 'object') {
+            setFieldErrors(errorData.data);
+            const errorMessages = Object.values(errorData.data);
+            setError(errorMessages.join('. '));
+          } else {
+            setError(errorData.message || 'Failed to update item.');
+          }
         } catch {
           setError('Failed to update item. Please try again.');
         }

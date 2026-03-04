@@ -507,11 +507,11 @@ export namespace CreateInventoryMovementRequest {
  */
 export interface CreateItemRequest {
     /**
-     * 
+     *
      * @type {string}
      * @memberof CreateItemRequest
      */
-    itemCode: string;
+    itemCode?: string;
     /**
      * 
      * @type {string}
@@ -572,9 +572,15 @@ export interface CreateItemRequest {
      * @memberof CreateItemRequest
      */
     currentStock: number;
+    /**
+     *
+     * @type {number}
+     * @memberof CreateItemRequest
+     */
+    companyId?: number;
 }
 /**
- * 
+ *
  * @export
  * @interface CreateTaxDetailRequest
  */
@@ -1679,7 +1685,13 @@ export interface Item {
      */
     currentStock?: number;
     /**
-     * 
+     *
+     * @type {number}
+     * @memberof Item
+     */
+    companyId?: number;
+    /**
+     *
      * @type {Date}
      * @memberof Item
      */
@@ -1950,9 +1962,15 @@ export interface UpdateItemRequest {
      * @memberof UpdateItemRequest
      */
     currentStock?: number;
+    /**
+     *
+     * @type {number}
+     * @memberof UpdateItemRequest
+     */
+    companyId?: number;
 }
 /**
- * 
+ *
  * @export
  * @interface UpdateTaxDetailRequest
  */
@@ -2295,7 +2313,7 @@ export const CategoriesApiFetchParamCreator = function (configuration?: Configur
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        v1ApiCategoriesGet(isActive?: boolean, options: any = {}): FetchArgs {
+        v1ApiCategoriesGet(isActive?: boolean, companyId?: number, options: any = {}): FetchArgs {
             const localVarPath = `/v1/api/categories`;
             const localVarUrlObj = url.parse(localVarPath, true);
             const localVarRequestOptions = Object.assign({ method: 'GET' }, options);
@@ -2306,6 +2324,10 @@ export const CategoriesApiFetchParamCreator = function (configuration?: Configur
 
             if (isActive !== undefined) {
                 localVarQueryParameter['isActive'] = isActive;
+            }
+
+            if (companyId !== undefined) {
+                localVarQueryParameter['companyId'] = companyId;
             }
 
             localVarUrlObj.query = Object.assign({}, localVarUrlObj.query, localVarQueryParameter, options.query);
@@ -2489,8 +2511,8 @@ export const CategoriesApiFp = function(configuration?: Configuration) {
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        v1ApiCategoriesGet(isActive?: boolean, options?: any): (fetch?: FetchAPI, basePath?: string) => Promise<InlineResponse2001> {
-            const localVarFetchArgs = CategoriesApiFetchParamCreator(configuration).v1ApiCategoriesGet(isActive, options);
+        v1ApiCategoriesGet(isActive?: boolean, companyId?: number, options?: any): (fetch?: FetchAPI, basePath?: string) => Promise<InlineResponse2001> {
+            const localVarFetchArgs = CategoriesApiFetchParamCreator(configuration).v1ApiCategoriesGet(isActive, companyId, options);
             return (fetch: FetchAPI = isomorphicFetch, basePath: string = BASE_PATH) => {
                 const requestOptions = addAuthHeader(localVarFetchArgs.options, configuration);
                 return fetch(basePath + localVarFetchArgs.url, requestOptions).then((response) => {
@@ -2599,8 +2621,8 @@ export const CategoriesApiFactory = function (configuration?: Configuration, fet
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        v1ApiCategoriesGet(isActive?: boolean, options?: any) {
-            return CategoriesApiFp(configuration).v1ApiCategoriesGet(isActive, options)(fetch, basePath);
+        v1ApiCategoriesGet(isActive?: boolean, companyId?: number, options?: any) {
+            return CategoriesApiFp(configuration).v1ApiCategoriesGet(isActive, companyId, options)(fetch, basePath);
         },
         /**
          * Soft delete a category by setting isActive to false (admin only)
@@ -2661,8 +2683,8 @@ export class CategoriesApi extends BaseAPI {
      * @throws {RequiredError}
      * @memberof CategoriesApi
      */
-    public v1ApiCategoriesGet(isActive?: boolean, options?: any) {
-        return CategoriesApiFp(this.configuration).v1ApiCategoriesGet(isActive, options)(this.fetch, this.basePath);
+    public v1ApiCategoriesGet(isActive?: boolean, companyId?: number, options?: any) {
+        return CategoriesApiFp(this.configuration).v1ApiCategoriesGet(isActive, companyId, options)(this.fetch, this.basePath);
     }
 
     /**
@@ -3667,7 +3689,7 @@ export const ItemsApiFetchParamCreator = function (configuration?: Configuration
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        v1ApiItemsGet(isActive?: boolean, categoryId?: number, options: any = {}): FetchArgs {
+        v1ApiItemsGet(isActive?: boolean, categoryId?: number, companyId?: number, options: any = {}): FetchArgs {
             const localVarPath = `/v1/api/items`;
             const localVarUrlObj = url.parse(localVarPath, true);
             const localVarRequestOptions = Object.assign({ method: 'GET' }, options);
@@ -3682,6 +3704,10 @@ export const ItemsApiFetchParamCreator = function (configuration?: Configuration
 
             if (categoryId !== undefined) {
                 localVarQueryParameter['categoryId'] = categoryId;
+            }
+
+            if (companyId !== undefined) {
+                localVarQueryParameter['companyId'] = companyId;
             }
 
             localVarUrlObj.query = Object.assign({}, localVarUrlObj.query, localVarQueryParameter, options.query);
@@ -3847,8 +3873,8 @@ export const ItemsApiFp = function(configuration?: Configuration) {
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        v1ApiItemsGet(isActive?: boolean, categoryId?: number, options?: any): (fetch?: FetchAPI, basePath?: string) => Promise<InlineResponse20011> {
-            const localVarFetchArgs = ItemsApiFetchParamCreator(configuration).v1ApiItemsGet(isActive, categoryId, options);
+        v1ApiItemsGet(isActive?: boolean, categoryId?: number, companyId?: number, options?: any): (fetch?: FetchAPI, basePath?: string) => Promise<InlineResponse20011> {
+            const localVarFetchArgs = ItemsApiFetchParamCreator(configuration).v1ApiItemsGet(isActive, categoryId, companyId, options);
             return (fetch: FetchAPI = isomorphicFetch, basePath: string = BASE_PATH) => {
                 return fetch(basePath + localVarFetchArgs.url, localVarFetchArgs.options).then((response) => {
                     if (response.status >= 200 && response.status < 300) {
@@ -3953,8 +3979,8 @@ export const ItemsApiFactory = function (configuration?: Configuration, fetch?: 
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        v1ApiItemsGet(isActive?: boolean, categoryId?: number, options?: any) {
-            return ItemsApiFp(configuration).v1ApiItemsGet(isActive, categoryId, options)(fetch, basePath);
+        v1ApiItemsGet(isActive?: boolean, categoryId?: number, companyId?: number, options?: any) {
+            return ItemsApiFp(configuration).v1ApiItemsGet(isActive, categoryId, companyId, options)(fetch, basePath);
         },
         /**
          * Soft delete an item by setting isActive to false (admin only)
@@ -4016,8 +4042,8 @@ export class ItemsApi extends BaseAPI {
      * @throws {RequiredError}
      * @memberof ItemsApi
      */
-    public v1ApiItemsGet(isActive?: boolean, categoryId?: number, options?: any) {
-        return ItemsApiFp(this.configuration).v1ApiItemsGet(isActive, categoryId, options)(this.fetch, this.basePath);
+    public v1ApiItemsGet(isActive?: boolean, categoryId?: number, companyId?: number, options?: any) {
+        return ItemsApiFp(this.configuration).v1ApiItemsGet(isActive, categoryId, companyId, options)(this.fetch, this.basePath);
     }
 
     /**

@@ -48,6 +48,7 @@ const AddUserPage: React.FC = () => {
   const [imagePreview, setImagePreview] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string>('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [successMessage, setSuccessMessage] = useState<string>('');
 
   // Get companies from hook with refetch capability
@@ -82,6 +83,15 @@ const AddUserPage: React.FC = () => {
     (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
       const { name, value } = e.target;
       setFormData((prev) => ({ ...prev, [name]: value }));
+      // Clear field error when user starts typing
+      setFieldErrors((prev) => {
+        if (prev[name]) {
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const { [name]: _removed, ...rest } = prev;
+          return rest;
+        }
+        return prev;
+      });
     },
     []
   );
@@ -136,6 +146,7 @@ const AddUserPage: React.FC = () => {
 
     setIsSubmitting(true);
     setError('');
+    setFieldErrors({});
 
     try {
       const usersApi = getUsersApi();
@@ -169,7 +180,27 @@ const AddUserPage: React.FC = () => {
       }, 1500);
     } catch (err: unknown) {
       console.error('Error creating user:', err);
-      setError('Failed to create user. Please try again.');
+
+      // Try to parse field-level validation errors from API response
+      const apiError = err as { json?: () => Promise<{ message?: string; data?: Record<string, string> }> };
+      if (apiError.json) {
+        try {
+          const errorData = await apiError.json();
+          if (errorData.data && typeof errorData.data === 'object') {
+            // Set field-level errors on the form fields
+            setFieldErrors(errorData.data);
+            // Show combined message in snackbar
+            const errorMessages = Object.values(errorData.data);
+            setError(errorMessages.join('. '));
+          } else {
+            setError(errorData.message || 'Failed to create user. Please try again.');
+          }
+        } catch {
+          setError('Failed to create user. Please try again.');
+        }
+      } else {
+        setError('Failed to create user. Please try again.');
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -202,6 +233,8 @@ const AddUserPage: React.FC = () => {
                   onChange={handleInputChange}
                   placeholder="John"
                   size="small"
+                  error={!!fieldErrors.firstName}
+                  helperText={fieldErrors.firstName}
                   sx={{ '& .MuiOutlinedInput-root': { bgcolor: 'white' } }}
                 />
               </Grid>
@@ -216,6 +249,8 @@ const AddUserPage: React.FC = () => {
                   onChange={handleInputChange}
                   placeholder="Harry"
                   size="small"
+                  error={!!fieldErrors.lastName}
+                  helperText={fieldErrors.lastName}
                   sx={{ '& .MuiOutlinedInput-root': { bgcolor: 'white' } }}
                 />
               </Grid>
@@ -230,12 +265,14 @@ const AddUserPage: React.FC = () => {
                   onChange={handleInputChange}
                   placeholder="00000-0000000-0"
                   size="small"
+                  error={!!fieldErrors.cnic}
+                  helperText={fieldErrors.cnic}
                   sx={{ '& .MuiOutlinedInput-root': { bgcolor: 'white' } }}
                 />
               </Grid>
               <Grid item xs={12} sm={6}>
                 <Typography variant="body2" sx={{ mb: 0.5, fontWeight: 500 }}>
-                  Phone *
+                  Phone
                 </Typography>
                 <TextField
                   fullWidth
@@ -244,7 +281,8 @@ const AddUserPage: React.FC = () => {
                   onChange={handleInputChange}
                   placeholder="+92 123 4567"
                   size="small"
-                  required
+                  error={!!fieldErrors.phone}
+                  helperText={fieldErrors.phone || 'e.g. +92 300 1234567'}
                   sx={{ '& .MuiOutlinedInput-root': { bgcolor: 'white' } }}
                 />
               </Grid>
@@ -256,15 +294,27 @@ const AddUserPage: React.FC = () => {
                   fullWidth
                   type="password"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    setFieldErrors((prev) => {
+                      if (prev.password) {
+                        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                        const { password: _removed, ...rest } = prev;
+                        return rest;
+                      }
+                      return prev;
+                    });
+                  }}
                   placeholder="************"
                   size="small"
+                  error={!!fieldErrors.password}
+                  helperText={fieldErrors.password || 'Min 6 characters'}
                   sx={{ '& .MuiOutlinedInput-root': { bgcolor: 'white' } }}
                 />
               </Grid>
               <Grid item xs={12}>
                 <Typography variant="body2" sx={{ mb: 0.5, fontWeight: 500 }}>
-                  Email
+                  Email *
                 </Typography>
                 <TextField
                   fullWidth
@@ -274,6 +324,9 @@ const AddUserPage: React.FC = () => {
                   onChange={handleInputChange}
                   placeholder="example@example.com"
                   size="small"
+                  required
+                  error={!!fieldErrors.email}
+                  helperText={fieldErrors.email}
                   sx={{ '& .MuiOutlinedInput-root': { bgcolor: 'white' } }}
                 />
               </Grid>

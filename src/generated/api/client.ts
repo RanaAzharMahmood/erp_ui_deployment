@@ -2075,7 +2075,7 @@ export interface SalesInvoice {
   customerName?: string;
   subtotal: number;
   taxAmount: number;
-  discount: number;
+  discountAmount: number;
   totalAmount: number;
   paidAmount: number;
   balance: number;
@@ -2087,6 +2087,7 @@ export interface SalesInvoice {
   companyId: number;
   companyName?: string;
   isActive: boolean;
+  stockConfirmed: boolean;
   lines?: SalesInvoiceLine[];
   receiptImage?: string;
   createdAt: string;
@@ -2153,6 +2154,8 @@ export interface SalesInvoiceFilters {
   dateTo?: string;
   companyId?: number;
   isActive?: boolean;
+  excludeReturned?: boolean;
+  stockConfirmed?: boolean;
   limit?: number;
   offset?: number;
 }
@@ -2175,6 +2178,8 @@ export class SalesInvoicesApi {
     if (filters?.dateTo) queryParams.append('dateTo', filters.dateTo);
     if (filters?.companyId) queryParams.append('companyId', String(filters.companyId));
     if (filters?.isActive !== undefined) queryParams.append('isActive', String(filters.isActive));
+    if (filters?.excludeReturned) queryParams.append('excludeReturned', 'true');
+    if (filters?.stockConfirmed !== undefined) queryParams.append('stockConfirmed', String(filters.stockConfirmed));
     if (filters?.limit !== undefined) queryParams.append('limit', String(filters.limit));
     if (filters?.offset !== undefined) queryParams.append('offset', String(filters.offset));
 
@@ -2342,7 +2347,7 @@ export interface PurchaseInvoice {
   vendorName?: string;
   subtotal: number;
   taxAmount: number;
-  discount: number;
+  discountAmount: number;
   totalAmount: number;
   paidAmount: number;
   balance: number;
@@ -2354,6 +2359,7 @@ export interface PurchaseInvoice {
   companyId: number;
   companyName?: string;
   isActive: boolean;
+  stockConfirmed: boolean;
   lines?: PurchaseInvoiceLine[];
   receiptImage?: string;
   createdAt: string;
@@ -2420,6 +2426,8 @@ export interface PurchaseInvoiceFilters {
   dateTo?: string;
   companyId?: number;
   isActive?: boolean;
+  excludeReturned?: boolean;
+  stockConfirmed?: boolean;
   limit?: number;
   offset?: number;
 }
@@ -2442,6 +2450,8 @@ export class PurchaseInvoicesApi {
     if (filters?.dateTo) queryParams.append('dateTo', filters.dateTo);
     if (filters?.companyId) queryParams.append('companyId', String(filters.companyId));
     if (filters?.isActive !== undefined) queryParams.append('isActive', String(filters.isActive));
+    if (filters?.excludeReturned) queryParams.append('excludeReturned', 'true');
+    if (filters?.stockConfirmed !== undefined) queryParams.append('stockConfirmed', String(filters.stockConfirmed));
     if (filters?.limit !== undefined) queryParams.append('limit', String(filters.limit));
     if (filters?.offset !== undefined) queryParams.append('offset', String(filters.offset));
 
@@ -2844,6 +2854,40 @@ export class PurchaseReturnsApi {
 }
 
 export const getPurchaseReturnsApi = () => new PurchaseReturnsApi(getApiConfig(), undefined, fetchWithCredentials as any);
+
+// Dashboard API
+export class DashboardApi {
+  private basePath: string;
+  private fetch: typeof fetch;
+
+  constructor(configuration?: Configuration, basePath?: string, customFetch?: typeof fetch) {
+    this.basePath = configuration?.basePath || basePath || 'http://localhost:8000';
+    this.fetch = customFetch || fetch;
+  }
+
+  async getAll(companyId?: number): Promise<{ success: boolean; message: string; data: any }> {
+    const queryParams = new URLSearchParams();
+    if (companyId !== undefined) queryParams.append('companyId', String(companyId));
+
+    const queryString = queryParams.toString();
+    const url = `${this.basePath}/v1/api/dashboard${queryString ? `?${queryString}` : ''}`;
+
+    const response = await this.fetch(url, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to fetch dashboard data');
+    }
+
+    return response.json();
+  }
+}
+
+export const getDashboardApi = () => new DashboardApi(getApiConfig(), undefined, fetchWithCredentials as any);
+export const dashboardApi = getDashboardApi();
 
 // Export default instances for backward compatibility
 export const usersApi = getUsersApi();

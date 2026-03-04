@@ -46,7 +46,7 @@ interface SalesInvoice {
   paidAmount: number;
   balance: number;
   paymentMethod: string;
-  status: 'Active' | 'Paid' | 'Overdue' | 'Pending';
+  status: 'Active' | 'Paid' | 'Overdue' | 'Pending' | 'Returned';
   date: string;
   createdAt: string;
 }
@@ -98,7 +98,7 @@ const SalesInvoiceListPage: React.FC = () => {
               paidAmount: paid,
               balance: total - paid,
               paymentMethod: inv.paymentMethod || '-',
-              status: (inv.status === 'paid' ? 'Paid' : inv.status === 'overdue' ? 'Overdue' : 'Pending') as 'Active' | 'Paid' | 'Overdue' | 'Pending',
+              status: (inv.status === 'paid' ? 'Paid' : inv.status === 'overdue' ? 'Overdue' : inv.status === 'returned' ? 'Returned' : 'Pending') as 'Active' | 'Paid' | 'Overdue' | 'Pending' | 'Returned',
               date: inv.date,
               createdAt: inv.createdAt || '',
             };
@@ -189,7 +189,9 @@ const SalesInvoiceListPage: React.FC = () => {
         setSuccessMessage('Sales invoice deleted successfully!');
       } catch (err) {
         console.error('Error deleting sales invoice:', err);
-        setError('Failed to delete sales invoice. Please try again.');
+        const apiError = err as { response?: { data?: { message?: string } } };
+        const message = apiError?.response?.data?.message || 'Failed to delete sales invoice. Please try again.';
+        setError(message);
       } finally {
         setDeleting(false);
       }
@@ -389,6 +391,7 @@ const SalesInvoiceListPage: React.FC = () => {
               <MenuItem value="Paid">Paid</MenuItem>
               <MenuItem value="Overdue">Overdue</MenuItem>
               <MenuItem value="Pending">Pending</MenuItem>
+              <MenuItem value="Returned">Returned</MenuItem>
             </Select>
           </FormControl>
 
@@ -583,11 +586,15 @@ const SalesInvoiceListPage: React.FC = () => {
                             ? 'rgba(16, 185, 129, 0.1)'
                             : invoice.status === 'Overdue'
                             ? 'rgba(239, 68, 68, 0.1)'
+                            : invoice.status === 'Returned'
+                            ? 'rgba(139, 92, 246, 0.1)'
                             : 'rgba(251, 191, 36, 0.1)',
                           color: invoice.status === 'Active' || invoice.status === 'Paid'
                             ? '#10B981'
                             : invoice.status === 'Overdue'
                             ? '#EF4444'
+                            : invoice.status === 'Returned'
+                            ? '#8B5CF6'
                             : '#F59E0B',
                           fontWeight: 500,
                           border: `1px solid ${
@@ -595,6 +602,8 @@ const SalesInvoiceListPage: React.FC = () => {
                               ? '#10B981'
                               : invoice.status === 'Overdue'
                               ? '#EF4444'
+                              : invoice.status === 'Returned'
+                              ? '#8B5CF6'
                               : '#F59E0B'
                           }`,
                         }}

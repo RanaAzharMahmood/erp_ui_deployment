@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   Box,
@@ -19,6 +19,8 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  Checkbox,
+  FormControlLabel,
 } from '@mui/material';
 import {
   Receipt as ReceiptIcon,
@@ -28,6 +30,8 @@ import {
   Close as CloseIcon,
   Download as DownloadIcon,
   Save as SaveIcon,
+  Print as PrintIcon,
+  Inventory as InventoryIcon,
 } from '@mui/icons-material';
 import PageHeader from '../../../components/common/PageHeader';
 import FormSection from '../../../components/common/FormSection';
@@ -72,9 +76,10 @@ const AddSalesInvoicePage: React.FC = () => {
     taxId: '',
     paidAmount: 0,
     discount: 0,
+    stockConfirmed: false,
   });
   const [lineItems, setLineItems] = useState<LineItem[]>([
-    { id: '1', item: '', quantity: 0, rate: 0, amount: 0 },
+    { id: '1', itemId: '', quantity: 0, rate: 0, amount: 0 },
   ]);
   const [customers, setCustomers] = useState<CustomerOption[]>([]);
   const [taxes, setTaxes] = useState<TaxOption[]>([]);
@@ -83,7 +88,10 @@ const AddSalesInvoicePage: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [successMessage, setSuccessMessage] = useState('');
+  const [isReturned, setIsReturned] = useState(false);
+  const invoiceSectionRef = useRef<HTMLDivElement>(null);
 
   // Derive companies from hook data - use c.name as the hook normalizes to 'name' field
   const companies: CompanyOption[] = (companiesData || []).map((c) => ({ id: c.id, name: c.name || '' }));
@@ -132,7 +140,7 @@ const AddSalesInvoicePage: React.FC = () => {
     loadCustomers();
   }, [formData.companyId]);
 
-  // Load data from API
+  // Load taxes and existing invoice from API
   useEffect(() => {
     const loadData = async () => {
       setIsLoading(true);
@@ -160,29 +168,6 @@ const AddSalesInvoicePage: React.FC = () => {
           setTaxes([]);
         }
 
-        // Load items from API
-        try {
-          const itemsApi = getItemsApi();
-          const itemsResponse = await itemsApi.v1ApiItemsGet(true);
-          const itemsData = itemsResponse.data as { data?: Array<{ id?: number; itemName?: string; salePrice?: number; unitPrice?: number }> } | Array<{ id?: number; itemName?: string; salePrice?: number; unitPrice?: number }> | undefined;
-          if (itemsData && 'data' in itemsData && itemsData.data) {
-            setItems(itemsData.data.map((i) => ({
-              id: String(i.id),
-              name: i.itemName || '',
-              rate: i.salePrice || i.unitPrice || 0,
-            })));
-          } else if (Array.isArray(itemsData)) {
-            setItems(itemsData.map((i) => ({
-              id: String(i.id),
-              name: i.itemName || '',
-              rate: i.salePrice || i.unitPrice || 0,
-            })));
-          }
-        } catch (err) {
-          console.error('Error loading items from API:', err);
-          setItems([]);
-        }
-
         // Load existing invoice for edit mode
         if (isEditMode && id) {
           try {
@@ -192,6 +177,9 @@ const AddSalesInvoicePage: React.FC = () => {
             if (invoice) {
               // Extract taxId from first line item if available
               const lineTaxId = invoice.lines?.[0]?.taxId ? String(invoice.lines[0].taxId) : '';
+              if (invoice.status === 'returned') {
+                setIsReturned(true);
+              }
               setFormData({
                 companyId: invoice.companyId || '',
                 customerId: String(invoice.customerId) || '',
@@ -204,12 +192,13 @@ const AddSalesInvoicePage: React.FC = () => {
                 status: invoice.status === 'paid' ? 'Paid' : invoice.status === 'overdue' ? 'Overdue' : 'Pending',
                 taxId: lineTaxId,
                 paidAmount: invoice.paidAmount || 0,
-                discount: invoice.discountAmount ?? invoice.discount ?? 0,
+                discount: invoice.discountAmount || 0,
+                stockConfirmed: invoice.stockConfirmed || false,
               });
               if (invoice.lines) {
                 setLineItems(invoice.lines.map((l: any) => ({
                   id: String(l.id || Date.now()),
-                  item: l.itemName || '',
+                  itemId: String(l.itemId),
                   quantity: l.quantity,
                   rate: l.unitPrice,
                   amount: l.lineTotal,
@@ -235,6 +224,42 @@ const AddSalesInvoicePage: React.FC = () => {
     loadData();
   }, [isEditMode, id]);
 
+  // Load items filtered by company when companyId changes
+  useEffect(() => {
+    const loadItems = async () => {
+      try {
+        const itemsApi = getItemsApi();
+        const companyIdParam = formData.companyId ? Number(formData.companyId) : undefined;
+        const itemsResponse = await itemsApi.v1ApiItemsGet(undefined, undefined, companyIdParam);
+        const itemsData = itemsResponse.data as { data?: Array<{ id?: number; itemName?: string; salePrice?: number; unitPrice?: number }> } | Array<{ id?: number; itemName?: string; salePrice?: number; unitPrice?: number }> | undefined;
+        if (itemsData && 'data' in itemsData && itemsData.data) {
+          setItems(itemsData.data.map((i) => ({
+            id: String(i.id),
+            name: i.itemName || '',
+            rate: i.salePrice || i.unitPrice || 0,
+            currentStock: (i as any).currentStock || 0,
+            isActive: (i as any).isActive !== false,
+          })));
+        } else if (Array.isArray(itemsData)) {
+          setItems(itemsData.map((i) => ({
+            id: String(i.id),
+            name: i.itemName || '',
+            rate: i.salePrice || i.unitPrice || 0,
+            currentStock: (i as any).currentStock || 0,
+            isActive: (i as any).isActive !== false,
+          })));
+        } else {
+          setItems([]);
+        }
+      } catch (err) {
+        console.error('Error loading items from API:', err);
+        setItems([]);
+      }
+    };
+
+    loadItems();
+  }, [formData.companyId]);
+
   const handleInputChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
       const { name, value } = e.target;
@@ -245,6 +270,10 @@ const AddSalesInvoicePage: React.FC = () => {
 
   const handleSelectChange = useCallback((name: string, value: SelectChangeValue) => {
     setFormData((prev) => ({ ...prev, [name]: value }));
+    // Clear line items when company changes (items may no longer be valid)
+    if (name === 'companyId') {
+      setLineItems([{ id: '1', itemId: '', quantity: 0, rate: 0, amount: 0 }]);
+    }
   }, []);
 
   const handleStatusChange = useCallback((status: InvoiceStatus) => {
@@ -263,8 +292,8 @@ const AddSalesInvoicePage: React.FC = () => {
             updated.amount = updated.quantity * updated.rate;
           }
           // If item is selected, auto-fill rate
-          if (field === 'item') {
-            const selectedItem = items.find((i) => i.name === value);
+          if (field === 'itemId') {
+            const selectedItem = items.find((i) => i.id === value);
             if (selectedItem) {
               updated.rate = selectedItem.rate;
               updated.amount = updated.quantity * selectedItem.rate;
@@ -280,7 +309,7 @@ const AddSalesInvoicePage: React.FC = () => {
   const handleAddLineItem = useCallback(() => {
     setLineItems((prev) => [
       ...prev,
-      { id: String(Date.now()), item: '', quantity: 0, rate: 0, amount: 0 },
+      { id: String(Date.now()), itemId: '', quantity: 0, rate: 0, amount: 0 },
     ]);
   }, []);
 
@@ -307,20 +336,47 @@ const AddSalesInvoicePage: React.FC = () => {
   const balance = subtotal - formData.paidAmount;
 
   const handleSubmit = useCallback(async () => {
-    if (!formData.customerId || !formData.date) {
-      setError('Please fill in all required fields');
-      return;
-    }
+    const errors: Record<string, string> = {};
 
-    // Validate image upload for Bank Transfer and Cheque
+    if (!formData.customerId) {
+      errors.customerId = 'Customer is required';
+    }
+    if (!formData.date) {
+      errors.date = 'Date is required';
+    }
     if (requiresImageAndAccount && !receiptImage) {
-      setError('Receipt image is required for Bank Transfer and Cheque payments');
+      errors.receiptImage = 'Receipt image is required for Bank Transfer and Cheque payments';
+    }
+    if (requiresImageAndAccount && !formData.accountNumber) {
+      errors.accountNumber = 'Account number is required';
+    }
+
+    const validLines = lineItems.filter(l => l.itemId);
+    if (validLines.length === 0) {
+      errors.lineItems = 'At least one line item is required';
+    }
+
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      setError('Please fix the errors below');
       return;
     }
 
-    if (requiresImageAndAccount && !formData.accountNumber) {
-      setError('Account number is required for Bank Transfer and Cheque payments');
-      return;
+    // Stock validation — only when stock delivery is confirmed
+    if (formData.stockConfirmed) {
+      const stockByItem: Record<string, number> = {};
+      for (const l of validLines) {
+        stockByItem[l.itemId] = (stockByItem[l.itemId] || 0) + l.quantity;
+      }
+      for (const [itemId, totalQty] of Object.entries(stockByItem)) {
+        const itemOption = items.find(i => i.id === itemId);
+        if (itemOption && totalQty > itemOption.currentStock) {
+          errors.lineItems = `Insufficient stock for ${itemOption.name}: requested ${totalQty}, available ${itemOption.currentStock}`;
+          setFieldErrors(errors);
+          setError(errors.lineItems);
+          return;
+        }
+      }
     }
 
     setIsSubmitting(true);
@@ -340,9 +396,9 @@ const AddSalesInvoicePage: React.FC = () => {
         accountNumber: formData.accountNumber || undefined,
         remarks: formData.remarks || undefined,
         companyId: formData.companyId ? Number(formData.companyId) : 1,
-        lines: lineItems.filter(l => l.item).map((l) => ({
-          itemId: Number(items.find(i => i.name === l.item)?.id) || 0,
-          description: l.item,
+        lines: lineItems.filter(l => l.itemId).map((l) => ({
+          itemId: Number(l.itemId),
+          description: items.find(i => i.id === l.itemId)?.name || '',
           quantity: l.quantity,
           unitPrice: l.rate,
           taxId: formData.taxId ? Number(formData.taxId) : undefined,
@@ -350,6 +406,7 @@ const AddSalesInvoicePage: React.FC = () => {
           lineTotal: l.amount,
         })),
         receiptImage: receiptImage || undefined,
+        stockConfirmed: formData.stockConfirmed,
       };
 
       if (isEditMode && id) {
@@ -367,7 +424,9 @@ const AddSalesInvoicePage: React.FC = () => {
       }, 1500);
     } catch (err: unknown) {
       console.error('Error saving invoice:', err);
-      setError('Failed to save invoice. Please try again.');
+      const apiError = err as { response?: { data?: { message?: string } } };
+      const message = apiError?.response?.data?.message || 'Failed to save invoice. Please try again.';
+      setError(message);
       setIsSubmitting(false);
     }
   }, [formData, lineItems, receiptImage, navigate, isEditMode, id, requiresImageAndAccount, items, selectedTax]);
@@ -375,6 +434,51 @@ const AddSalesInvoicePage: React.FC = () => {
   const handleCancel = useCallback(() => {
     navigate('/sales/invoice');
   }, [navigate]);
+
+  const handlePrint = useCallback(() => {
+    if (!invoiceSectionRef.current) return;
+    const printContent = invoiceSectionRef.current.innerHTML;
+    const printWindow = window.open('', '_blank', 'width=900,height=700');
+    if (!printWindow) return;
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Sales Invoice - ${formData.invoiceNumber}</title>
+          <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 24px; color: #1F2937; }
+            table { width: 100%; border-collapse: collapse; margin: 16px 0; }
+            th { background: #1F2937; color: white; padding: 8px 12px; text-align: left; font-size: 13px; }
+            td { padding: 8px 12px; border-bottom: 1px solid #E5E7EB; font-size: 13px; }
+            input, select { border: none; background: none; font-size: 13px; font-family: inherit; }
+            button, .MuiIconButton-root { display: none !important; }
+            .MuiSelect-icon { display: none !important; }
+            svg, .MuiSvgIcon-root { display: none !important; }
+            hr { border: none; border-top: 1px solid #E5E7EB; margin: 16px 0; }
+            @media print { body { padding: 0; } }
+          </style>
+        </head>
+        <body>${printContent}</body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => { printWindow.print(); printWindow.close(); }, 300);
+  }, [formData.invoiceNumber]);
+
+  // Stock warning helper for inline display
+  const getStockWarning = (itemId: string) => {
+    if (!itemId) return null;
+    const totalQty = lineItems
+      .filter(l => l.itemId === itemId)
+      .reduce((sum, l) => sum + l.quantity, 0);
+    const itemOption = items.find(i => i.id === itemId);
+    if (itemOption && totalQty > itemOption.currentStock) {
+      return `Exceeds stock (${itemOption.currentStock} available)`;
+    }
+    return null;
+  };
 
   // Show skeleton while loading
   if (isLoading) {
@@ -385,9 +489,16 @@ const AddSalesInvoicePage: React.FC = () => {
     <Box sx={{ p: 3, maxWidth: 1400, mx: 'auto', bgcolor: '#F9FAFB', minHeight: '100vh' }}>
       <PageHeader title={isEditMode ? 'Update Sales Invoice' : 'Sales Invoice'} backPath="/sales/invoice" />
 
-      <Grid container spacing={3}>
+      {isReturned && (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          This invoice has been returned and cannot be edited.
+        </Alert>
+      )}
+
+      <Grid container spacing={3} sx={isReturned ? { pointerEvents: 'none', opacity: 0.7 } : undefined}>
         {/* Left Column */}
         <Grid item xs={12} lg={8}>
+          <div ref={invoiceSectionRef}>
           <FormSection title="Sales Invoice" icon={<ReceiptIcon />}>
             <Divider sx={{ mb: 3, mt: -1 }} />
             <Grid container spacing={2.5}>
@@ -426,10 +537,13 @@ const AddSalesInvoicePage: React.FC = () => {
                 <Typography variant="body2" sx={{ mb: 0.5, fontWeight: 500 }}>
                   Select Customer *
                 </Typography>
-                <FormControl fullWidth size="small">
+                <FormControl fullWidth size="small" error={!!fieldErrors.customerId}>
                   <Select
                     value={formData.customerId}
-                    onChange={(e) => handleSelectChange('customerId', e.target.value as SelectChangeValue)}
+                    onChange={(e) => {
+                      handleSelectChange('customerId', e.target.value as SelectChangeValue);
+                      setFieldErrors((prev) => ({ ...prev, customerId: '' }));
+                    }}
                     displayEmpty
                     sx={{ bgcolor: 'white' }}
                   >
@@ -438,6 +552,11 @@ const AddSalesInvoicePage: React.FC = () => {
                       <MenuItem key={customer.id} value={customer.id}>{customer.name}</MenuItem>
                     ))}
                   </Select>
+                  {fieldErrors.customerId && (
+                    <Typography variant="caption" color="error" sx={{ mt: 0.5 }}>
+                      {fieldErrors.customerId}
+                    </Typography>
+                  )}
                 </FormControl>
               </Grid>
               <Grid item xs={12} sm={6}>
@@ -449,8 +568,13 @@ const AddSalesInvoicePage: React.FC = () => {
                   name="date"
                   type="date"
                   value={formData.date}
-                  onChange={handleInputChange}
+                  onChange={(e) => {
+                    handleInputChange(e);
+                    setFieldErrors((prev) => ({ ...prev, date: '' }));
+                  }}
                   size="small"
+                  error={!!fieldErrors.date}
+                  helperText={fieldErrors.date}
                   inputProps={{ min: today }}
                   sx={{ '& .MuiOutlinedInput-root': { bgcolor: 'white' } }}
                   InputLabelProps={{ shrink: true }}
@@ -501,9 +625,14 @@ const AddSalesInvoicePage: React.FC = () => {
                     fullWidth
                     name="accountNumber"
                     value={formData.accountNumber}
-                    onChange={handleInputChange}
+                    onChange={(e) => {
+                      handleInputChange(e);
+                      setFieldErrors((prev) => ({ ...prev, accountNumber: '' }));
+                    }}
                     placeholder="Enter account number"
                     size="small"
+                    error={!!fieldErrors.accountNumber}
+                    helperText={fieldErrors.accountNumber}
                     sx={{ '& .MuiOutlinedInput-root': { bgcolor: 'white' } }}
                   />
                 </Grid>
@@ -543,14 +672,16 @@ const AddSalesInvoicePage: React.FC = () => {
                       <TableCell>
                         <FormControl fullWidth size="small">
                           <Select
-                            value={item.item}
-                            onChange={(e) => handleLineItemChange(item.id, 'item', e.target.value as string)}
+                            value={item.itemId}
+                            onChange={(e) => handleLineItemChange(item.id, 'itemId', e.target.value as string)}
                             displayEmpty
                             sx={{ bgcolor: 'white' }}
                           >
                             <MenuItem value="" disabled>Select Item</MenuItem>
                             {items.map((i) => (
-                              <MenuItem key={i.id} value={i.name}>{i.name}</MenuItem>
+                              <MenuItem key={i.id} value={i.id} disabled={!i.isActive} sx={!i.isActive ? { opacity: 0.5 } : undefined}>
+                                {i.name}{!i.isActive ? ' (Inactive)' : ''} — Stock: {i.currentStock}
+                              </MenuItem>
                             ))}
                           </Select>
                         </FormControl>
@@ -559,20 +690,31 @@ const AddSalesInvoicePage: React.FC = () => {
                         <TextField
                           fullWidth
                           type="number"
-                          value={item.quantity}
-                          onChange={(e) => handleLineItemChange(item.id, 'quantity', Math.max(0, parseFloat(e.target.value) || 0))}
+                          value={item.quantity || ''}
+                          onChange={(e) => {
+                            const val = e.target.value === '' ? 0 : Math.max(0, parseFloat(e.target.value));
+                            handleLineItemChange(item.id, 'quantity', isNaN(val) ? 0 : val);
+                          }}
                           placeholder="0"
                           size="small"
                           inputProps={{ min: 0 }}
                           sx={{ '& .MuiOutlinedInput-root': { bgcolor: 'white' } }}
                         />
+                        {getStockWarning(item.itemId) && (
+                          <Typography variant="caption" sx={{ color: '#EF4444', mt: 0.5, display: 'block' }}>
+                            {getStockWarning(item.itemId)}
+                          </Typography>
+                        )}
                       </TableCell>
                       <TableCell>
                         <TextField
                           fullWidth
                           type="number"
-                          value={item.rate}
-                          onChange={(e) => handleLineItemChange(item.id, 'rate', Math.max(0, parseFloat(e.target.value) || 0))}
+                          value={item.rate || ''}
+                          onChange={(e) => {
+                            const val = e.target.value === '' ? 0 : Math.max(0, parseFloat(e.target.value));
+                            handleLineItemChange(item.id, 'rate', isNaN(val) ? 0 : val);
+                          }}
                           placeholder="0.0 PKR"
                           size="small"
                           inputProps={{ min: 0 }}
@@ -583,7 +725,7 @@ const AddSalesInvoicePage: React.FC = () => {
                         <TextField
                           fullWidth
                           type="number"
-                          value={item.amount}
+                          value={item.amount || ''}
                           disabled
                           size="small"
                           sx={{ '& .MuiOutlinedInput-root': { bgcolor: '#F3F4F6' } }}
@@ -603,6 +745,12 @@ const AddSalesInvoicePage: React.FC = () => {
                 </TableBody>
               </Table>
             </TableContainer>
+
+            {fieldErrors.lineItems && (
+              <Typography variant="caption" color="error" sx={{ mt: 1, display: 'block' }}>
+                {fieldErrors.lineItems}
+              </Typography>
+            )}
 
             <Button
               variant="outlined"
@@ -651,8 +799,11 @@ const AddSalesInvoicePage: React.FC = () => {
                   <Typography variant="body2">PKR</Typography>
                   <TextField
                     type="number"
-                    value={formData.discount}
-                    onChange={(e) => handleSelectChange('discount', Math.max(0, parseFloat(e.target.value) || 0))}
+                    value={formData.discount || ''}
+                    onChange={(e) => {
+                      const val = e.target.value === '' ? 0 : Math.max(0, parseFloat(e.target.value));
+                      handleSelectChange('discount', isNaN(val) ? 0 : val);
+                    }}
                     size="small"
                     inputProps={{ min: 0 }}
                     sx={{ width: 100, '& .MuiOutlinedInput-root': { bgcolor: 'white' } }}
@@ -665,8 +816,11 @@ const AddSalesInvoicePage: React.FC = () => {
                   <Typography variant="body2">PKR</Typography>
                   <TextField
                     type="number"
-                    value={formData.paidAmount}
-                    onChange={(e) => handleSelectChange('paidAmount', Math.max(0, parseFloat(e.target.value) || 0))}
+                    value={formData.paidAmount || ''}
+                    onChange={(e) => {
+                      const val = e.target.value === '' ? 0 : Math.max(0, parseFloat(e.target.value));
+                      handleSelectChange('paidAmount', isNaN(val) ? 0 : val);
+                    }}
                     size="small"
                     inputProps={{ min: 0 }}
                     sx={{ width: 100, '& .MuiOutlinedInput-root': { bgcolor: 'white' } }}
@@ -682,6 +836,7 @@ const AddSalesInvoicePage: React.FC = () => {
               </Box>
             </Box>
           </FormSection>
+          </div>
         </Grid>
 
         {/* Right Column */}
@@ -719,15 +874,39 @@ const AddSalesInvoicePage: React.FC = () => {
                   </>
                 )}
               </Box>
+              {fieldErrors.receiptImage && (
+                <Typography variant="caption" color="error" sx={{ mt: 1, display: 'block' }}>
+                  {fieldErrors.receiptImage}
+                </Typography>
+              )}
               <input
                 type="file"
                 id="receipt-upload"
                 accept="image/*"
                 hidden
-                onChange={handleImageUpload}
+                onChange={(e) => {
+                  handleImageUpload(e);
+                  setFieldErrors((prev) => ({ ...prev, receiptImage: '' }));
+                }}
               />
             </FormSection>
           )}
+
+          {/* Stock Delivered Checkbox */}
+          <FormSection title="Stock Confirmation" icon={<InventoryIcon />} sx={{ mb: 3 }}>
+            <Divider sx={{ mb: 2, mt: -1 }} />
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={formData.stockConfirmed}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, stockConfirmed: e.target.checked }))}
+                  disabled={formData.stockConfirmed && isEditMode}
+                  sx={{ color: '#FF6B35', '&.Mui-checked': { color: '#FF6B35' } }}
+                />
+              }
+              label="Stock Delivered"
+            />
+          </FormSection>
 
           {/* Status - Only show in edit mode */}
           {isEditMode && (
@@ -775,42 +954,64 @@ const AddSalesInvoicePage: React.FC = () => {
           )}
 
           {/* Action Buttons */}
-          <Box sx={{ display: 'flex', gap: 2 }}>
-            <Button
-              fullWidth
-              variant="outlined"
-              onClick={handleCancel}
-              disabled={isSubmitting}
-              sx={{
-                py: 1.5,
-                textTransform: 'none',
-                borderColor: '#E5E7EB',
-                color: '#374151',
-                '&:hover': {
-                  borderColor: '#D1D5DB',
-                  bgcolor: '#F9FAFB',
-                },
-              }}
-            >
-              Cancel
-            </Button>
-            <Button
-              fullWidth
-              variant="contained"
-              onClick={handleSubmit}
-              disabled={isSubmitting}
-              startIcon={<SaveIcon />}
-              sx={{
-                py: 1.5,
-                textTransform: 'none',
-                bgcolor: '#FF6B35',
-                '&:hover': {
-                  bgcolor: '#E55A2B',
-                },
-              }}
-            >
-              {isSubmitting ? 'Saving...' : isEditMode ? 'Update Invoice' : 'Save Invoice'}
-            </Button>
+          <Box sx={{ display: 'flex', gap: 2, flexDirection: 'column' }}>
+            {isEditMode && (
+              <Button
+                fullWidth
+                variant="outlined"
+                onClick={handlePrint}
+                startIcon={<PrintIcon />}
+                sx={{
+                  py: 1.5,
+                  textTransform: 'none',
+                  borderColor: '#FF6B35',
+                  color: '#FF6B35',
+                  '&:hover': {
+                    borderColor: '#E55A2B',
+                    bgcolor: '#FFF7ED',
+                  },
+                }}
+              >
+                Download PDF
+              </Button>
+            )}
+            <Box sx={{ display: 'flex', gap: 2 }}>
+              <Button
+                fullWidth
+                variant="outlined"
+                onClick={handleCancel}
+                disabled={isSubmitting}
+                sx={{
+                  py: 1.5,
+                  textTransform: 'none',
+                  borderColor: '#E5E7EB',
+                  color: '#374151',
+                  '&:hover': {
+                    borderColor: '#D1D5DB',
+                    bgcolor: '#F9FAFB',
+                  },
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                fullWidth
+                variant="contained"
+                onClick={handleSubmit}
+                disabled={isSubmitting || isReturned}
+                startIcon={<SaveIcon />}
+                sx={{
+                  py: 1.5,
+                  textTransform: 'none',
+                  bgcolor: '#FF6B35',
+                  '&:hover': {
+                    bgcolor: '#E55A2B',
+                  },
+                }}
+              >
+                {isSubmitting ? 'Saving...' : isEditMode ? 'Update Invoice' : 'Save Invoice'}
+              </Button>
+            </Box>
           </Box>
         </Grid>
       </Grid>
