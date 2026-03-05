@@ -40,6 +40,8 @@ import { COLORS } from '../../../constants/colors';
 import { getUsersApi } from '../../../generated/api/client';
 import type { User as ApiUser } from '../../../generated/api/api';
 import type { User } from '../../../types/common.types';
+import { useAuth } from '../../../contexts/AuthContext';
+import { useCompany } from '../../../contexts/CompanyContext';
 
 // API response type for users list
 interface UsersApiResponse {
@@ -51,6 +53,9 @@ const STATUSES = ['Active', 'Inactive'];
 
 const UsersPage: React.FC = () => {
   const navigate = useNavigate();
+  const { user: authUser } = useAuth();
+  const { selectedCompany: contextCompany } = useCompany();
+  const isAdmin = authUser?.roleName?.toLowerCase() === 'admin';
   const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -117,7 +122,15 @@ const UsersPage: React.FC = () => {
         createdAt: new Date().toISOString(),
       }));
 
-      setUsers(transformedUsers);
+      // For non-admin users, filter to only show users belonging to the selected company
+      if (!isAdmin && contextCompany) {
+        const companyUsers = transformedUsers.filter((u) =>
+          u.companyAccess.some((access) => access.companyId === contextCompany.id)
+        );
+        setUsers(companyUsers);
+      } else {
+        setUsers(transformedUsers);
+      }
     } catch (err: unknown) {
       console.error('Error loading users:', err);
       setError('Failed to load users. Please try again.');
@@ -125,7 +138,7 @@ const UsersPage: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [isAdmin, contextCompany]);
 
   useEffect(() => {
     loadUsers();

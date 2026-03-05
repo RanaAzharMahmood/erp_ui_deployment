@@ -2,6 +2,7 @@ import { lazy } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { Box, CircularProgress } from '@mui/material'
 import { useAuth } from './contexts/AuthContext'
+import { useCompany } from './contexts/CompanyContext'
 import LoginPage from './pages/auth/LoginPage'
 import DashboardLayout from './components/layout/DashboardLayout'
 import SuspenseRoute from './components/common/SuspenseRoute'
@@ -81,6 +82,13 @@ const AddOtherPaymentsPage = lazy(() => import('./pages/accounting/other-payment
 const ChartOfAccountPage = lazy(() => import('./pages/accounting/chart-of-accounts/ChartOfAccountPage'))
 const AddChartOfAccountPage = lazy(() => import('./pages/accounting/chart-of-accounts/AddChartOfAccountPage'))
 
+// Company Selection
+const SelectCompanyPage = lazy(() => import('./pages/company/SelectCompanyPage'))
+
+// Activity & Approval
+const ActivityPage = lazy(() => import('./pages/activity/ActivityPage'))
+const ApprovalPage = lazy(() => import('./pages/activity/ApprovalPage'))
+
 // Other
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'))
 
@@ -107,7 +115,9 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 }
 
 function App() {
-  const { isAuthenticated, isLoading } = useAuth()
+  const { isAuthenticated, isLoading, user } = useAuth()
+  const { selectedCompany } = useCompany()
+  const isAdmin = user?.roleName?.toLowerCase() === 'admin'
 
   // Show loading spinner during initial auth check
   if (isLoading) {
@@ -130,7 +140,23 @@ function App() {
     <Routes>
       <Route
         path="/login"
-        element={isAuthenticated ? <Navigate to="/" replace /> : <LoginPage />}
+        element={
+          isAuthenticated ? (
+            <Navigate to={!isAdmin && !selectedCompany ? '/select-company' : '/'} replace />
+          ) : (
+            <LoginPage />
+          )
+        }
+      />
+      <Route
+        path="/select-company"
+        element={
+          <ProtectedRoute>
+            <SuspenseRoute>
+              <SelectCompanyPage />
+            </SuspenseRoute>
+          </ProtectedRoute>
+        }
       />
       <Route
         path="/"
@@ -140,7 +166,15 @@ function App() {
           </ProtectedRoute>
         }
       >
-        <Route index element={<Navigate to="/dashboard" replace />} />
+        <Route
+          index
+          element={
+            <Navigate
+              to={!isAdmin && !selectedCompany ? '/select-company' : '/dashboard'}
+              replace
+            />
+          }
+        />
         <Route
           path="dashboard"
           element={
@@ -540,6 +574,23 @@ function App() {
           element={
             <SuspenseRoute>
               <AddPurchaseReturnPage />
+            </SuspenseRoute>
+          }
+        />
+        {/* Activity & Approval Routes */}
+        <Route
+          path="activity"
+          element={
+            <SuspenseRoute>
+              <ActivityPage />
+            </SuspenseRoute>
+          }
+        />
+        <Route
+          path="approval"
+          element={
+            <SuspenseRoute>
+              <ApprovalPage />
             </SuspenseRoute>
           }
         />

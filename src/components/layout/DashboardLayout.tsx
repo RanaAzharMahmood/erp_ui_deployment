@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Outlet, useLocation } from 'react-router-dom'
+import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import {
   Box,
   Drawer,
@@ -15,7 +15,9 @@ import {
 import MenuIcon from '@mui/icons-material/Menu'
 import LogoutIcon from '@mui/icons-material/Logout'
 import AccountCircleIcon from '@mui/icons-material/AccountCircle'
+import SwapHorizIcon from '@mui/icons-material/SwapHoriz'
 import { useAuth } from '../../contexts/AuthContext'
+import { useCompany } from '../../contexts/CompanyContext'
 import Sidebar from './Sidebar'
 
 const DRAWER_WIDTH = 240
@@ -24,7 +26,10 @@ const DashboardLayout: React.FC = () => {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null)
   const location = useLocation()
+  const navigate = useNavigate()
   const { user, logout } = useAuth()
+  const { clearCompany } = useCompany()
+  const isAdmin = user?.roleName?.toLowerCase() === 'admin'
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen)
@@ -90,7 +95,7 @@ const DashboardLayout: React.FC = () => {
           </Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
             <Typography variant="body2" sx={{ display: { xs: 'none', sm: 'block' } }}>
-              Admin
+              {user?.roleName || 'User'}
             </Typography>
             <IconButton
               onClick={handleMenuOpen}
@@ -132,6 +137,18 @@ const DashboardLayout: React.FC = () => {
                 {user?.email}
               </MenuItem>
               <Divider />
+              {!isAdmin && (
+                <MenuItem
+                  onClick={() => {
+                    handleMenuClose()
+                    clearCompany()
+                    navigate('/select-company')
+                  }}
+                >
+                  <SwapHorizIcon sx={{ mr: 1 }} />
+                  Change Organization
+                </MenuItem>
+              )}
               <MenuItem onClick={handleLogout}>
                 <LogoutIcon sx={{ mr: 1 }} />
                 Logout

@@ -27,7 +27,10 @@ import {
   AccountTree as AccountTreeIcon,
   Payments as PaymentsIcon,
 } from '@mui/icons-material';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import HistoryIcon from '@mui/icons-material/History';
 import petrozenLogo from '../../assets/images/petrozen-logo.svg';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface MenuItem {
   text: string;
@@ -36,7 +39,7 @@ interface MenuItem {
   children?: MenuItem[];
 }
 
-const menuItems: MenuItem[] = [
+const adminMenuItems: MenuItem[] = [
   { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
   { text: 'Companies', icon: <BusinessIcon />, path: '/companies' },
   { text: 'Users', icon: <PeopleIcon />, path: '/users' },
@@ -75,6 +78,51 @@ const menuItems: MenuItem[] = [
   { text: 'Reports', icon: <AssessmentIcon />, path: '/reports' },
 ];
 
+const managerMenuItems: MenuItem[] = [
+  { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
+  { text: 'Users', icon: <PeopleIcon />, path: '/users' },
+  { text: 'Party', icon: <ShoppingBagIcon />, path: '/party' },
+  {
+    text: 'Sales',
+    icon: <PointOfSaleIcon />,
+    children: [
+      { text: 'Invoice', icon: <ReceiptIcon />, path: '/sales/invoice' },
+      { text: 'Return', icon: <ReceiptIcon />, path: '/sales/return' },
+    ],
+  },
+  {
+    text: 'Purchase',
+    icon: <ShoppingCartIcon />,
+    children: [
+      { text: 'Invoice', icon: <ReceiptIcon />, path: '/purchase/invoice' },
+      { text: 'Return', icon: <ReceiptIcon />, path: '/purchase/return' },
+    ],
+  },
+  { text: 'Inventory', icon: <InventoryIcon />, path: '/inventory' },
+  {
+    text: 'Account',
+    icon: <AccountBalanceIcon />,
+    children: [
+      { text: 'Expense', icon: <CreditCardIcon />, path: '/account/expense' },
+      { text: 'Journal Entry', icon: <ArticleIcon />, path: '/account/journal-entry' },
+      { text: 'Chart of Account', icon: <AccountTreeIcon />, path: '/account/chart-of-account' },
+      { text: 'Bank Account', icon: <AccountBalanceIcon />, path: '/account/bank-account' },
+      { text: 'Bank Deposit', icon: <AccountBalanceIcon />, path: '/account/bank-deposit' },
+      { text: 'Other Payments', icon: <PaymentsIcon />, path: '/account/other-payments' },
+    ],
+  },
+  { text: 'Tax', icon: <ReceiptIcon />, path: '/tax' },
+  { text: 'Reports', icon: <AssessmentIcon />, path: '/reports' },
+  {
+    text: 'Activity & Approval',
+    icon: <HistoryIcon />,
+    children: [
+      { text: 'Activity', icon: <HistoryIcon />, path: '/activity' },
+      { text: 'Approval', icon: <CheckCircleIcon />, path: '/approval' },
+    ],
+  },
+];
+
 interface SidebarProps {
   mobileOpen?: boolean;
   onDrawerToggle?: () => void;
@@ -83,6 +131,9 @@ interface SidebarProps {
 const Sidebar: React.FC<SidebarProps> = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user } = useAuth();
+  const isAdmin = user?.roleName?.toLowerCase() === 'admin';
+  const menuItems = isAdmin ? adminMenuItems : managerMenuItems;
   const [openMenus, setOpenMenus] = useState<string[]>(['Account', 'Sales', 'Purchase']);
 
   const handleMenuClick = (item: MenuItem) => {

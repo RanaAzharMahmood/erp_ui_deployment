@@ -6,8 +6,6 @@ import {
   Button,
   Typography,
   Alert,
-  Checkbox,
-  FormControlLabel,
 } from '@mui/material'
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward'
 import { useAuth } from '../../contexts/AuthContext'
@@ -17,7 +15,6 @@ import petrozenLogo from '../../assets/images/white-logo.svg'
 const LoginPage: React.FC = () => {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [rememberMe, setRememberMe] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const { login } = useAuth()

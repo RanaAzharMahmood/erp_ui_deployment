@@ -181,6 +181,7 @@ export interface ChartOfAccountFilters {
 
 // Custom fetch wrapper that includes credentials for httpOnly cookie authentication
 // Falls back to localStorage token for backward compatibility during migration
+// For non-admin users, automatically injects companyId into GET requests
 const fetchWithCredentials: typeof fetch = (url: string | Request | URL, init?: RequestInit) => {
   const headers = new Headers(init?.headers || {});
 
@@ -191,6 +192,29 @@ const fetchWithCredentials: typeof fetch = (url: string | Request | URL, init?: 
     headers.set('Authorization', `Bearer ${token}`);
   }
 
+  // Auto-inject companyId for non-admin users on GET requests
+  let finalUrl = url;
+  const method = (init?.method || 'GET').toUpperCase();
+  if (method === 'GET' && typeof url === 'string') {
+    try {
+      const userStr = localStorage.getItem('erp_user');
+      const companyStr = localStorage.getItem('erp_selected_company');
+      if (userStr && companyStr) {
+        const user = JSON.parse(userStr);
+        const company = JSON.parse(companyStr);
+        if (user.roleName?.toLowerCase() !== 'admin' && company?.id) {
+          const urlObj = new URL(url);
+          if (!urlObj.searchParams.has('companyId')) {
+            urlObj.searchParams.set('companyId', String(company.id));
+            finalUrl = urlObj.toString();
+          }
+        }
+      }
+    } catch {
+      // Ignore parse errors, proceed without injection
+    }
+  }
+
   const updatedInit: RequestInit = {
     ...init,
     headers,
@@ -198,7 +222,7 @@ const fetchWithCredentials: typeof fetch = (url: string | Request | URL, init?: 
     credentials: 'include',
   };
 
-  return fetch(url, updatedInit);
+  return fetch(finalUrl, updatedInit);
 };
 
 // Custom fetch for auth endpoints (includes credentials for cookie operations)

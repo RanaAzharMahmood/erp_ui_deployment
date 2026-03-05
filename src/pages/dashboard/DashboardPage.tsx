@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { lazy } from 'react';
 import { Box, Grid, Typography, Alert, IconButton, Tooltip, useMediaQuery, useTheme } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
@@ -20,8 +20,22 @@ import {
   LatestTransactionsTable,
 } from '../../components/dashboard/tables';
 import useDashboardData from '../../hooks/queries/useDashboardData';
+import { useAuth } from '../../contexts/AuthContext';
+
+const ManagerDashboardPage = lazy(() => import('./ManagerDashboardPage'));
 
 const DashboardPage: React.FC = () => {
+  const { user } = useAuth();
+  const isAdmin = user?.roleName?.toLowerCase() === 'admin';
+
+  if (!isAdmin) {
+    return <ManagerDashboardPage />;
+  }
+
+  return <AdminDashboard />;
+};
+
+const AdminDashboard: React.FC = () => {
   const { data, isLoading, error, refresh } = useDashboardData();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -107,7 +121,7 @@ const DashboardPage: React.FC = () => {
 
   return (
     <Box sx={{ p: { xs: 1.5, sm: 2, md: 3 } }}>
-      {/* Header */}
+      {/* Admin Dashboard Header */}
       <Box
         sx={{
           display: 'flex',
