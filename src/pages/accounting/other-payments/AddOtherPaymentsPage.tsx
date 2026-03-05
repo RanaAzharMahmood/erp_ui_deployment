@@ -32,6 +32,8 @@ import {
 import PageHeader from '../../../components/common/PageHeader';
 import FormSection from '../../../components/common/FormSection';
 import { useCompanies } from '../../../hooks';
+import { useCompany } from '../../../contexts/CompanyContext';
+import { useAuth } from '../../../contexts/AuthContext';
 
 interface LineItem {
   id: string;
@@ -59,9 +61,12 @@ const AddOtherPaymentsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const isEditMode = Boolean(id);
   const navigate = useNavigate();
+  const { selectedCompany } = useCompany();
+  const { user } = useAuth();
+  const isAdmin = user?.roleName?.toLowerCase() === 'admin';
 
   const [formData, setFormData] = useState<OtherPaymentFormData>({
-    companyId: '',
+    companyId: (!isAdmin && selectedCompany) ? selectedCompany.id : '',
     paymentNumber: '0000000',
     paymentName: '',
     accountType: '',
@@ -191,6 +196,7 @@ const AddOtherPaymentsPage: React.FC = () => {
           <Grid item xs={12} md={8}>
             <FormSection title="Payments Details" icon={<PaymentIcon sx={{ color: '#FF6B35' }} />}>
               <Grid container spacing={2}>
+                {isAdmin && (
                 <Grid item xs={12} sm={6}>
                   <Typography variant="body2" sx={{ mb: 0.5, fontWeight: 500 }}>
                     Select Company*
@@ -210,6 +216,7 @@ const AddOtherPaymentsPage: React.FC = () => {
                     </Select>
                   </FormControl>
                 </Grid>
+                )}
 
                 <Grid item xs={12} sm={6}>
                   <Typography variant="body2" sx={{ mb: 0.5, fontWeight: 500 }}>

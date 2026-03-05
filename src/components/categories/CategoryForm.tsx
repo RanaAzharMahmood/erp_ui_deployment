@@ -23,6 +23,7 @@ import FormSection from '../common/FormSection';
 import StatusSelector from '../common/StatusSelector';
 import DangerZone from '../common/DangerZone';
 import { CategoryFormData, Company, CategoryFieldErrors } from '../../hooks/useCategoryForm';
+import { useAuth } from '../../contexts/AuthContext';
 
 // Type for select change value (string for most selects, number for IDs, boolean for toggles)
 type SelectChangeValue = string | number | boolean;
@@ -64,6 +65,8 @@ const CategoryForm: React.FC<CategoryFormProps> = ({
   onErrorClose,
   onSuccessClose,
 }) => {
+  const { user } = useAuth();
+  const isAdmin = user?.roleName?.toLowerCase() === 'admin';
   const isCreateMode = mode === 'create';
   const pageTitle = isCreateMode ? 'Create Category' : 'Edit Category';
   const submitButtonText = isCreateMode
@@ -114,6 +117,7 @@ const CategoryForm: React.FC<CategoryFormProps> = ({
                   }}
                 />
               </Grid>
+              {isAdmin && (
               <Grid item xs={12}>
                 <Typography
                   variant="body2"
@@ -139,6 +143,7 @@ const CategoryForm: React.FC<CategoryFormProps> = ({
                   </Select>
                 </FormControl>
               </Grid>
+              )}
               <Grid item xs={12}>
                 <Typography
                   variant="body2"

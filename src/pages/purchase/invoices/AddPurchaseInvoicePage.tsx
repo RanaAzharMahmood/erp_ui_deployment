@@ -36,6 +36,8 @@ import PageHeader from '../../../components/common/PageHeader';
 import FormSection from '../../../components/common/FormSection';
 import InvoiceFormSkeleton from '../../../components/common/InvoiceFormSkeleton';
 import { useCompanies } from '../../../hooks';
+import { useCompany } from '../../../contexts/CompanyContext';
+import { useAuth } from '../../../contexts/AuthContext';
 import {
   getPartiesApi,
   getTaxesApi,
@@ -61,9 +63,12 @@ const AddPurchaseInvoicePage: React.FC = () => {
   const isEditMode = Boolean(id);
   const today = new Date().toISOString().split('T')[0];
   const { companies: companiesData } = useCompanies();
+  const { selectedCompany } = useCompany();
+  const { user } = useAuth();
+  const isAdmin = user?.roleName?.toLowerCase() === 'admin';
 
   const [formData, setFormData] = useState<PurchaseInvoiceFormData>({
-    companyId: '',
+    companyId: (!isAdmin && selectedCompany) ? selectedCompany.id : '',
     vendorId: '',
     billNumber: '',
     date: today,
@@ -390,6 +395,7 @@ const AddPurchaseInvoicePage: React.FC = () => {
           <FormSection title="Purchase Invoice" icon={<ReceiptIcon />}>
             <Divider sx={{ mb: 3, mt: -1 }} />
             <Grid container spacing={2.5}>
+              {isAdmin && (
               <Grid item xs={12} sm={6}>
                 <Typography variant="body2" sx={{ mb: 0.5, fontWeight: 500 }}>
                   Select Company
@@ -407,6 +413,7 @@ const AddPurchaseInvoicePage: React.FC = () => {
                   </Select>
                 </FormControl>
               </Grid>
+              )}
               <Grid item xs={12} sm={6}>
                 <Typography variant="body2" sx={{ mb: 0.5, fontWeight: 500 }}>
                   Bill Number
@@ -548,7 +555,9 @@ const AddPurchaseInvoicePage: React.FC = () => {
                             sx={{ bgcolor: 'white' }}
                           >
                             <MenuItem value="" disabled>Select Item</MenuItem>
-                            {items.map((i) => (
+                            {items
+                              .filter((i) => i.id === item.itemId || !lineItems.some((l) => l.id !== item.id && l.itemId === i.id))
+                              .map((i) => (
                               <MenuItem key={i.id} value={i.id} disabled={!i.isActive} sx={!i.isActive ? { opacity: 0.5 } : undefined}>
                                 {i.name}{!i.isActive ? ' (Inactive)' : ''} — Stock: {i.currentStock}
                               </MenuItem>

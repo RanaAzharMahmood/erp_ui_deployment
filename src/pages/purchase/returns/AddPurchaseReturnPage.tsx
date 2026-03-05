@@ -33,6 +33,8 @@ import PageHeader from '../../../components/common/PageHeader';
 import FormSection from '../../../components/common/FormSection';
 import ReturnFormSkeleton from '../../../components/common/ReturnFormSkeleton';
 import { useCompanies } from '../../../hooks';
+import { useCompany } from '../../../contexts/CompanyContext';
+import { useAuth } from '../../../contexts/AuthContext';
 import {
   getPartiesApi,
   getItemsApi,
@@ -58,9 +60,12 @@ const AddPurchaseReturnPage: React.FC = () => {
   const isEditMode = Boolean(id);
   const today = new Date().toISOString().split('T')[0];
   const { companies: companiesData } = useCompanies();
+  const { selectedCompany } = useCompany();
+  const { user } = useAuth();
+  const isAdmin = user?.roleName?.toLowerCase() === 'admin';
 
   const [formData, setFormData] = useState<PurchaseReturnFormData>({
-    companyId: '',
+    companyId: (!isAdmin && selectedCompany) ? selectedCompany.id : '',
     vendorId: '',
     billNumber: '',
     originalInvoice: '',
@@ -451,6 +456,7 @@ const AddPurchaseReturnPage: React.FC = () => {
           <FormSection title="Return Purchase Invoice" icon={<ReceiptIcon />}>
             <Divider sx={{ mb: 3, mt: -1 }} />
             <Grid container spacing={2.5}>
+              {isAdmin && (
               <Grid item xs={12} sm={6}>
                 <Typography variant="body2" sx={{ mb: 0.5, fontWeight: 500 }}>
                   Select Company
@@ -469,6 +475,7 @@ const AddPurchaseReturnPage: React.FC = () => {
                   </Select>
                 </FormControl>
               </Grid>
+              )}
               <Grid item xs={12} sm={6}>
                 <Typography variant="body2" sx={{ mb: 0.5, fontWeight: 500 }}>
                   Return Number

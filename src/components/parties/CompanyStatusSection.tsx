@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import {
   Box,
   Card,
@@ -13,6 +13,8 @@ import Select, { SingleValue } from 'react-select';
 import FormSection from '../common/FormSection';
 import StatusSelector from '../common/StatusSelector';
 import { PartyFormData, Company } from './types';
+import { useCompany } from '../../contexts/CompanyContext';
+import { useAuth } from '../../contexts/AuthContext';
 
 // Type for select change value (string for most selects, number for IDs, boolean for toggles, or array of numbers for multi-select)
 type SelectChangeValue = string | number | boolean | number[];
@@ -36,6 +38,17 @@ const CompanyStatusSection: React.FC<CompanyStatusSectionProps> = ({
   onSelectChange,
   onStatusChange,
 }) => {
+  const { selectedCompany } = useCompany();
+  const { user } = useAuth();
+  const isAdmin = user?.roleName?.toLowerCase() === 'admin';
+
+  // Auto-set companyIds for non-admin users
+  useEffect(() => {
+    if (!isAdmin && selectedCompany && formData.companyIds.length === 0) {
+      onSelectChange('companyIds', [selectedCompany.id]);
+    }
+  }, [isAdmin, selectedCompany, formData.companyIds.length, onSelectChange]);
+
   // Convert companies to react-select options
   const companyOptions: CompanyOption[] = companies.map((company) => ({
     value: company.id,
@@ -77,6 +90,7 @@ const CompanyStatusSection: React.FC<CompanyStatusSectionProps> = ({
   return (
     <>
       {/* Company Selection Card */}
+      {isAdmin && (
       <Card
         sx={{ p: 2.5, mb: 3, border: '1px solid #E5E7EB', boxShadow: 'none' }}
         role="group"
@@ -118,6 +132,7 @@ const CompanyStatusSection: React.FC<CompanyStatusSectionProps> = ({
           aria-labelledby="party-company-select-label"
         />
       </Card>
+      )}
 
       {/* Status Section */}
       <FormSection title="Status" icon={<CircleIcon />} sx={{ mb: 3 }}>

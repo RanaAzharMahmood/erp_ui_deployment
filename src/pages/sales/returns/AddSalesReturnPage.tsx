@@ -33,6 +33,8 @@ import PageHeader from '../../../components/common/PageHeader';
 import FormSection from '../../../components/common/FormSection';
 import ReturnFormSkeleton from '../../../components/common/ReturnFormSkeleton';
 import { useCompanies } from '../../../hooks';
+import { useCompany } from '../../../contexts/CompanyContext';
+import { useAuth } from '../../../contexts/AuthContext';
 import {
   getPartiesApi,
   getItemsApi,
@@ -58,9 +60,12 @@ const AddSalesReturnPage: React.FC = () => {
   const isEditMode = Boolean(id);
   const today = new Date().toISOString().split('T')[0];
   const { companies: companiesData } = useCompanies();
+  const { selectedCompany } = useCompany();
+  const { user } = useAuth();
+  const isAdmin = user?.roleName?.toLowerCase() === 'admin';
 
   const [formData, setFormData] = useState<SalesReturnFormData>({
-    companyId: '',
+    companyId: (!isAdmin && selectedCompany) ? selectedCompany.id : '',
     customerId: '',
     returnNumber: '',
     originalInvoice: '',
@@ -362,20 +367,6 @@ const AddSalesReturnPage: React.FC = () => {
       return;
     }
 
-    // Stock validation
-    const validLines = lineItems.filter(l => l.itemId);
-    const stockByItem: Record<string, number> = {};
-    for (const l of validLines) {
-      stockByItem[l.itemId] = (stockByItem[l.itemId] || 0) + l.quantity;
-    }
-    for (const [itemId, totalQty] of Object.entries(stockByItem)) {
-      const itemOption = items.find(i => i.id === itemId);
-      if (itemOption && totalQty > itemOption.currentStock) {
-        setError(`Insufficient stock for ${itemOption.name}: requested ${totalQty}, available ${itemOption.currentStock}`);
-        return;
-      }
-    }
-
     setIsSubmitting(true);
     setError('');
 
@@ -434,19 +425,6 @@ const AddSalesReturnPage: React.FC = () => {
     navigate('/sales/return');
   }, [navigate]);
 
-  // Stock warning helper for inline display
-  const getStockWarning = (itemId: string) => {
-    if (!itemId) return null;
-    const totalQty = lineItems
-      .filter(l => l.itemId === itemId)
-      .reduce((sum, l) => sum + l.quantity, 0);
-    const itemOption = items.find(i => i.id === itemId);
-    if (itemOption && totalQty > itemOption.currentStock) {
-      return `Exceeds stock (${itemOption.currentStock} available)`;
-    }
-    return null;
-  };
-
   // Whether an invoice has been selected (lock down prefilled fields)
   const hasInvoice = Boolean(formData.originalInvoice);
 
@@ -468,6 +446,7 @@ const AddSalesReturnPage: React.FC = () => {
           <FormSection title="Return Sales Invoice" icon={<ReceiptIcon />}>
             <Divider sx={{ mb: 3, mt: -1 }} />
             <Grid container spacing={2.5}>
+              {isAdmin && (
               <Grid item xs={12} sm={6}>
                 <Typography variant="body2" sx={{ mb: 0.5, fontWeight: 500 }}>
                   Select Company
@@ -486,6 +465,7 @@ const AddSalesReturnPage: React.FC = () => {
                   </Select>
                 </FormControl>
               </Grid>
+              )}
               <Grid item xs={12} sm={6}>
                 <Typography variant="body2" sx={{ mb: 0.5, fontWeight: 500 }}>
                   Return Number
@@ -666,11 +646,6 @@ const AddSalesReturnPage: React.FC = () => {
                           inputProps={{ min: 0 }}
                           sx={{ '& .MuiOutlinedInput-root': { bgcolor: hasInvoice ? '#F3F4F6' : 'white' } }}
                         />
-                        {getStockWarning(item.itemId) && (
-                          <Typography variant="caption" sx={{ color: '#EF4444', mt: 0.5, display: 'block' }}>
-                            {getStockWarning(item.itemId)}
-                          </Typography>
-                        )}
                       </TableCell>
                       <TableCell>
                         <TextField

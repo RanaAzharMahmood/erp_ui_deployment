@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { ItemFormData, SelectOption, INITIAL_ITEM_FORM_DATA } from '../components/items/types';
 import { itemSchema, validateForm as zodValidateForm } from '../schemas';
 import { getItemsApi, getCategoriesApi, getCompaniesApi } from '../generated/api/client';
+import { useCompany } from '../contexts/CompanyContext';
+import { useAuth } from '../contexts/AuthContext';
 
 interface UseItemFormOptions {
   itemId?: string;
@@ -73,8 +75,14 @@ interface UseItemFormReturn {
 export function useItemForm(options: UseItemFormOptions = {}): UseItemFormReturn {
   const { itemId, onSuccess } = options;
   const navigate = useNavigate();
+  const { selectedCompany } = useCompany();
+  const { user } = useAuth();
+  const isAdmin = user?.roleName?.toLowerCase() === 'admin';
 
-  const [formData, setFormData] = useState<ItemFormData>(INITIAL_ITEM_FORM_DATA);
+  const [formData, setFormData] = useState<ItemFormData>({
+    ...INITIAL_ITEM_FORM_DATA,
+    companyId: (!isAdmin && selectedCompany) ? selectedCompany.id : '',
+  });
   const [fieldErrors, setFieldErrors] = useState<ItemFieldErrors>({});
   const [categories, setCategories] = useState<SelectOption[]>([]);
   const [companies, setCompanies] = useState<SelectOption[]>([]);

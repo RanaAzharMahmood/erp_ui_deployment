@@ -37,6 +37,8 @@ import PageHeader from '../../../components/common/PageHeader';
 import FormSection from '../../../components/common/FormSection';
 import InvoiceFormSkeleton from '../../../components/common/InvoiceFormSkeleton';
 import { useCompanies } from '../../../hooks';
+import { useCompany } from '../../../contexts/CompanyContext';
+import { useAuth } from '../../../contexts/AuthContext';
 import {
   getSalesInvoicesApi,
   getPartiesApi,
@@ -62,9 +64,12 @@ const AddSalesInvoicePage: React.FC = () => {
   const isEditMode = Boolean(id);
   const today = new Date().toISOString().split('T')[0];
   const { companies: companiesData } = useCompanies();
+  const { selectedCompany } = useCompany();
+  const { user } = useAuth();
+  const isAdmin = user?.roleName?.toLowerCase() === 'admin';
 
   const [formData, setFormData] = useState<SalesInvoiceFormData>({
-    companyId: '',
+    companyId: (!isAdmin && selectedCompany) ? selectedCompany.id : '',
     customerId: '',
     invoiceNumber: '',
     date: today,
@@ -91,6 +96,7 @@ const AddSalesInvoicePage: React.FC = () => {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [successMessage, setSuccessMessage] = useState('');
   const [isReturned, setIsReturned] = useState(false);
+  const [originalLineQuantities, setOriginalLineQuantities] = useState<Record<string, number>>({});
   const invoiceSectionRef = useRef<HTMLDivElement>(null);
 
   // Derive companies from hook data - use c.name as the hook normalizes to 'name' field
@@ -203,6 +209,15 @@ const AddSalesInvoicePage: React.FC = () => {
                   rate: l.unitPrice,
                   amount: l.lineTotal,
                 })));
+                // Store original quantities per item for stock warning adjustment in edit mode
+                if (invoice.stockConfirmed) {
+                  const origQty: Record<string, number> = {};
+                  for (const l of invoice.lines) {
+                    const itemId = String(l.itemId);
+                    origQty[itemId] = (origQty[itemId] || 0) + Number(l.quantity);
+                  }
+                  setOriginalLineQuantities(origQty);
+                }
               }
               if (invoice.receiptImage) {
                 setReceiptImage(invoice.receiptImage);
@@ -370,8 +385,11 @@ const AddSalesInvoicePage: React.FC = () => {
       }
       for (const [itemId, totalQty] of Object.entries(stockByItem)) {
         const itemOption = items.find(i => i.id === itemId);
-        if (itemOption && totalQty > itemOption.currentStock) {
-          errors.lineItems = `Insufficient stock for ${itemOption.name}: requested ${totalQty}, available ${itemOption.currentStock}`;
+        if (!itemOption) continue;
+        // In edit mode, stock was already deducted — add back original quantities
+        const effectiveStock = itemOption.currentStock + (originalLineQuantities[itemId] || 0);
+        if (totalQty > effectiveStock) {
+          errors.lineItems = `Insufficient stock for ${itemOption.name}: requested ${totalQty}, available ${effectiveStock}`;
           setFieldErrors(errors);
           setError(errors.lineItems);
           return;
@@ -474,8 +492,11 @@ const AddSalesInvoicePage: React.FC = () => {
       .filter(l => l.itemId === itemId)
       .reduce((sum, l) => sum + l.quantity, 0);
     const itemOption = items.find(i => i.id === itemId);
-    if (itemOption && totalQty > itemOption.currentStock) {
-      return `Exceeds stock (${itemOption.currentStock} available)`;
+    if (!itemOption) return null;
+    // In edit mode, stock was already deducted for original quantities — add them back
+    const effectiveStock = itemOption.currentStock + (originalLineQuantities[itemId] || 0);
+    if (totalQty > effectiveStock) {
+      return `Exceeds stock (${effectiveStock} available)`;
     }
     return null;
   };
@@ -502,6 +523,7 @@ const AddSalesInvoicePage: React.FC = () => {
           <FormSection title="Sales Invoice" icon={<ReceiptIcon />}>
             <Divider sx={{ mb: 3, mt: -1 }} />
             <Grid container spacing={2.5}>
+              {isAdmin && (
               <Grid item xs={12} sm={6}>
                 <Typography variant="body2" sx={{ mb: 0.5, fontWeight: 500 }}>
                   Select Company
@@ -519,6 +541,7 @@ const AddSalesInvoicePage: React.FC = () => {
                   </Select>
                 </FormControl>
               </Grid>
+              )}
               <Grid item xs={12} sm={6}>
                 <Typography variant="body2" sx={{ mb: 0.5, fontWeight: 500 }}>
                   Invoice Number
@@ -678,7 +701,9 @@ const AddSalesInvoicePage: React.FC = () => {
                             sx={{ bgcolor: 'white' }}
                           >
                             <MenuItem value="" disabled>Select Item</MenuItem>
-                            {items.map((i) => (
+                            {items
+                              .filter((i) => i.id === item.itemId || !lineItems.some((l) => l.id !== item.id && l.itemId === i.id))
+                              .map((i) => (
                               <MenuItem key={i.id} value={i.id} disabled={!i.isActive} sx={!i.isActive ? { opacity: 0.5 } : undefined}>
                                 {i.name}{!i.isActive ? ' (Inactive)' : ''} — Stock: {i.currentStock}
                               </MenuItem>

@@ -31,6 +31,8 @@ import {
 import PageHeader from '../../../components/common/PageHeader';
 import FormSection from '../../../components/common/FormSection';
 import { useCompanies } from '../../../hooks';
+import { useCompany } from '../../../contexts/CompanyContext';
+import { useAuth } from '../../../contexts/AuthContext';
 import {
   getBankAccountsApi,
   getBankDepositsApi,
@@ -64,8 +66,11 @@ const DEPOSIT_METHODS = ['Cash', 'Cheque', 'Online Transfer', 'RTGS', 'NEFT'];
 const AddBankDepositPage: React.FC = () => {
   const navigate = useNavigate();
   const today = new Date().toISOString().split('T')[0];
+  const { selectedCompany } = useCompany();
+  const { user } = useAuth();
+  const isAdmin = user?.roleName?.toLowerCase() === 'admin';
   const [formData, setFormData] = useState<DepositFormData>({
-    companyId: '',
+    companyId: (!isAdmin && selectedCompany) ? selectedCompany.id : '',
     depositEntryNumber: '0000000',
     bankAccount: '',
     depositSlipNumber: '',
@@ -218,6 +223,7 @@ const AddBankDepositPage: React.FC = () => {
           <FormSection title="Deposit Details" icon={<AccountBalanceIcon />}>
             <Divider sx={{ mb: 3, mt: -1 }} />
             <Grid container spacing={2.5}>
+              {isAdmin && (
               <Grid item xs={12} sm={6}>
                 <Typography variant="body2" sx={{ mb: 0.5, fontWeight: 500 }}>
                   Select Company*
@@ -235,6 +241,7 @@ const AddBankDepositPage: React.FC = () => {
                   </Select>
                 </FormControl>
               </Grid>
+              )}
               <Grid item xs={12} sm={6}>
                 <Typography variant="body2" sx={{ mb: 0.5, fontWeight: 500 }}>
                   Deposit Entry Number

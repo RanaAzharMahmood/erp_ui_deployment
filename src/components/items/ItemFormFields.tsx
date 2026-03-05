@@ -13,6 +13,7 @@ import { Inventory as InventoryIcon } from '@mui/icons-material';
 import FormSection from '../common/FormSection';
 import { ItemFormData, SelectOption, UNITS } from './types';
 import { ItemFieldErrors } from '../../hooks/useItemForm';
+import { useAuth } from '../../contexts/AuthContext';
 
 // Type for select change value (string for most selects, number for IDs, boolean for toggles)
 type SelectChangeValue = string | number | boolean;
@@ -34,6 +35,9 @@ const ItemFormFields: React.FC<ItemFormFieldsProps> = ({
   onInputChange,
   onSelectChange,
 }) => {
+  const { user } = useAuth();
+  const isAdmin = user?.roleName?.toLowerCase() === 'admin';
+
   return (
     <FormSection title="Item Details" icon={<InventoryIcon />}>
       <Divider sx={{ mb: 3, mt: -1 }} />
@@ -87,6 +91,7 @@ const ItemFormFields: React.FC<ItemFormFieldsProps> = ({
             }}
           />
         </Grid>
+        {isAdmin && (
         <Grid item xs={12} sm={6}>
           <Typography
             variant="body2"
@@ -116,6 +121,7 @@ const ItemFormFields: React.FC<ItemFormFieldsProps> = ({
             )}
           </FormControl>
         </Grid>
+        )}
         <Grid item xs={12} sm={6}>
           <Typography
             variant="body2"

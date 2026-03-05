@@ -24,6 +24,8 @@ import PageHeader from '../../../components/common/PageHeader';
 import FormSection from '../../../components/common/FormSection';
 import StatusSelector from '../../../components/common/StatusSelector';
 import { useCompanies } from '../../../hooks';
+import { useCompany } from '../../../contexts/CompanyContext';
+import { useAuth } from '../../../contexts/AuthContext';
 import {
   getBankAccountsApi,
   CreateBankAccountRequest,
@@ -49,9 +51,12 @@ const AddBankAccountPage: React.FC = () => {
   const isEditMode = Boolean(id);
   const navigate = useNavigate();
   const today = new Date().toISOString().split('T')[0];
+  const { selectedCompany } = useCompany();
+  const { user } = useAuth();
+  const isAdmin = user?.roleName?.toLowerCase() === 'admin';
 
   const [formData, setFormData] = useState<BankAccountFormData>({
-    companyId: '',
+    companyId: (!isAdmin && selectedCompany) ? selectedCompany.id : '',
     bankName: '',
     accountTitle: '',
     accountNumber: '',
@@ -176,6 +181,7 @@ const AddBankAccountPage: React.FC = () => {
           <Grid item xs={12} md={8}>
             <FormSection title="Bank Details" icon={<AccountBalanceIcon sx={{ color: '#FF6B35' }} />}>
               <Grid container spacing={2}>
+                {isAdmin && (
                 <Grid item xs={12} sm={6}>
                   <Typography variant="body2" sx={{ mb: 0.5, fontWeight: 500 }}>
                     Select Company*
@@ -195,6 +201,7 @@ const AddBankAccountPage: React.FC = () => {
                     </Select>
                   </FormControl>
                 </Grid>
+                )}
 
                 <Grid item xs={12} sm={6}>
                   <Typography variant="body2" sx={{ mb: 0.5, fontWeight: 500 }}>

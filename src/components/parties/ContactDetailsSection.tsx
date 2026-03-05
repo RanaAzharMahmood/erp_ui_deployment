@@ -12,6 +12,7 @@ import {
 import { Person as PersonIcon } from '@mui/icons-material';
 import FormSection from '../common/FormSection';
 import { PartyFormData, Company } from './types';
+import { useAuth } from '../../contexts/AuthContext';
 
 // Type for select change value (string for most selects, number for IDs, boolean for toggles)
 type SelectChangeValue = string | number | boolean;
@@ -33,6 +34,10 @@ const ContactDetailsSection: React.FC<ContactDetailsSectionProps> = ({
   showCompanySelector = false,
   title = 'Contact Details',
 }) => {
+  const { user } = useAuth();
+  const isAdmin = user?.roleName?.toLowerCase() === 'admin';
+  const showCompany = showCompanySelector && isAdmin;
+
   return (
     <Box sx={{ mt: 3 }}>
       <FormSection title={title} icon={<PersonIcon />}>
@@ -126,7 +131,7 @@ const ContactDetailsSection: React.FC<ContactDetailsSectionProps> = ({
               }}
             />
           </Grid>
-          <Grid item xs={12} sm={showCompanySelector ? 6 : 12}>
+          <Grid item xs={12} sm={showCompany ? 6 : 12}>
             <Typography
               variant="body2"
               sx={{ mb: 0.5, fontWeight: 500 }}
@@ -147,7 +152,7 @@ const ContactDetailsSection: React.FC<ContactDetailsSectionProps> = ({
               }}
             />
           </Grid>
-          {showCompanySelector && (
+          {showCompany && (
             <Grid item xs={12} sm={6}>
               <Typography
                 variant="body2"

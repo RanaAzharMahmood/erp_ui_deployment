@@ -2,6 +2,8 @@ import { useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCompanies } from './useCompanies';
 import { getCategoriesApi } from '../generated/api/client';
+import { useCompany } from '../contexts/CompanyContext';
+import { useAuth } from '../contexts/AuthContext';
 
 export interface CategoryFormData {
   categoryName: string;
@@ -70,7 +72,13 @@ export const useCategoryForm = ({
   mode,
 }: UseCategoryFormOptions): UseCategoryFormReturn => {
   const navigate = useNavigate();
-  const [formData, setFormData] = useState<CategoryFormData>(initialFormData);
+  const { selectedCompany } = useCompany();
+  const { user } = useAuth();
+  const isAdmin = user?.roleName?.toLowerCase() === 'admin';
+  const [formData, setFormData] = useState<CategoryFormData>({
+    ...initialFormData,
+    companyId: (!isAdmin && selectedCompany) ? selectedCompany.id : '',
+  });
   const [fieldErrors, setFieldErrors] = useState<CategoryFieldErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);

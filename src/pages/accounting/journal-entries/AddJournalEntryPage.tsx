@@ -33,6 +33,8 @@ import {
 import PageHeader from '../../../components/common/PageHeader';
 import FormSection from '../../../components/common/FormSection';
 import { useCompanies } from '../../../hooks';
+import { useCompany } from '../../../contexts/CompanyContext';
+import { useAuth } from '../../../contexts/AuthContext';
 import { getJournalEntriesApi } from '../../../generated/api/client';
 
 interface LineItem {
@@ -76,9 +78,12 @@ const AddJournalEntryPage: React.FC = () => {
   const isEditMode = Boolean(id);
   const navigate = useNavigate();
   const today = new Date().toISOString().split('T')[0];
+  const { selectedCompany } = useCompany();
+  const { user } = useAuth();
+  const isAdmin = user?.roleName?.toLowerCase() === 'admin';
 
   const [formData, setFormData] = useState<JournalEntryFormData>({
-    companyId: '',
+    companyId: (!isAdmin && selectedCompany) ? selectedCompany.id : '',
     journalNumber: '',
     date: today,
     memo: '',
@@ -279,6 +284,7 @@ const AddJournalEntryPage: React.FC = () => {
           <Grid item xs={12} md={8}>
             <FormSection title="Journal Entry" icon={<DescriptionIcon sx={{ color: '#FF6B35' }} />}>
               <Grid container spacing={2}>
+                {isAdmin && (
                 <Grid item xs={12}>
                   <Typography variant="body2" sx={{ mb: 0.5, fontWeight: 500 }}>
                     Select Company
@@ -298,6 +304,7 @@ const AddJournalEntryPage: React.FC = () => {
                     </Select>
                   </FormControl>
                 </Grid>
+                )}
 
                 <Grid item xs={12} sm={6}>
                   <Typography variant="body2" sx={{ mb: 0.5, fontWeight: 500 }}>
