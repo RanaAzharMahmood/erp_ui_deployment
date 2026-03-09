@@ -33,10 +33,13 @@ import { getUsersApi } from '../../../generated/api/client';
 import type { UpdateUserRequest } from '../../../generated/api/api';
 import ConfirmDialog from '../../../components/feedback/ConfirmDialog';
 import { COLORS } from '../../../constants/colors';
+import { useAuth } from '../../../contexts/AuthContext';
 
 const UpdateUserPage: React.FC = () => {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
+  const { user: authUser } = useAuth();
+  const isManager = authUser?.roleId === 2;
   const [isLoading, setIsLoading] = useState(true);
   const [formData, setFormData] = useState<UserFormData>({
     firstName: '',
@@ -229,13 +232,27 @@ const UpdateUserPage: React.FC = () => {
 
   // Memoized submit handler with API
   const handleSubmit = useCallback(async () => {
-    // Validation
-    if (
-      !formData.firstName ||
-      !formData.email ||
-      extendedCompanyAccess.length === 0
-    ) {
-      setError('Please fill in all required fields and add at least one company');
+    // Client-side field validation
+    const errors: Record<string, string> = {};
+
+    if (!formData.firstName) {
+      errors.firstName = 'First name is required';
+    }
+    if (!formData.email) {
+      errors.email = 'Email is required';
+    }
+
+    // Check for at least one company
+    if (extendedCompanyAccess.length === 0) {
+      setError('Please add at least one company');
+      setFieldErrors({});
+      return;
+    }
+
+    // If there are field validation errors, display them and don't submit
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      setError('Please fix the errors below');
       return;
     }
 
@@ -246,11 +263,13 @@ const UpdateUserPage: React.FC = () => {
     try {
       const usersApi = getUsersApi();
 
-      // Convert company access to API format with permission IDs
+      // Convert company access to API format
+      // Note: Manager/Admin roles automatically get default permissions from backend
+      // For other roles, modulePermissions are converted to permissionNames
       const companyPermissions = companyAccessToApiFormat(extendedCompanyAccess);
 
       // Prepare API payload
-      const payload: UpdateUserRequest & { cnic?: string; about?: string; companyPermissions?: Array<{ companyId: number; roleId?: number; permissionIds: number[] }> } = {
+      const payload: UpdateUserRequest & { cnic?: string; about?: string; companyPermissions?: Array<{ companyId: number; roleId?: number; permissionNames?: string[] }> } = {
         firstName: formData.firstName,
         lastName: formData.lastName,
         email: formData.email,
@@ -258,7 +277,7 @@ const UpdateUserPage: React.FC = () => {
         cnic: formData.cnic || undefined,
         about: formData.about || undefined,
         password: password || undefined,
-        roleId: extendedCompanyAccess[0]?.roleId || 4,
+        roleId: extendedCompanyAccess[0]?.roleId || 3,
         companyIds: extendedCompanyAccess.map((access) => access.companyId),
         permissionIds: [],
         companyPermissions,
@@ -475,18 +494,51 @@ const UpdateUserPage: React.FC = () => {
             {/* Company Access and Rules */}
             <FormSection title="Company Access And Rules" icon={<BusinessIcon />}>
               <Divider sx={{ mb: 3, mt: -1 }} />
-              <CompanyAccessSection
-                companies={companies}
-                companyAccess={extendedCompanyAccess}
-                selectedCompanyId={selectedCompanyId}
-                onSelectedCompanyChange={setSelectedCompanyId}
-                onAddCompany={handleAddCompany}
-                onRemoveCompany={handleRemoveCompany}
-                onRoleChange={handleUpdateCompanyRole}
-                onPermissionToggle={handleTogglePermission}
-                onSelectAll={handleSelectAll}
-                onModuleToggle={handleModuleToggle}
-              />
+              {isManager ? (
+                // For managers: show company info read-only + editable permissions
+                <>
+                  {/* Company Info - Read Only */}
+                  <Box sx={{ mb: 3, p: 2, bgcolor: '#F3F4F6', borderRadius: 1, border: '1px solid #E5E7EB' }}>
+                    <Typography variant="body2" sx={{ fontWeight: 500, mb: 1, color: '#6B7280' }}>
+                      User's Company
+                    </Typography>
+                    <Typography variant="body1" sx={{ fontWeight: 600, color: '#1F2937' }}>
+                      {extendedCompanyAccess.length > 0 ? extendedCompanyAccess[0].companyName : 'No company assigned'}
+                    </Typography>
+                    <Typography variant="caption" sx={{ display: 'block', mt: 1, color: '#6B7280' }}>
+                      Company assignment cannot be changed
+                    </Typography>
+                  </Box>
+
+                  {/* Permissions - Editable */}
+                  <CompanyAccessSection
+                    companies={companies}
+                    companyAccess={extendedCompanyAccess}
+                    selectedCompanyId={selectedCompanyId}
+                    onSelectedCompanyChange={() => {}}
+                    onAddCompany={() => {}}
+                    onRemoveCompany={() => {}}
+                    onRoleChange={handleUpdateCompanyRole}
+                    onPermissionToggle={handleTogglePermission}
+                    onSelectAll={handleSelectAll}
+                    onModuleToggle={handleModuleToggle}
+                    hideCompanySelector={true}
+                  />
+                </>
+              ) : (
+                <CompanyAccessSection
+                  companies={companies}
+                  companyAccess={extendedCompanyAccess}
+                  selectedCompanyId={selectedCompanyId}
+                  onSelectedCompanyChange={setSelectedCompanyId}
+                  onAddCompany={handleAddCompany}
+                  onRemoveCompany={handleRemoveCompany}
+                  onRoleChange={handleUpdateCompanyRole}
+                  onPermissionToggle={handleTogglePermission}
+                  onSelectAll={handleSelectAll}
+                  onModuleToggle={handleModuleToggle}
+                />
+              )}
             </FormSection>
           </Box>
         </Grid>

@@ -67,7 +67,7 @@ export const useCompanyAccess = ({
     const newAccess: ExtendedUserCompanyAccess = {
       companyId: selectedCompanyId,
       companyName: company.name,
-      roleId: 4,
+      roleId: 3, // Employee role
       roleName: 'Employee',
       permissions: [],
       modulePermissions: {},

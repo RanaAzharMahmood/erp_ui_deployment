@@ -9,6 +9,7 @@ export interface PermissionModule {
   id: string;
   name: string;
   permissions: string[];
+  description?: string;
 }
 
 /**
@@ -22,8 +23,10 @@ export interface ExtendedUserCompanyAccess extends UserCompanyAccess {
 /**
  * Permission modules available in the system
  * Each module has a set of standard CRUD permissions
+ * Option C: Grouped Master Data approach
  */
 export const PERMISSION_MODULES: PermissionModule[] = [
+  // Core Transaction Modules
   {
     id: 'sales',
     name: 'Sales Module',
@@ -43,6 +46,46 @@ export const PERMISSION_MODULES: PermissionModule[] = [
     id: 'inventory',
     name: 'Inventory Module',
     permissions: ['View', 'Add', 'Edit', 'Delete'],
+  },
+
+  // Master Data: Vendors & Parties
+  {
+    id: 'vendors_parties',
+    name: 'Vendors & Parties',
+    permissions: ['View', 'Add', 'Edit', 'Delete'],
+    description: 'Manage vendors, parties, and customers',
+  },
+
+  // Master Data: Finance Settings
+  {
+    id: 'finance_settings',
+    name: 'Finance Master Data',
+    permissions: ['View', 'Add', 'Edit', 'Delete'],
+    description: 'Taxes, bank accounts, chart of accounts',
+  },
+
+  // Master Data: Sales Settings
+  {
+    id: 'sales_settings',
+    name: 'Sales Master Data',
+    permissions: ['View', 'Add', 'Edit', 'Delete'],
+    description: 'Categories, products, items',
+  },
+
+  // Expenses & Payments
+  {
+    id: 'expenses',
+    name: 'Expenses & Payments',
+    permissions: ['View', 'Add', 'Edit', 'Delete'],
+    description: 'Approve & Pay permissions are granted automatically to managers',
+  },
+
+  // Reports & Activity (Read-only)
+  {
+    id: 'reports',
+    name: 'Reports & Activity',
+    permissions: ['View'],
+    description: 'Dashboard, reports, activity logs',
   },
 ];
 

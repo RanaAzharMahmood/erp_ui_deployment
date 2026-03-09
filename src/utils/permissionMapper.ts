@@ -4,30 +4,71 @@
  */
 
 // Backend permission IDs mapped by module and action
-export const PERMISSION_MAP: Record<string, Record<string, number>> = {
+// Note: These map frontend module selections to backend permission names
+export const PERMISSION_MAP: Record<string, Record<string, string>> = {
+  // Core Transaction Modules (mapped to invoice permissions)
   sales: {
-    View: 21,
-    Add: 22,
-    Edit: 23,
-    Delete: 24,
+    View: 'view_sales_invoices',
+    Add: 'create_sales_invoices',
+    Edit: 'edit_sales_invoices',
+    Delete: 'delete_sales_invoices',
   },
   purchase: {
-    View: 1,
-    Add: 2,
-    Edit: 3,
-    Delete: 4,
+    View: 'view_purchase_invoices',
+    Add: 'create_purchase_invoices',
+    Edit: 'edit_purchase_invoices',
+    Delete: 'delete_purchase_invoices',
   },
   finance: {
-    View: 9,
-    Add: 10,
-    Edit: 11,
-    Delete: 12,
+    View: 'view_journal_entries',
+    Add: 'create_journal_entries',
+    Edit: 'edit_journal_entries',
+    Delete: 'delete_journal_entries',
   },
   inventory: {
-    View: 5,
-    Add: 6,
-    Edit: 7,
-    Delete: 8,
+    View: 'view_items',
+    Add: 'create_items',  // Admin only
+    Edit: 'edit_items',   // Admin only
+    Delete: 'delete_items', // Admin only
+  },
+
+  // Master Data: Vendors & Parties
+  vendors_parties: {
+    View: 'view_vendors,party:read',  // Multiple permissions
+    Add: 'create_vendors,party:create',
+    Edit: 'edit_vendors,party:update',
+    Delete: 'delete_vendors,party:delete',
+  },
+
+  // Master Data: Finance Settings (Taxes, Bank Accounts, CoA)
+  finance_settings: {
+    View: 'view_taxes,view_bank_accounts,view_chart_of_accounts',
+    Add: 'create_taxes,create_bank_accounts,create_chart_of_accounts',
+    Edit: 'edit_taxes,edit_bank_accounts,edit_chart_of_accounts',
+    Delete: 'delete_taxes,delete_bank_accounts,delete_chart_of_accounts',
+  },
+
+  // Master Data: Sales Settings (Categories, Products)
+  sales_settings: {
+    View: 'view_categories,view_products',
+    Add: 'create_categories,create_products', // Products = Admin only
+    Edit: 'edit_categories,edit_products',
+    Delete: 'delete_categories,delete_products',
+  },
+
+  // Expenses & Payments with Approval
+  expenses: {
+    View: 'view_expenses,view_other_payments',
+    Add: 'create_expenses,create_other_payments',
+    Edit: 'edit_expenses,edit_other_payments',
+    Delete: 'delete_expenses,delete_other_payments',
+    Approve: 'approve_expenses,approve_other_payments',
+    Pay: 'pay_expenses,pay_other_payments',
+  },
+
+  // Reports & Activity (Read-only)
+  reports: {
+    View: 'view_dashboard,view_reports,view_activity_logs',
   },
 };
 
@@ -52,28 +93,42 @@ export const PERMISSION_ID_MAP: Record<number, { module: string; action: string 
 };
 
 /**
- * Convert frontend module permissions to backend permission IDs
+ * Convert frontend module permissions to backend permission names
  * @param modulePermissions - Object with module IDs as keys and permission arrays as values
- * @returns Array of permission IDs
+ * @returns Array of permission names to send to backend
  */
-export function modulePermissionsToIds(
+export function modulePermissionsToNames(
   modulePermissions: Record<string, string[]>
-): number[] {
-  const permissionIds: number[] = [];
+): string[] {
+  const permissionNames: string[] = [];
 
   for (const [moduleId, permissions] of Object.entries(modulePermissions)) {
     const moduleMap = PERMISSION_MAP[moduleId];
     if (!moduleMap) continue;
 
     for (const permission of permissions) {
-      const permissionId = moduleMap[permission];
-      if (permissionId !== undefined) {
-        permissionIds.push(permissionId);
+      const backendNames = moduleMap[permission];
+      if (backendNames) {
+        // Split by comma in case multiple permissions map to one action
+        const names = backendNames.split(',').map(n => n.trim());
+        permissionNames.push(...names);
       }
     }
   }
 
-  return permissionIds;
+  return permissionNames;
+}
+
+/**
+ * Legacy: Convert frontend module permissions to backend permission IDs
+ * @deprecated Use modulePermissionsToNames instead
+ */
+export function modulePermissionsToIds(
+  _modulePermissions: Record<string, string[]>
+): number[] {
+  // For backward compatibility, return empty for now
+  // Backend should use permission names instead of IDs
+  return [];
 }
 
 /**
@@ -138,11 +193,11 @@ export const ROLE_NAME_TO_ID: Record<string, number> = {
 /**
  * Convert company access with module permissions to API format
  * @param companyAccess - Array of company access objects with modulePermissions, roleName, and roleId
- * @returns Array of { companyId, roleId, permissionIds } for API
+ * @returns Array of { companyId, roleId, permissionNames } for API
  */
 export function companyAccessToApiFormat(
   companyAccess: Array<{ companyId: number; roleId?: number; roleName?: string; modulePermissions: Record<string, string[]> }>
-): Array<{ companyId: number; roleId?: number; permissionIds: number[] }> {
+): Array<{ companyId: number; roleId?: number; permissionNames: string[] }> {
   return companyAccess.map((access) => {
     // Manager and Admin get all permissions
     const isManagerOrAdmin = access.roleName === 'Manager' || access.roleName === 'Admin';
@@ -151,7 +206,8 @@ export function companyAccessToApiFormat(
     return {
       companyId: access.companyId,
       roleId,
-      permissionIds: isManagerOrAdmin ? ALL_PERMISSION_IDS : modulePermissionsToIds(access.modulePermissions),
+      // Use permission names instead of IDs
+      permissionNames: isManagerOrAdmin ? [] : modulePermissionsToNames(access.modulePermissions),
     };
   });
 }

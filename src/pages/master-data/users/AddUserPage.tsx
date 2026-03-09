@@ -29,9 +29,15 @@ import { companyAccessToApiFormat } from '../../../utils/permissionMapper';
 import type { UserFormData } from '../../../types/common.types';
 import { getUsersApi } from '../../../generated/api/client';
 import type { CreateUserRequest } from '../../../generated/api/api';
+import { useAuth } from '../../../contexts/AuthContext';
+import { useCompany } from '../../../contexts/CompanyContext';
 
 const AddUserPage: React.FC = () => {
   const navigate = useNavigate();
+  const { user: authUser } = useAuth();
+  const { selectedCompany } = useCompany();
+  const isManager = authUser?.roleId === 2;
+
   const [formData, setFormData] = useState<UserFormData>({
     firstName: '',
     lastName: '',
@@ -73,10 +79,26 @@ const AddUserPage: React.FC = () => {
     handleModuleToggle,
     totalPermissions,
     uniqueRoles,
+    setExtendedCompanyAccess,
   } = useCompanyAccess({
     companies,
     onError: setError,
   });
+
+  // For managers, auto-select their company on mount
+  useEffect(() => {
+    if (isManager && selectedCompany) {
+      const newAccess = {
+        companyId: selectedCompany.id,
+        companyName: selectedCompany.name,
+        roleId: 3,
+        roleName: 'Employee',
+        permissions: [],
+        modulePermissions: {},
+      };
+      setExtendedCompanyAccess([newAccess]);
+    }
+  }, [isManager, selectedCompany, setExtendedCompanyAccess]);
 
   // Memoized input change handler
   const handleInputChange = useCallback(
@@ -133,14 +155,30 @@ const AddUserPage: React.FC = () => {
 
   // Memoized submit handler with API
   const handleSubmit = useCallback(async () => {
-    // Validation
-    if (
-      !formData.firstName ||
-      !formData.email ||
-      !password ||
-      extendedCompanyAccess.length === 0
-    ) {
-      setError('Please fill in all required fields and add at least one company');
+    // Client-side field validation
+    const errors: Record<string, string> = {};
+
+    if (!formData.firstName) {
+      errors.firstName = 'First name is required';
+    }
+    if (!formData.email) {
+      errors.email = 'Email is required';
+    }
+    if (!password) {
+      errors.password = 'Password is required';
+    }
+
+    // Check for at least one company
+    if (extendedCompanyAccess.length === 0) {
+      setError('Please add at least one company');
+      setFieldErrors({});
+      return;
+    }
+
+    // If there are field validation errors, display them and don't submit
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      setError('Please fix the errors below');
       return;
     }
 
@@ -151,11 +189,13 @@ const AddUserPage: React.FC = () => {
     try {
       const usersApi = getUsersApi();
 
-      // Convert company access to API format with permission IDs
+      // Convert company access to API format
+      // Note: Manager/Admin roles automatically get default permissions from backend
+      // For other roles, modulePermissions are converted to permissionNames
       const companyPermissions = companyAccessToApiFormat(extendedCompanyAccess);
 
       // Prepare API payload
-      const payload: CreateUserRequest & { cnic?: string; about?: string; companyPermissions?: Array<{ companyId: number; roleId?: number; permissionIds: number[] }> } = {
+      const payload: CreateUserRequest & { cnic?: string; about?: string; companyPermissions?: Array<{ companyId: number; roleId?: number; permissionNames?: string[] }> } = {
         firstName: formData.firstName,
         lastName: formData.lastName,
         fullName: `${formData.firstName} ${formData.lastName}`.trim(),
@@ -164,7 +204,7 @@ const AddUserPage: React.FC = () => {
         cnic: formData.cnic || undefined,
         about: formData.about || undefined,
         password: password,
-        roleId: extendedCompanyAccess[0]?.roleId || 4,
+        roleId: extendedCompanyAccess[0]?.roleId || 3,
         companyIds: extendedCompanyAccess.map((access) => access.companyId),
         permissionIds: [],
         companyPermissions,
@@ -353,18 +393,51 @@ const AddUserPage: React.FC = () => {
             {/* Company Access and Rules */}
             <FormSection title="Company Access And Rules" icon={<BusinessIcon />}>
               <Divider sx={{ mb: 3, mt: -1 }} />
-              <CompanyAccessSection
-                companies={companies}
-                companyAccess={extendedCompanyAccess}
-                selectedCompanyId={selectedCompanyId}
-                onSelectedCompanyChange={setSelectedCompanyId}
-                onAddCompany={handleAddCompany}
-                onRemoveCompany={handleRemoveCompany}
-                onRoleChange={handleUpdateCompanyRole}
-                onPermissionToggle={handleTogglePermission}
-                onSelectAll={handleSelectAll}
-                onModuleToggle={handleModuleToggle}
-              />
+              {isManager ? (
+                // For managers: show company selection disabled + full permissions UI
+                <>
+                  {/* Company Info - Read Only */}
+                  <Box sx={{ mb: 3, p: 2, bgcolor: '#F3F4F6', borderRadius: 1, border: '1px solid #E5E7EB' }}>
+                    <Typography variant="body2" sx={{ fontWeight: 500, mb: 1, color: '#6B7280' }}>
+                      Your Company
+                    </Typography>
+                    <Typography variant="body1" sx={{ fontWeight: 600, color: '#1F2937' }}>
+                      {selectedCompany?.name || 'No company selected'}
+                    </Typography>
+                    <Typography variant="caption" sx={{ display: 'block', mt: 1, color: '#6B7280' }}>
+                      You can only create users for your selected company
+                    </Typography>
+                  </Box>
+
+                  {/* Permissions - Editable */}
+                  <CompanyAccessSection
+                    companies={companies}
+                    companyAccess={extendedCompanyAccess}
+                    selectedCompanyId={selectedCompanyId}
+                    onSelectedCompanyChange={() => {}}
+                    onAddCompany={() => {}}
+                    onRemoveCompany={() => {}}
+                    onRoleChange={handleUpdateCompanyRole}
+                    onPermissionToggle={handleTogglePermission}
+                    onSelectAll={handleSelectAll}
+                    onModuleToggle={handleModuleToggle}
+                    hideCompanySelector={true}
+                  />
+                </>
+              ) : (
+                <CompanyAccessSection
+                  companies={companies}
+                  companyAccess={extendedCompanyAccess}
+                  selectedCompanyId={selectedCompanyId}
+                  onSelectedCompanyChange={setSelectedCompanyId}
+                  onAddCompany={handleAddCompany}
+                  onRemoveCompany={handleRemoveCompany}
+                  onRoleChange={handleUpdateCompanyRole}
+                  onPermissionToggle={handleTogglePermission}
+                  onSelectAll={handleSelectAll}
+                  onModuleToggle={handleModuleToggle}
+                />
+              )}
             </FormSection>
           </Box>
         </Grid>

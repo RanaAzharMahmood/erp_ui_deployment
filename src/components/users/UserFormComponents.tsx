@@ -354,6 +354,7 @@ export interface CompanyAccessSectionProps {
   onPermissionToggle: (companyId: number, moduleId: string, permission: string) => void;
   onSelectAll: (companyId: number, checked: boolean) => void;
   onModuleToggle: (companyId: number, moduleId: string, checked: boolean) => void;
+  hideCompanySelector?: boolean;
 }
 
 export const CompanyAccessSection = memo(({
@@ -367,6 +368,7 @@ export const CompanyAccessSection = memo(({
   onPermissionToggle,
   onSelectAll,
   onModuleToggle,
+  hideCompanySelector = false,
 }: CompanyAccessSectionProps) => {
   const availableCompanies = companies.filter(
     (company) => !companyAccess.some((access) => access.companyId === company.id)
@@ -374,50 +376,52 @@ export const CompanyAccessSection = memo(({
 
   return (
     <>
-      {/* Company selector and Add Button */}
-      <Box sx={{ display: 'flex', gap: 2, mb: 3, alignItems: 'flex-end' }}>
-        <FormControl sx={{ minWidth: 300 }} size="small">
-          <InputLabel id="select-company-label">Select Company</InputLabel>
-          <Select
-            value={selectedCompanyId}
-            onChange={(e) => onSelectedCompanyChange(e.target.value as number | '')}
-            label="Select Company"
-            sx={{ bgcolor: 'white' }}
-            labelId="select-company-label"
-          >
-            <MenuItem value="">Select a company</MenuItem>
-            {availableCompanies.map((company) => (
-              <MenuItem key={company.id} value={company.id}>
-                {company.name}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-        <Button
-          variant="outlined"
-          startIcon={<AddIcon />}
-          onClick={onAddCompany}
-          disabled={!selectedCompanyId}
-          aria-label="Add selected company to user access"
-          sx={{
-            borderColor: '#E5E7EB',
-            color: '#374151',
-            textTransform: 'none',
-            '&:hover': {
-              borderColor: '#D1D5DB',
-              bgcolor: '#F9FAFB',
-            },
-            '&.Mui-disabled': {
+      {/* Company selector and Add Button - Hidden for managers */}
+      {!hideCompanySelector && (
+        <Box sx={{ display: 'flex', gap: 2, mb: 3, alignItems: 'flex-end' }}>
+          <FormControl sx={{ minWidth: 300 }} size="small">
+            <InputLabel id="select-company-label">Select Company</InputLabel>
+            <Select
+              value={selectedCompanyId}
+              onChange={(e) => onSelectedCompanyChange(e.target.value as number | '')}
+              label="Select Company"
+              sx={{ bgcolor: 'white' }}
+              labelId="select-company-label"
+            >
+              <MenuItem value="">Select a company</MenuItem>
+              {availableCompanies.map((company) => (
+                <MenuItem key={company.id} value={company.id}>
+                  {company.name}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          <Button
+            variant="outlined"
+            startIcon={<AddIcon />}
+            onClick={onAddCompany}
+            disabled={!selectedCompanyId}
+            aria-label="Add selected company to user access"
+            sx={{
               borderColor: '#E5E7EB',
-              color: '#9CA3AF',
-            },
-          }}
-        >
-          Add Company
-        </Button>
-      </Box>
+              color: '#374151',
+              textTransform: 'none',
+              '&:hover': {
+                borderColor: '#D1D5DB',
+                bgcolor: '#F9FAFB',
+              },
+              '&.Mui-disabled': {
+                borderColor: '#E5E7EB',
+                color: '#9CA3AF',
+              },
+            }}
+          >
+            Add Company
+          </Button>
+        </Box>
+      )}
 
-      {availableCompanies.length === 0 && companyAccess.length > 0 && (
+      {!hideCompanySelector && availableCompanies.length === 0 && companyAccess.length > 0 && (
         <Alert severity="info" sx={{ mb: 2 }}>
           All available companies have been added.
         </Alert>
