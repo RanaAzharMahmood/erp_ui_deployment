@@ -67,7 +67,7 @@ const AddPurchaseReturnPage: React.FC = () => {
   const [formData, setFormData] = useState<PurchaseReturnFormData>({
     companyId: (!isAdmin && selectedCompany) ? selectedCompany.id : '',
     vendorId: '',
-    billNumber: '',
+    returnNumber: '',
     originalInvoice: '',
     date: today,
     returnReason: '',
@@ -109,7 +109,7 @@ const AddPurchaseReturnPage: React.FC = () => {
         const companyId = formData.companyId ? Number(formData.companyId) : undefined;
         const response = await api.getNextNumber(companyId);
         if (response.data?.nextNumber) {
-          setFormData((prev) => ({ ...prev, billNumber: response.data.nextNumber }));
+          setFormData((prev) => ({ ...prev, returnNumber: response.data.nextNumber }));
         }
       } catch (err) {
         console.error('Error fetching next return number from API:', err);
@@ -225,6 +225,7 @@ const AddPurchaseReturnPage: React.FC = () => {
         } catch (err) {
           console.error('Error loading inventory items from API:', err);
           setItems([]);
+          setError('Failed to load items. Please refresh the page.');
         }
 
         // Load existing return for edit mode
@@ -239,7 +240,7 @@ const AddPurchaseReturnPage: React.FC = () => {
               setFormData({
                 companyId: returnData.companyId || '',
                 vendorId: String(returnData.vendorId) || '',
-                billNumber: returnData.returnNumber,
+                returnNumber: returnData.returnNumber,
                 originalInvoice: returnData.purchaseInvoiceId ? String(returnData.purchaseInvoiceId) : '',
                 date: returnData.date,
                 returnReason: returnData.reason || '',
@@ -493,8 +494,8 @@ const AddPurchaseReturnPage: React.FC = () => {
                 </Typography>
                 <TextField
                   fullWidth
-                  name="billNumber"
-                  value={formData.billNumber}
+                  name="returnNumber"
+                  value={formData.returnNumber}
                   onChange={handleInputChange}
                   size="small"
                   disabled

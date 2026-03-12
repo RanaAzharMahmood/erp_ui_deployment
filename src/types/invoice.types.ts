@@ -264,7 +264,7 @@ export interface SalesReturnFormData {
 export interface PurchaseReturnFormData {
   companyId: number | '';
   vendorId: string;
-  billNumber: string;
+  returnNumber: string;
   originalInvoice: string;
   date: string;
   returnReason: string;
