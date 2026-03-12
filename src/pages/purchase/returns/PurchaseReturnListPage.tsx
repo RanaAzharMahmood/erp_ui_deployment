@@ -188,7 +188,8 @@ const PurchaseReturnListPage: React.FC = () => {
         setSuccessMessage('Purchase return deleted successfully!');
       } catch (err) {
         console.error('Error deleting purchase return:', err);
-        setError('Failed to delete purchase return. Please try again.');
+        const message = err instanceof Error ? err.message : 'Failed to delete purchase return. Please try again.';
+        setError(message);
       } finally {
         setDeleting(false);
       }
@@ -442,7 +443,7 @@ const PurchaseReturnListPage: React.FC = () => {
                     direction={orderBy === 'billNumber' ? order : 'asc'}
                     onClick={() => handleSort('billNumber')}
                   >
-                    Bill Number
+                    Return Number
                   </TableSortLabel>
                 </TableCell>
                 <TableCell

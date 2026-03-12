@@ -92,6 +92,7 @@ const AddPurchaseReturnPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(isEditMode);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   // Derive companies from hook data - use c.name as the hook normalizes to 'name' field
   const companies: CompanyOption[] = (companiesData || []).map((c) => ({ id: c.id, name: c.name || '' }));
@@ -152,7 +153,7 @@ const AddPurchaseReturnPage: React.FC = () => {
         if (invoicesResponse.data?.data) {
           setPurchaseInvoices(invoicesResponse.data.data.map((i) => ({
             id: String(i.id),
-            billNumber: i.billNumber || '',
+            billNumber: i.invoiceNumber || '',
             vendorId: String(i.vendorId) || '',
           })));
         }
@@ -301,6 +302,14 @@ const AddPurchaseReturnPage: React.FC = () => {
       setFormData((prev) => ({ ...prev, vendorId: String(value), originalInvoice: '', refundAmount: 0 }));
       setLineItems([{ id: '1', itemId: '', quantity: 0, rate: 0, amount: 0 }]);
       resetInvoiceSummary();
+      setFieldErrors((prev) => ({ ...prev, vendorId: '' }));
+    } else if (name === 'originalInvoice') {
+      setFormData((prev) => ({ ...prev, originalInvoice: String(value) }));
+      // Reset invoice summary and lines when invoice is cleared
+      if (!value) {
+        setLineItems([{ id: '1', itemId: '', quantity: 0, rate: 0, amount: 0 }]);
+        resetInvoiceSummary();
+      }
     } else {
       setFormData((prev) => ({ ...prev, [name]: value }));
     }
@@ -361,24 +370,23 @@ const AddPurchaseReturnPage: React.FC = () => {
   const netAmount = grossAmount - invoiceDiscount + invoiceTax;
 
   const handleSubmit = useCallback(async () => {
-    if (!formData.vendorId || !formData.date) {
-      setError('Please fill in all required fields');
-      return;
-    }
+    const errors: Record<string, string> = {};
 
-    // Validate image upload for Bank Transfer and Cheque
-    if (requiresImageAndAccount && !receiptImage) {
-      setError('Receipt image is required for Bank Transfer and Cheque payments');
-      return;
-    }
+    if (!formData.vendorId) errors.vendorId = 'Vendor is required';
+    if (!formData.date) errors.date = 'Date is required';
+    if (requiresImageAndAccount && !receiptImage) errors.receiptImage = 'Receipt image is required for Bank Transfer and Cheque payments';
+    if (requiresImageAndAccount && !formData.accountNumber) errors.accountNumber = 'Account number is required';
+    if (!lineItems.some(l => l.itemId)) errors.lineItems = 'At least one line item is required';
 
-    if (requiresImageAndAccount && !formData.accountNumber) {
-      setError('Account number is required for Bank Transfer and Cheque payments');
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      setError('Please fix the errors below');
       return;
     }
 
     setIsSubmitting(true);
     setError('');
+    setFieldErrors({});
 
     try {
       // Prepare API request data
@@ -386,6 +394,9 @@ const AddPurchaseReturnPage: React.FC = () => {
         date: formData.date,
         vendorId: Number(formData.vendorId),
         purchaseInvoiceId: formData.originalInvoice ? Number(formData.originalInvoice) : undefined,
+        subtotal: grossAmount,
+        taxAmount: invoiceTax,
+        totalAmount: netAmount,
         reason: formData.returnReason || undefined,
         notes: formData.remarks || undefined,
         companyId: formData.companyId ? Number(formData.companyId) : 1,
@@ -494,7 +505,7 @@ const AddPurchaseReturnPage: React.FC = () => {
                 <Typography variant="body2" sx={{ mb: 0.5, fontWeight: 500 }}>
                   Select Vendor *
                 </Typography>
-                <FormControl fullWidth size="small">
+                <FormControl fullWidth size="small" error={!!fieldErrors.vendorId}>
                   <Select
                     value={formData.vendorId}
                     onChange={(e) => handleSelectChange('vendorId', e.target.value as SelectChangeValue)}
@@ -507,6 +518,11 @@ const AddPurchaseReturnPage: React.FC = () => {
                       <MenuItem key={vendor.id} value={vendor.id}>{vendor.name}</MenuItem>
                     ))}
                   </Select>
+                  {fieldErrors.vendorId && (
+                    <Typography variant="caption" color="error" sx={{ mt: 0.5, ml: 1 }}>
+                      {fieldErrors.vendorId}
+                    </Typography>
+                  )}
                 </FormControl>
               </Grid>
               <Grid item xs={12} sm={6}>
@@ -537,9 +553,13 @@ const AddPurchaseReturnPage: React.FC = () => {
                   name="date"
                   type="date"
                   value={formData.date}
-                  onChange={handleInputChange}
+                  onChange={(e) => {
+                    handleInputChange(e);
+                    setFieldErrors((prev) => ({ ...prev, date: '' }));
+                  }}
                   size="small"
-                  inputProps={{ min: today }}
+                  error={!!fieldErrors.date}
+                  helperText={fieldErrors.date}
                   sx={{ '& .MuiOutlinedInput-root': { bgcolor: 'white' } }}
                   InputLabelProps={{ shrink: true }}
                 />
@@ -587,9 +607,14 @@ const AddPurchaseReturnPage: React.FC = () => {
                     fullWidth
                     name="accountNumber"
                     value={formData.accountNumber}
-                    onChange={handleInputChange}
+                    onChange={(e) => {
+                      handleInputChange(e);
+                      setFieldErrors((prev) => ({ ...prev, accountNumber: '' }));
+                    }}
                     placeholder="Enter account number"
                     size="small"
+                    error={!!fieldErrors.accountNumber}
+                    helperText={fieldErrors.accountNumber}
                     sx={{ '& .MuiOutlinedInput-root': { bgcolor: 'white' } }}
                   />
                 </Grid>
@@ -648,8 +673,11 @@ const AddPurchaseReturnPage: React.FC = () => {
                         <TextField
                           fullWidth
                           type="number"
-                          value={item.quantity}
-                          onChange={(e) => handleLineItemChange(item.id, 'quantity', Math.max(0, parseFloat(e.target.value) || 0))}
+                          value={item.quantity || ''}
+                          onChange={(e) => {
+                            const val = e.target.value === '' ? 0 : Math.max(0, parseFloat(e.target.value));
+                            handleLineItemChange(item.id, 'quantity', isNaN(val) ? 0 : val);
+                          }}
                           placeholder="0"
                           size="small"
                           disabled={hasInvoice}
@@ -661,8 +689,11 @@ const AddPurchaseReturnPage: React.FC = () => {
                         <TextField
                           fullWidth
                           type="number"
-                          value={item.rate}
-                          onChange={(e) => handleLineItemChange(item.id, 'rate', Math.max(0, parseFloat(e.target.value) || 0))}
+                          value={item.rate || ''}
+                          onChange={(e) => {
+                            const val = e.target.value === '' ? 0 : Math.max(0, parseFloat(e.target.value));
+                            handleLineItemChange(item.id, 'rate', isNaN(val) ? 0 : val);
+                          }}
                           placeholder="0.0 PKR"
                           size="small"
                           disabled={hasInvoice}
@@ -674,7 +705,7 @@ const AddPurchaseReturnPage: React.FC = () => {
                         <TextField
                           fullWidth
                           type="number"
-                          value={item.amount}
+                          value={item.amount || ''}
                           disabled
                           size="small"
                           sx={{ '& .MuiOutlinedInput-root': { bgcolor: '#F3F4F6' } }}
@@ -696,6 +727,12 @@ const AddPurchaseReturnPage: React.FC = () => {
                 </TableBody>
               </Table>
             </TableContainer>
+
+            {fieldErrors.lineItems && (
+              <Typography variant="caption" color="error" sx={{ mt: 1, display: 'block' }}>
+                {fieldErrors.lineItems}
+              </Typography>
+            )}
 
             {!hasInvoice && (
             <Button
@@ -799,8 +836,16 @@ const AddPurchaseReturnPage: React.FC = () => {
                 id="receipt-upload"
                 accept="image/*"
                 hidden
-                onChange={handleImageUpload}
+                onChange={(e) => {
+                  handleImageUpload(e);
+                  setFieldErrors((prev) => ({ ...prev, receiptImage: '' }));
+                }}
               />
+              {fieldErrors.receiptImage && (
+                <Typography variant="caption" color="error" sx={{ mt: 1, display: 'block' }}>
+                  {fieldErrors.receiptImage}
+                </Typography>
+              )}
             </FormSection>
           )}
 

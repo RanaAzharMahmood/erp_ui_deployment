@@ -2364,7 +2364,7 @@ export interface PurchaseInvoiceLine {
 
 export interface PurchaseInvoice {
   id: number;
-  billNumber: string;
+  invoiceNumber: string;
   date: string;
   dueDate?: string;
   vendorId: number;
@@ -2669,6 +2669,9 @@ export interface CreatePurchaseReturnRequest {
   date: string;
   vendorId: number;
   purchaseInvoiceId?: number;
+  subtotal: number;
+  taxAmount: number;
+  totalAmount: number;
   reason?: string;
   notes?: string;
   companyId: number;
@@ -2679,6 +2682,9 @@ export interface UpdatePurchaseReturnRequest {
   date?: string;
   vendorId?: number;
   purchaseInvoiceId?: number;
+  subtotal?: number;
+  taxAmount?: number;
+  totalAmount?: number;
   reason?: string;
   notes?: string;
   lines?: CreatePurchaseReturnLineRequest[];

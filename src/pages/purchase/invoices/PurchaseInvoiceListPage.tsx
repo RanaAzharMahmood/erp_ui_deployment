@@ -39,13 +39,13 @@ import { getPurchaseInvoicesApi } from '../../../generated/api/client';
 
 interface PurchaseInvoice {
   id: string;
-  billNumber: string;
+  invoiceNumber: string;
   companyName: string;
   vendorName: string;
-  item: string;
-  quantity: number;
-  netAmount: number;
-  status: 'Active' | 'Paid' | 'Overdue' | 'Pending';
+  totalAmount: number;
+  paidAmount: number;
+  dueDate: string;
+  status: 'Draft' | 'Received' | 'Paid' | 'Overdue' | 'Cancelled';
   date: string;
   createdAt: string;
 }
@@ -85,23 +85,25 @@ const PurchaseInvoiceListPage: React.FC = () => {
         const purchaseInvoicesApi = getPurchaseInvoicesApi();
         const response = await purchaseInvoicesApi.getAll();
         if (response.data?.data) {
-          const apiInvoices = response.data.data.map((inv) => {
-            // Get first line item name and total quantity from lines
-            const firstItem = inv.lines?.[0]?.itemName || '';
-            const totalQuantity = inv.lines?.reduce((sum, l) => sum + (l.quantity || 0), 0) || 0;
-            return {
-              id: String(inv.id),
-              billNumber: inv.billNumber,
-              companyName: inv.companyName || '',
-              vendorName: inv.vendorName || '',
-              item: firstItem,
-              quantity: totalQuantity,
-              netAmount: inv.totalAmount || 0,
-              status: (inv.status === 'paid' ? 'Paid' : inv.status === 'overdue' ? 'Overdue' : 'Pending') as 'Active' | 'Paid' | 'Overdue' | 'Pending',
-              date: inv.date,
-              createdAt: inv.createdAt || '',
-            };
-          });
+          const statusMap: Record<string, PurchaseInvoice['status']> = {
+            draft: 'Draft',
+            received: 'Received',
+            paid: 'Paid',
+            overdue: 'Overdue',
+            cancelled: 'Cancelled',
+          };
+          const apiInvoices = response.data.data.map((inv) => ({
+            id: String(inv.id),
+            invoiceNumber: inv.invoiceNumber,
+            companyName: inv.companyName || '',
+            vendorName: inv.vendorName || '',
+            totalAmount: inv.totalAmount || 0,
+            paidAmount: inv.paidAmount || 0,
+            dueDate: inv.dueDate || '',
+            status: (statusMap[inv.status] ?? 'Draft') as PurchaseInvoice['status'],
+            date: inv.date,
+            createdAt: inv.createdAt || '',
+          }));
           setInvoices(apiInvoices);
         }
       } catch (err) {
@@ -126,10 +128,9 @@ const PurchaseInvoiceListPage: React.FC = () => {
     const filtered = invoices.filter((invoice) => {
       const matchesSearch =
         !searchTerm ||
-        invoice.billNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        invoice.invoiceNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
         invoice.companyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        invoice.vendorName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        invoice.item.toLowerCase().includes(searchTerm.toLowerCase());
+        invoice.vendorName.toLowerCase().includes(searchTerm.toLowerCase());
 
       const matchesCompany = !filters.company || invoice.companyName === filters.company;
       const matchesVendor = !filters.vendor || invoice.vendorName === filters.vendor;
@@ -144,7 +145,7 @@ const PurchaseInvoiceListPage: React.FC = () => {
       let bValue: string | number = b[orderBy];
 
       // Handle numeric sorting
-      if (orderBy === 'quantity' || orderBy === 'netAmount') {
+      if (orderBy === 'totalAmount' || orderBy === 'paidAmount') {
         aValue = Number(aValue) || 0;
         bValue = Number(bValue) || 0;
       } else {
@@ -188,8 +189,7 @@ const PurchaseInvoiceListPage: React.FC = () => {
         setSuccessMessage('Purchase invoice deleted successfully!');
       } catch (err) {
         console.error('Error deleting purchase invoice:', err);
-        const apiError = err as { response?: { data?: { message?: string } } };
-        const message = apiError?.response?.data?.message || 'Failed to delete purchase invoice. Please try again.';
+        const message = err instanceof Error ? err.message : 'Failed to delete purchase invoice. Please try again.';
         setError(message);
       } finally {
         setDeleting(false);
@@ -385,10 +385,11 @@ const PurchaseInvoiceListPage: React.FC = () => {
               label="Status"
             >
               <MenuItem value="">All</MenuItem>
-              <MenuItem value="Active">Active</MenuItem>
+              <MenuItem value="Draft">Draft</MenuItem>
+              <MenuItem value="Received">Received</MenuItem>
               <MenuItem value="Paid">Paid</MenuItem>
               <MenuItem value="Overdue">Overdue</MenuItem>
-              <MenuItem value="Pending">Pending</MenuItem>
+              <MenuItem value="Cancelled">Cancelled</MenuItem>
             </Select>
           </FormControl>
 
@@ -438,14 +439,14 @@ const PurchaseInvoiceListPage: React.FC = () => {
                 <TableCell
                   scope="col"
                   sx={{ fontWeight: 600, color: '#374151' }}
-                  aria-sort={orderBy === 'billNumber' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                  aria-sort={orderBy === 'invoiceNumber' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
                 >
                   <TableSortLabel
-                    active={orderBy === 'billNumber'}
-                    direction={orderBy === 'billNumber' ? order : 'asc'}
-                    onClick={() => handleSort('billNumber')}
+                    active={orderBy === 'invoiceNumber'}
+                    direction={orderBy === 'invoiceNumber' ? order : 'asc'}
+                    onClick={() => handleSort('invoiceNumber')}
                   >
-                    Bill Number
+                    Invoice Number
                   </TableSortLabel>
                 </TableCell>
                 <TableCell
@@ -477,40 +478,40 @@ const PurchaseInvoiceListPage: React.FC = () => {
                 <TableCell
                   scope="col"
                   sx={{ fontWeight: 600, color: '#374151' }}
-                  aria-sort={orderBy === 'item' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                  aria-sort={orderBy === 'totalAmount' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
                 >
                   <TableSortLabel
-                    active={orderBy === 'item'}
-                    direction={orderBy === 'item' ? order : 'asc'}
-                    onClick={() => handleSort('item')}
+                    active={orderBy === 'totalAmount'}
+                    direction={orderBy === 'totalAmount' ? order : 'asc'}
+                    onClick={() => handleSort('totalAmount')}
                   >
-                    Item
+                    Total Amount
                   </TableSortLabel>
                 </TableCell>
                 <TableCell
                   scope="col"
                   sx={{ fontWeight: 600, color: '#374151' }}
-                  aria-sort={orderBy === 'quantity' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                  aria-sort={orderBy === 'paidAmount' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
                 >
                   <TableSortLabel
-                    active={orderBy === 'quantity'}
-                    direction={orderBy === 'quantity' ? order : 'asc'}
-                    onClick={() => handleSort('quantity')}
+                    active={orderBy === 'paidAmount'}
+                    direction={orderBy === 'paidAmount' ? order : 'asc'}
+                    onClick={() => handleSort('paidAmount')}
                   >
-                    Quantity
+                    Paid Amount
                   </TableSortLabel>
                 </TableCell>
                 <TableCell
                   scope="col"
                   sx={{ fontWeight: 600, color: '#374151' }}
-                  aria-sort={orderBy === 'netAmount' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                  aria-sort={orderBy === 'dueDate' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
                 >
                   <TableSortLabel
-                    active={orderBy === 'netAmount'}
-                    direction={orderBy === 'netAmount' ? order : 'asc'}
-                    onClick={() => handleSort('netAmount')}
+                    active={orderBy === 'dueDate'}
+                    direction={orderBy === 'dueDate' ? order : 'asc'}
+                    onClick={() => handleSort('dueDate')}
                   >
-                    Net Amount
+                    Due Date
                   </TableSortLabel>
                 </TableCell>
                 <TableCell
@@ -554,33 +555,41 @@ const PurchaseInvoiceListPage: React.FC = () => {
               ) : (
                 filteredAndSortedInvoices.map((invoice) => (
                   <TableRow key={invoice.id} hover>
-                    <TableCell>{invoice.billNumber}</TableCell>
+                    <TableCell>{invoice.invoiceNumber}</TableCell>
                     <TableCell>{invoice.companyName}</TableCell>
                     <TableCell>{invoice.vendorName}</TableCell>
-                    <TableCell>{invoice.item}</TableCell>
-                    <TableCell>{invoice.quantity}</TableCell>
-                    <TableCell>{invoice.netAmount.toFixed(1)} PKR</TableCell>
+                    <TableCell>{invoice.totalAmount.toLocaleString()} PKR</TableCell>
+                    <TableCell>{invoice.paidAmount.toLocaleString()} PKR</TableCell>
+                    <TableCell>{invoice.dueDate || '—'}</TableCell>
                     <TableCell>
                       <Chip
                         label={invoice.status}
                         size="small"
                         sx={{
-                          bgcolor: invoice.status === 'Active' || invoice.status === 'Paid'
-                            ? 'rgba(16, 185, 129, 0.1)'
-                            : invoice.status === 'Overdue'
-                            ? 'rgba(239, 68, 68, 0.1)'
-                            : 'rgba(251, 191, 36, 0.1)',
-                          color: invoice.status === 'Active' || invoice.status === 'Paid'
-                            ? '#10B981'
-                            : invoice.status === 'Overdue'
-                            ? '#EF4444'
-                            : '#F59E0B',
-                          fontWeight: 500,
-                          border: `1px solid ${
-                            invoice.status === 'Active' || invoice.status === 'Paid'
+                          bgcolor:
+                            invoice.status === 'Paid' || invoice.status === 'Received'
+                              ? 'rgba(16, 185, 129, 0.1)'
+                              : invoice.status === 'Overdue'
+                              ? 'rgba(239, 68, 68, 0.1)'
+                              : invoice.status === 'Cancelled'
+                              ? 'rgba(107, 114, 128, 0.1)'
+                              : 'rgba(251, 191, 36, 0.1)',
+                          color:
+                            invoice.status === 'Paid' || invoice.status === 'Received'
                               ? '#10B981'
                               : invoice.status === 'Overdue'
                               ? '#EF4444'
+                              : invoice.status === 'Cancelled'
+                              ? '#6B7280'
+                              : '#F59E0B',
+                          fontWeight: 500,
+                          border: `1px solid ${
+                            invoice.status === 'Paid' || invoice.status === 'Received'
+                              ? '#10B981'
+                              : invoice.status === 'Overdue'
+                              ? '#EF4444'
+                              : invoice.status === 'Cancelled'
+                              ? '#6B7280'
                               : '#F59E0B'
                           }`,
                         }}
@@ -592,7 +601,7 @@ const PurchaseInvoiceListPage: React.FC = () => {
                         size="small"
                         onClick={() => handleEditInvoice(invoice.id)}
                         sx={{ color: '#10B981' }}
-                        aria-label={`Edit invoice ${invoice.billNumber}`}
+                        aria-label={`Edit invoice ${invoice.invoiceNumber}`}
                       >
                         <EditIcon fontSize="small" />
                       </IconButton>
@@ -600,7 +609,7 @@ const PurchaseInvoiceListPage: React.FC = () => {
                         size="small"
                         onClick={() => handleDeleteClick(invoice.id)}
                         sx={{ color: COLORS.error }}
-                        aria-label={`Delete invoice ${invoice.billNumber}`}
+                        aria-label={`Delete invoice ${invoice.invoiceNumber}`}
                         disabled={deleting}
                       >
                         <DeleteIcon fontSize="small" />
