@@ -19,6 +19,7 @@ type SelectChangeValue = string | number | boolean;
 
 interface ContactDetailsSectionProps {
   formData: PartyFormData;
+  fieldErrors?: Record<string, string>;
   companies: Company[];
   onInputChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
   onSelectChange: (name: string, value: SelectChangeValue) => void;
@@ -28,6 +29,7 @@ interface ContactDetailsSectionProps {
 
 const ContactDetailsSection: React.FC<ContactDetailsSectionProps> = ({
   formData,
+  fieldErrors = {},
   companies,
   onInputChange,
   onSelectChange,
@@ -58,6 +60,8 @@ const ContactDetailsSection: React.FC<ContactDetailsSectionProps> = ({
               onChange={onInputChange}
               placeholder="Harry John"
               size="small"
+              error={!!fieldErrors.contactName}
+              helperText={fieldErrors.contactName}
               sx={{ '& .MuiOutlinedInput-root': { bgcolor: 'white' } }}
               inputProps={{
                 'aria-required': true,
@@ -80,6 +84,8 @@ const ContactDetailsSection: React.FC<ContactDetailsSectionProps> = ({
               onChange={onInputChange}
               placeholder="00000-0000000-0"
               size="small"
+              error={!!fieldErrors.contactCnic}
+              helperText={fieldErrors.contactCnic}
               sx={{ '& .MuiOutlinedInput-root': { bgcolor: 'white' } }}
               inputProps={{
                 'aria-required': true,
@@ -124,6 +130,8 @@ const ContactDetailsSection: React.FC<ContactDetailsSectionProps> = ({
               onChange={onInputChange}
               placeholder="+92 000 0000000"
               size="small"
+              error={!!fieldErrors.contactNumber}
+              helperText={fieldErrors.contactNumber}
               sx={{ '& .MuiOutlinedInput-root': { bgcolor: 'white' } }}
               inputProps={{
                 'aria-required': true,

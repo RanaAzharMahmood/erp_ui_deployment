@@ -13,6 +13,7 @@ import { usePartyForm } from '../../../hooks/usePartyForm';
 const AddPartyPage: React.FC = () => {
   const {
     formData,
+    fieldErrors,
     companies,
     isSubmitting,
     error,
@@ -35,12 +36,14 @@ const AddPartyPage: React.FC = () => {
         <Grid item xs={12} lg={8}>
           <PartyDetailsSection
             formData={formData}
+            fieldErrors={fieldErrors}
             onInputChange={handleInputChange}
             onSelectChange={handleSelectChange}
           />
 
           <ContactDetailsSection
             formData={formData}
+            fieldErrors={fieldErrors}
             companies={companies}
             onInputChange={handleInputChange}
             onSelectChange={handleSelectChange}

@@ -317,6 +317,7 @@ const AddPurchaseInvoicePage: React.FC = () => {
 
     if (!formData.vendorId) errors.vendorId = 'Vendor is required';
     if (!formData.date) errors.date = 'Date is required';
+    if (!formData.paymentMethod) errors.paymentMethod = 'Payment method is required';
     if (requiresImageAndAccount && !receiptImage) errors.receiptImage = 'Receipt image is required for Bank Transfer and Cheque payments';
     if (requiresImageAndAccount && !formData.accountNumber) errors.accountNumber = 'Account number is required';
     if (!lineItems.some(l => l.itemId)) errors.lineItems = 'At least one line item is required';

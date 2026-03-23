@@ -608,7 +608,7 @@ const BankAccountListPage: React.FC = () => {
                     <TableCell>
                       <IconButton
                         size="small"
-                        onClick={() => handleEditAccount(account.id)}
+                        onClick={(e) => { e.stopPropagation(); handleEditAccount(account.id); }}
                         sx={{ color: '#10B981' }}
                         aria-label={`Edit ${account.accountTitle}`}
                       >
@@ -616,7 +616,7 @@ const BankAccountListPage: React.FC = () => {
                       </IconButton>
                       <IconButton
                         size="small"
-                        onClick={() => handleDeleteClick(account.id)}
+                        onClick={(e) => { e.stopPropagation(); handleDeleteClick(account.id); }}
                         sx={{ color: COLORS.error }}
                         disabled={isDeleting}
                         aria-label={`Delete ${account.accountTitle}`}

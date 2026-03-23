@@ -4,6 +4,7 @@ import {
   TextField,
   Typography,
   FormControl,
+  FormHelperText,
   Select,
   MenuItem,
   Divider,
@@ -17,12 +18,14 @@ type SelectChangeValue = string | number | boolean;
 
 interface PartyDetailsSectionProps {
   formData: PartyFormData;
+  fieldErrors?: Record<string, string>;
   onInputChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
   onSelectChange: (name: string, value: SelectChangeValue) => void;
 }
 
 const PartyDetailsSection: React.FC<PartyDetailsSectionProps> = ({
   formData,
+  fieldErrors = {},
   onInputChange,
   onSelectChange,
 }) => {
@@ -45,6 +48,8 @@ const PartyDetailsSection: React.FC<PartyDetailsSectionProps> = ({
             onChange={onInputChange}
             placeholder="EST Gas"
             size="small"
+            error={!!fieldErrors.partyName}
+            helperText={fieldErrors.partyName}
             sx={{ '& .MuiOutlinedInput-root': { bgcolor: 'white' } }}
             inputProps={{
               'aria-required': true,
@@ -60,7 +65,7 @@ const PartyDetailsSection: React.FC<PartyDetailsSectionProps> = ({
           >
             Party Type *
           </Typography>
-          <FormControl fullWidth size="small">
+          <FormControl fullWidth size="small" error={!!fieldErrors.partyType}>
             <Select
               value={formData.partyType}
               onChange={(e) => onSelectChange('partyType', e.target.value)}
@@ -75,6 +80,9 @@ const PartyDetailsSection: React.FC<PartyDetailsSectionProps> = ({
               <MenuItem value="Customer">Customer</MenuItem>
               <MenuItem value="Vendor">Vendor</MenuItem>
             </Select>
+            {fieldErrors.partyType && (
+              <FormHelperText>{fieldErrors.partyType}</FormHelperText>
+            )}
           </FormControl>
         </Grid>
         <Grid item xs={12} sm={6}>
@@ -92,6 +100,8 @@ const PartyDetailsSection: React.FC<PartyDetailsSectionProps> = ({
             onChange={onInputChange}
             placeholder="00000000"
             size="small"
+            error={!!fieldErrors.ntnNumber}
+            helperText={fieldErrors.ntnNumber}
             sx={{ '& .MuiOutlinedInput-root': { bgcolor: 'white' } }}
             inputProps={{
               'aria-required': true,
@@ -135,6 +145,8 @@ const PartyDetailsSection: React.FC<PartyDetailsSectionProps> = ({
             onChange={onInputChange}
             placeholder="000-0000"
             size="small"
+            error={!!fieldErrors.salesTaxNumber}
+            helperText={fieldErrors.salesTaxNumber}
             sx={{ '& .MuiOutlinedInput-root': { bgcolor: 'white' } }}
             inputProps={{
               'aria-required': true,

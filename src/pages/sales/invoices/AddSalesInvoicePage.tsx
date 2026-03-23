@@ -359,6 +359,9 @@ const AddSalesInvoicePage: React.FC = () => {
     if (!formData.date) {
       errors.date = 'Date is required';
     }
+    if (!formData.paymentMethod) {
+      errors.paymentMethod = 'Payment method is required';
+    }
     if (requiresImageAndAccount && !receiptImage) {
       errors.receiptImage = 'Receipt image is required for Bank Transfer and Cheque payments';
     }

@@ -640,7 +640,7 @@ const InventoryListPage: React.FC = () => {
                     <TableCell>
                       <IconButton
                         size="small"
-                        onClick={() => handleEditItem(item.id)}
+                        onClick={(e) => { e.stopPropagation(); handleEditItem(item.id); }}
                         sx={{ color: '#4CAF50' }}
                         aria-label={`Edit ${item.itemName}`}
                       >
@@ -648,7 +648,7 @@ const InventoryListPage: React.FC = () => {
                       </IconButton>
                       <IconButton
                         size="small"
-                        onClick={() => handleDeleteClick(item.id)}
+                        onClick={(e) => { e.stopPropagation(); handleDeleteClick(item.id); }}
                         sx={{ color: COLORS.error }}
                         aria-label={`Delete ${item.itemName}`}
                       >

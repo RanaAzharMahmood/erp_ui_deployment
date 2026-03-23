@@ -207,6 +207,7 @@ export const usePartyForm = ({ partyId, mode }: UsePartyFormOptions): UsePartyFo
 
   const handleSubmit = useCallback(async () => {
     if (!validateForm()) {
+      setError('Please fix the errors below');
       return;
     }
 

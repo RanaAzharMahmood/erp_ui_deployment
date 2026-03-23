@@ -613,7 +613,7 @@ const UsersPage: React.FC = () => {
                     <TableCell align="right">
                       <IconButton
                         size="small"
-                        onClick={() => handleEditUser(user.id)}
+                        onClick={(e) => { e.stopPropagation(); handleEditUser(user.id); }}
                         sx={{ color: '#4CAF50', mr: 1 }}
                         aria-label={`Edit ${user.fullName}`}
                       >
@@ -621,7 +621,7 @@ const UsersPage: React.FC = () => {
                       </IconButton>
                       <IconButton
                         size="small"
-                        onClick={() => handleDeleteClick(user.id)}
+                        onClick={(e) => { e.stopPropagation(); handleDeleteClick(user.id); }}
                         sx={{ color: COLORS.error }}
                         aria-label={`Delete ${user.fullName}`}
                       >

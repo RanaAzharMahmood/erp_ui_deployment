@@ -429,7 +429,7 @@ const VendorsPage: React.FC = () => {
                     <TableCell align="right">
                       <IconButton
                         size="small"
-                        onClick={() => navigate(`/vendor/update/${vendor.id}`)}
+                        onClick={(e) => { e.stopPropagation(); navigate(`/vendor/update/${vendor.id}`); }}
                         sx={{ mr: 1 }}
                         aria-label={`Edit ${vendor.name}`}
                       >
@@ -437,7 +437,7 @@ const VendorsPage: React.FC = () => {
                       </IconButton>
                       <IconButton
                         size="small"
-                        onClick={() => handleDeleteClick(vendor.id)}
+                        onClick={(e) => { e.stopPropagation(); handleDeleteClick(vendor.id); }}
                         sx={{ color: COLORS.error }}
                         aria-label={`Delete ${vendor.name}`}
                       >

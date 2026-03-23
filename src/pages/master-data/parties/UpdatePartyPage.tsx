@@ -18,6 +18,7 @@ const UpdatePartyPage: React.FC = () => {
 
   const {
     formData,
+    fieldErrors,
     companies,
     isSubmitting,
     isDeleting,
@@ -47,12 +48,14 @@ const UpdatePartyPage: React.FC = () => {
         <Grid item xs={12} lg={8}>
           <PartyDetailsSection
             formData={formData}
+            fieldErrors={fieldErrors}
             onInputChange={handleInputChange}
             onSelectChange={handleSelectChange}
           />
 
           <ContactDetailsSection
             formData={formData}
+            fieldErrors={fieldErrors}
             companies={companies}
             onInputChange={handleInputChange}
             onSelectChange={handleSelectChange}

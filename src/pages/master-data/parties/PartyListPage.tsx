@@ -590,7 +590,7 @@ const PartyListPage: React.FC = () => {
                     <TableCell>
                       <IconButton
                         size="small"
-                        onClick={() => handleEditParty(party.id)}
+                        onClick={(e) => { e.stopPropagation(); handleEditParty(party.id); }}
                         sx={{ color: '#10B981' }}
                         aria-label={`Edit ${party.partyName}`}
                       >
@@ -598,7 +598,7 @@ const PartyListPage: React.FC = () => {
                       </IconButton>
                       <IconButton
                         size="small"
-                        onClick={() => handleDeleteClick(party.id)}
+                        onClick={(e) => { e.stopPropagation(); handleDeleteClick(party.id); }}
                         sx={{ color: COLORS.error }}
                         aria-label={`Delete ${party.partyName}`}
                       >

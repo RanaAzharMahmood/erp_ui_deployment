@@ -351,8 +351,16 @@ const AddSalesReturnPage: React.FC = () => {
   const netAmount = grossAmount - invoiceDiscount + invoiceTax;
 
   const handleSubmit = useCallback(async () => {
-    if (!formData.customerId || !formData.date) {
-      setError('Please fill in all required fields');
+    if (!formData.customerId) {
+      setError('Customer is required');
+      return;
+    }
+    if (!formData.date) {
+      setError('Date is required');
+      return;
+    }
+    if (!formData.paymentMethod) {
+      setError('Payment method is required');
       return;
     }
 
@@ -378,6 +386,9 @@ const AddSalesReturnPage: React.FC = () => {
         salesInvoiceId: formData.originalInvoice ? Number(formData.originalInvoice) : undefined,
         reason: formData.returnReason || undefined,
         notes: formData.remarks || undefined,
+        paymentMethod: formData.paymentMethod || undefined,
+        accountNumber: formData.accountNumber || undefined,
+        receiptImage: receiptImage || undefined,
         companyId: formData.companyId ? Number(formData.companyId) : 1,
         lines: lineItems.filter(l => l.itemId).map((l) => ({
           itemId: Number(l.itemId),

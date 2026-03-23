@@ -524,7 +524,7 @@ const CategoryListPage: React.FC = () => {
                     <TableCell>
                       <IconButton
                         size="small"
-                        onClick={() => handleEditCategory(category.id)}
+                        onClick={(e) => { e.stopPropagation(); handleEditCategory(category.id); }}
                         sx={{ color: '#10B981' }}
                         aria-label={`Edit ${category.categoryName}`}
                       >
@@ -532,7 +532,7 @@ const CategoryListPage: React.FC = () => {
                       </IconButton>
                       <IconButton
                         size="small"
-                        onClick={() => handleDeleteClick(category.id)}
+                        onClick={(e) => { e.stopPropagation(); handleDeleteClick(category.id); }}
                         sx={{ color: COLORS.error }}
                         aria-label={`Delete ${category.categoryName}`}
                       >

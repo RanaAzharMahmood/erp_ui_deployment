@@ -502,7 +502,7 @@ const TaxListPage: React.FC = () => {
                     <TableCell>
                       <IconButton
                         size="small"
-                        onClick={() => handleEditTax(tax.id)}
+                        onClick={(e) => { e.stopPropagation(); handleEditTax(tax.id); }}
                         sx={{ color: '#10B981' }}
                         aria-label={`Edit ${tax.taxName}`}
                       >
@@ -510,7 +510,7 @@ const TaxListPage: React.FC = () => {
                       </IconButton>
                       <IconButton
                         size="small"
-                        onClick={() => handleDeleteClick(tax.id)}
+                        onClick={(e) => { e.stopPropagation(); handleDeleteClick(tax.id); }}
                         sx={{ color: COLORS.error }}
                         aria-label={`Delete ${tax.taxName}`}
                       >
