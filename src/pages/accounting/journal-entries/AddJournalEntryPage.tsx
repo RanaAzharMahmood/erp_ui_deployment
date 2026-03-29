@@ -272,11 +272,17 @@ const AddJournalEntryPage: React.FC = () => {
     setIsSubmitting(true);
     try {
       const api = getJournalEntriesApi();
+      const statusMap: Record<'Draft' | 'Approved' | 'Pending', string> = {
+        Draft: 'draft',
+        Approved: 'posted',
+        Pending: 'void',
+      };
       const payload = {
         companyId: Number(formData.companyId),
         date: formData.date,
         description: formData.memo || undefined,
         reference: formData.referenceType || undefined,
+        status: statusMap[formData.status],
         lines: lineItems.map((item) => ({
           accountId: Number(item.accountId),
           debit: parseFloat(item.debit) || 0,
