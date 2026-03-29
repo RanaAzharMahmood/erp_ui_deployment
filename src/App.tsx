@@ -81,6 +81,8 @@ const OtherPaymentsListPage = lazy(() => import('./pages/accounting/other-paymen
 const AddOtherPaymentsPage = lazy(() => import('./pages/accounting/other-payments/AddOtherPaymentsPage'))
 const ChartOfAccountPage = lazy(() => import('./pages/accounting/chart-of-accounts/ChartOfAccountPage'))
 const AddChartOfAccountPage = lazy(() => import('./pages/accounting/chart-of-accounts/AddChartOfAccountPage'))
+const OpeningBalancePage = lazy(() => import('./pages/accounting/opening-balance/OpeningBalancePage'))
+const TrialBalancePage = lazy(() => import('./pages/reports/TrialBalancePage'))
 
 // Company Selection
 const SelectCompanyPage = lazy(() => import('./pages/company/SelectCompanyPage'))
@@ -112,6 +114,16 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
   }
 
   return isAuthenticated ? <>{children}</> : <Navigate to="/login" replace />
+}
+
+const PermissionRoute: React.FC<{ permission: string; children: React.ReactNode }> = ({
+  permission,
+  children,
+}) => {
+  const { hasPermission, user } = useAuth()
+  const isAdmin = user?.roleName?.toLowerCase() === 'admin'
+  if (isAdmin || hasPermission(permission)) return <>{children}</>
+  return <Navigate to="/dashboard" replace />
 }
 
 function App() {
@@ -528,6 +540,22 @@ function App() {
             </SuspenseRoute>
           }
         />
+        <Route
+          path="account/opening-balance"
+          element={
+            <SuspenseRoute>
+              <OpeningBalancePage />
+            </SuspenseRoute>
+          }
+        />
+        <Route
+          path="reports/trial-balance"
+          element={
+            <SuspenseRoute>
+              <TrialBalancePage />
+            </SuspenseRoute>
+          }
+        />
         {/* Purchase Routes */}
         <Route
           path="purchase/invoice"
@@ -581,17 +609,21 @@ function App() {
         <Route
           path="activity"
           element={
-            <SuspenseRoute>
-              <ActivityPage />
-            </SuspenseRoute>
+            <PermissionRoute permission="view_activity">
+              <SuspenseRoute>
+                <ActivityPage />
+              </SuspenseRoute>
+            </PermissionRoute>
           }
         />
         <Route
           path="approval"
           element={
-            <SuspenseRoute>
-              <ApprovalPage />
-            </SuspenseRoute>
+            <PermissionRoute permission="view_activity">
+              <SuspenseRoute>
+                <ApprovalPage />
+              </SuspenseRoute>
+            </PermissionRoute>
           }
         />
         {/* Sales Routes */}

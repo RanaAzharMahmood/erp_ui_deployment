@@ -3,6 +3,7 @@ import { Grid, TextField } from '@mui/material';
 import {
   Business as BusinessIcon,
   Person as PersonIcon,
+  CalendarMonth as CalendarMonthIcon,
 } from '@mui/icons-material';
 import FormSection from '../common/FormSection';
 import type { CompanyFormData } from '../../types/common.types';
@@ -157,6 +158,74 @@ const CompanyFormFields: React.FC<CompanyFormFieldsProps> = ({
               multiline
               rows={4}
               size="small"
+            />
+          </Grid>
+        </Grid>
+      </FormSection>
+
+      {/* Financial Year Settings */}
+      <FormSection title="Financial Year Settings" icon={<CalendarMonthIcon />} sx={{ mt: 3 }}>
+        <Grid container spacing={2.5}>
+          <Grid item xs={12} sm={6}>
+            <TextField
+              fullWidth
+              label="Financial Year"
+              name="financialYear"
+              value={formData.financialYear || ''}
+              onChange={onInputChange}
+              placeholder="2024-2025"
+              size="small"
+              helperText="e.g. 2024-2025"
+            />
+          </Grid>
+          <Grid item xs={12} sm={6}>
+            <TextField
+              fullWidth
+              label="Invoice Prefix"
+              name="invoicePrefix"
+              value={formData.invoicePrefix || ''}
+              onChange={onInputChange}
+              placeholder="PET"
+              size="small"
+              inputProps={{ maxLength: 10 }}
+              helperText="Auto-generated from company name (editable)"
+            />
+          </Grid>
+          <Grid item xs={12} sm={6}>
+            <TextField
+              fullWidth
+              label="Fiscal Year Start"
+              name="fiscalYearStart"
+              type="date"
+              value={formData.fiscalYearStart || ''}
+              onChange={onInputChange}
+              size="small"
+              InputLabelProps={{ shrink: true }}
+            />
+          </Grid>
+          <Grid item xs={12} sm={6}>
+            <TextField
+              fullWidth
+              label="Fiscal Year End"
+              name="fiscalYearEnd"
+              type="date"
+              value={formData.fiscalYearEnd || ''}
+              onChange={onInputChange}
+              size="small"
+              InputLabelProps={{ shrink: true }}
+            />
+          </Grid>
+          <Grid item xs={12} sm={6}>
+            <TextField
+              fullWidth
+              label="Lock Period"
+              name="lockPeriod"
+              type="date"
+              value={formData.lockPeriod || ''}
+              onChange={onInputChange}
+              size="small"
+              InputLabelProps={{ shrink: true }}
+              helperText="Transactions before this date are locked"
             />
           </Grid>
         </Grid>

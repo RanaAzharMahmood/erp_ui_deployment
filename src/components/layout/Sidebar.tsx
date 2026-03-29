@@ -36,86 +36,60 @@ interface MenuItem {
   text: string;
   icon: React.ReactNode;
   path?: string;
+  permission?: string;   // required permission for non-admin users
+  adminOnly?: boolean;   // only shown to admin
   children?: MenuItem[];
 }
 
-const adminMenuItems: MenuItem[] = [
+const allMenuItems: MenuItem[] = [
   { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
-  { text: 'Companies', icon: <BusinessIcon />, path: '/companies' },
-  { text: 'Users', icon: <PeopleIcon />, path: '/users' },
-  { text: 'Party', icon: <ShoppingBagIcon />, path: '/party' },
-  { text: 'Categories', icon: <ShoppingBagIcon />, path: '/categories' },
+  { text: 'Companies', icon: <BusinessIcon />, path: '/companies', adminOnly: true },
+  { text: 'Users', icon: <PeopleIcon />, path: '/users', permission: 'view_users' },
+  { text: 'Party', icon: <ShoppingBagIcon />, path: '/party', permission: 'party:read' },
+  { text: 'Categories', icon: <ShoppingBagIcon />, path: '/categories', permission: 'view_categories' },
   {
     text: 'Sales',
     icon: <PointOfSaleIcon />,
     children: [
-      { text: 'Invoice', icon: <ReceiptIcon />, path: '/sales/invoice' },
-      { text: 'Return', icon: <ReceiptIcon />, path: '/sales/return' },
+      { text: 'Invoice', icon: <ReceiptIcon />, path: '/sales/invoice', permission: 'view_sales_invoices' },
+      { text: 'Return', icon: <ReceiptIcon />, path: '/sales/return', permission: 'view_sales_returns' },
     ],
   },
   {
     text: 'Purchase',
     icon: <ShoppingCartIcon />,
     children: [
-      { text: 'Invoice', icon: <ReceiptIcon />, path: '/purchase/invoice' },
-      { text: 'Return', icon: <ReceiptIcon />, path: '/purchase/return' },
+      { text: 'Invoice', icon: <ReceiptIcon />, path: '/purchase/invoice', permission: 'view_purchase_invoices' },
+      { text: 'Return', icon: <ReceiptIcon />, path: '/purchase/return', permission: 'view_purchase_returns' },
     ],
   },
-  { text: 'Inventory', icon: <InventoryIcon />, path: '/inventory' },
+  { text: 'Inventory', icon: <InventoryIcon />, path: '/inventory', permission: 'view_inventory_movements' },
   {
     text: 'Account',
     icon: <AccountBalanceIcon />,
     children: [
-      { text: 'Expense', icon: <CreditCardIcon />, path: '/account/expense' },
-      { text: 'Journal Entry', icon: <ArticleIcon />, path: '/account/journal-entry' },
-      { text: 'Chart of Account', icon: <AccountTreeIcon />, path: '/account/chart-of-account' },
-      { text: 'Bank Account', icon: <AccountBalanceIcon />, path: '/account/bank-account' },
-      { text: 'Bank Deposit', icon: <AccountBalanceIcon />, path: '/account/bank-deposit' },
-      { text: 'Other Payments', icon: <PaymentsIcon />, path: '/account/other-payments' },
+      { text: 'Expense', icon: <CreditCardIcon />, path: '/account/expense', permission: 'view_expenses' },
+      { text: 'Journal Entry', icon: <ArticleIcon />, path: '/account/journal-entry', permission: 'view_journal_entries' },
+      { text: 'Chart of Account', icon: <AccountTreeIcon />, path: '/account/chart-of-account', permission: 'view_chart_of_accounts' },
+      { text: 'Opening Balance', icon: <AccountBalanceIcon />, path: '/account/opening-balance', permission: 'view_journal_entries' },
+      { text: 'Bank Account', icon: <AccountBalanceIcon />, path: '/account/bank-account', permission: 'view_bank_accounts' },
+      { text: 'Bank Deposit', icon: <AccountBalanceIcon />, path: '/account/bank-deposit', permission: 'view_bank_deposits' },
+      { text: 'Other Payments', icon: <PaymentsIcon />, path: '/account/other-payments', permission: 'view_other_payments' },
     ],
   },
-  { text: 'Tax', icon: <ReceiptIcon />, path: '/tax' },
-  { text: 'Reports', icon: <AssessmentIcon />, path: '/reports' },
-];
-
-const managerMenuItems: MenuItem[] = [
-  { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
-  { text: 'Users', icon: <PeopleIcon />, path: '/users' },
-  { text: 'Party', icon: <ShoppingBagIcon />, path: '/party' },
+  { text: 'Tax', icon: <ReceiptIcon />, path: '/tax', permission: 'view_taxes' },
   {
-    text: 'Sales',
-    icon: <PointOfSaleIcon />,
+    text: 'Reports',
+    icon: <AssessmentIcon />,
+    permission: 'view_journal_entries',
     children: [
-      { text: 'Invoice', icon: <ReceiptIcon />, path: '/sales/invoice' },
-      { text: 'Return', icon: <ReceiptIcon />, path: '/sales/return' },
+      { text: 'Trial Balance', icon: <AssessmentIcon />, path: '/reports/trial-balance', permission: 'view_journal_entries' },
     ],
   },
-  {
-    text: 'Purchase',
-    icon: <ShoppingCartIcon />,
-    children: [
-      { text: 'Invoice', icon: <ReceiptIcon />, path: '/purchase/invoice' },
-      { text: 'Return', icon: <ReceiptIcon />, path: '/purchase/return' },
-    ],
-  },
-  { text: 'Inventory', icon: <InventoryIcon />, path: '/inventory' },
-  {
-    text: 'Account',
-    icon: <AccountBalanceIcon />,
-    children: [
-      { text: 'Expense', icon: <CreditCardIcon />, path: '/account/expense' },
-      { text: 'Journal Entry', icon: <ArticleIcon />, path: '/account/journal-entry' },
-      { text: 'Chart of Account', icon: <AccountTreeIcon />, path: '/account/chart-of-account' },
-      { text: 'Bank Account', icon: <AccountBalanceIcon />, path: '/account/bank-account' },
-      { text: 'Bank Deposit', icon: <AccountBalanceIcon />, path: '/account/bank-deposit' },
-      { text: 'Other Payments', icon: <PaymentsIcon />, path: '/account/other-payments' },
-    ],
-  },
-  { text: 'Tax', icon: <ReceiptIcon />, path: '/tax' },
-  { text: 'Reports', icon: <AssessmentIcon />, path: '/reports' },
   {
     text: 'Activity & Approval',
     icon: <HistoryIcon />,
+    permission: 'view_activity',
     children: [
       { text: 'Activity', icon: <HistoryIcon />, path: '/activity' },
       { text: 'Approval', icon: <CheckCircleIcon />, path: '/approval' },
@@ -131,10 +105,33 @@ interface SidebarProps {
 const Sidebar: React.FC<SidebarProps> = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user } = useAuth();
+  const { user, hasPermission } = useAuth();
   const isAdmin = user?.roleName?.toLowerCase() === 'admin';
-  const menuItems = isAdmin ? adminMenuItems : managerMenuItems;
   const [openMenus, setOpenMenus] = useState<string[]>(['Account', 'Sales', 'Purchase']);
+
+  const isItemVisible = (item: MenuItem): boolean => {
+    if (isAdmin) return true;
+    if (item.adminOnly) return false;
+    if (item.permission) return hasPermission(item.permission);
+    return true;
+  };
+
+  const filterMenuItems = (items: MenuItem[]): MenuItem[] => {
+    return items.reduce<MenuItem[]>((acc, item) => {
+      if (item.children) {
+        if (!isItemVisible(item)) return acc;
+        const visibleChildren = item.children.filter((child) => isItemVisible(child));
+        if (isAdmin || visibleChildren.length > 0) {
+          acc.push({ ...item, children: isAdmin ? item.children : visibleChildren });
+        }
+      } else if (isItemVisible(item)) {
+        acc.push(item);
+      }
+      return acc;
+    }, []);
+  };
+
+  const menuItems = filterMenuItems(allMenuItems);
 
   const handleMenuClick = (item: MenuItem) => {
     if (item.children) {

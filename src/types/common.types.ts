@@ -23,6 +23,12 @@ export interface Company extends BaseEntity {
   contactName?: string;
   contactEmail?: string;
   contactPhone?: string;
+  financialYear?: string;
+  fiscalYearStart?: string;
+  fiscalYearEnd?: string;
+  lockPeriod?: string;
+  invoicePrefix?: string;
+  invoiceNumberSeries?: number;
 }
 
 export interface Customer extends BaseEntity {

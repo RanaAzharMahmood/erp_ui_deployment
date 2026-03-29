@@ -59,6 +59,11 @@ type ExtendedCompanyData = ApiCompany & {
   logo?: string;
   user?: string;
   subscriptionEnd?: string;
+  financialYear?: string;
+  fiscalYearStart?: string;
+  fiscalYearEnd?: string;
+  lockPeriod?: string;
+  invoicePrefix?: string;
 };
 
 // Type for API response wrapper
@@ -127,6 +132,17 @@ const UpdateCompanyPage: React.FC = () => {
           logo: company.logoUrl || company.logo || '',
           user: company.user || '',
           subscriptionEnd: company.subscriptionEnd || '',
+          financialYear: company.financialYear || '',
+          fiscalYearStart: company.fiscalYearStart
+            ? new Date(company.fiscalYearStart).toISOString().slice(0, 10)
+            : '',
+          fiscalYearEnd: company.fiscalYearEnd
+            ? new Date(company.fiscalYearEnd).toISOString().slice(0, 10)
+            : '',
+          lockPeriod: company.lockPeriod
+            ? new Date(company.lockPeriod).toISOString().slice(0, 10)
+            : '',
+          invoicePrefix: company.invoicePrefix || '',
         });
 
         if (company.logoUrl || company.logo) {

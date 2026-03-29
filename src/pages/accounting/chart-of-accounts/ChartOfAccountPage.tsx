@@ -32,6 +32,7 @@ import {
   ExpandLess as ExpandLessIcon,
 } from '@mui/icons-material';
 import TableSkeleton from '../../../components/common/TableSkeleton';
+import PageError from '../../../components/common/PageError';
 import ConfirmDialog from '../../../components/feedback/ConfirmDialog';
 import { COLORS } from '../../../constants/colors';
 import {
@@ -42,20 +43,22 @@ import {
 } from '../../../generated/api/client';
 
 // Map API account type to display type
-const ACCOUNT_TYPE_MAP: Record<ApiAccountType, 'Assets' | 'Liabilities' | 'Equity' | 'Revenue' | 'Expenses'> = {
+const ACCOUNT_TYPE_MAP: Record<ApiAccountType | 'cost_of_sales', 'Assets' | 'Liabilities' | 'Equity' | 'Revenue' | 'Cost of Sales' | 'Expenses'> = {
   asset: 'Assets',
   liability: 'Liabilities',
   equity: 'Equity',
   revenue: 'Revenue',
+  cost_of_sales: 'Cost of Sales',
   expense: 'Expenses',
 };
 
 // Reverse map for API calls
-const DISPLAY_TYPE_TO_API: Record<string, ApiAccountType> = {
+const DISPLAY_TYPE_TO_API: Record<string, ApiAccountType | 'cost_of_sales'> = {
   Assets: 'asset',
   Liabilities: 'liability',
   Equity: 'equity',
   Revenue: 'revenue',
+  'Cost of Sales': 'cost_of_sales',
   Expenses: 'expense',
 };
 
@@ -65,7 +68,7 @@ interface Account {
   name: string;
   systemName: string;
   parentId: number | null;
-  accountType: 'Assets' | 'Liabilities' | 'Equity' | 'Revenue' | 'Expenses';
+  accountType: 'Assets' | 'Liabilities' | 'Equity' | 'Revenue' | 'Cost of Sales' | 'Expenses';
   balance: number;
   openingBalance: number;
   companyId: number;
@@ -108,6 +111,7 @@ const ChartOfAccountPage: React.FC = () => {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [hierarchyAccounts, setHierarchyAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<unknown>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCompanyId, setSelectedCompanyId] = useState<number | ''>('');
   const [selectedTab, setSelectedTab] = useState(0);
@@ -129,7 +133,7 @@ const ChartOfAccountPage: React.FC = () => {
   const [orderBy, setOrderBy] = useState<AccountOrderBy>('code');
   const [order, setOrder] = useState<Order>('asc');
 
-  const tabs = ['All', 'Asset', 'Equity', 'Expenses', 'Liabilities', 'Revenue'];
+  const tabs = ['All', 'Asset', 'Equity', 'Expenses', 'Liabilities', 'Revenue', 'Cost of Sales'];
 
   // Load companies
   const loadCompanies = useCallback(async () => {
@@ -163,6 +167,7 @@ const ChartOfAccountPage: React.FC = () => {
     if (!selectedCompanyId) return;
 
     setLoading(true);
+    setLoadError(null);
     try {
       const chartOfAccountsApi = getChartOfAccountsApi();
       const companyName = companies.find((c) => c.id === selectedCompanyId)?.name || '';
@@ -188,11 +193,7 @@ const ChartOfAccountPage: React.FC = () => {
       }
     } catch (error: any) {
       console.error('Error loading chart of accounts:', error);
-      setSnackbar({
-        open: true,
-        message: error.message || 'Failed to load chart of accounts. Please try again.',
-        severity: 'error',
-      });
+      setLoadError(error);
     } finally {
       setLoading(false);
     }
@@ -284,13 +285,14 @@ const ChartOfAccountPage: React.FC = () => {
   }, []);
 
   // Filter accounts by tab
-  const getFilteredAccountType = useCallback((): 'Assets' | 'Liabilities' | 'Equity' | 'Revenue' | 'Expenses' | null => {
+  const getFilteredAccountType = useCallback((): 'Assets' | 'Liabilities' | 'Equity' | 'Revenue' | 'Cost of Sales' | 'Expenses' | null => {
     switch (selectedTab) {
       case 1: return 'Assets';
       case 2: return 'Equity';
       case 3: return 'Expenses';
       case 4: return 'Liabilities';
       case 5: return 'Revenue';
+      case 6: return 'Cost of Sales';
       default: return null;
     }
   }, [selectedTab]);
@@ -365,6 +367,7 @@ const ChartOfAccountPage: React.FC = () => {
       Liabilities: [],
       Equity: [],
       Revenue: [],
+      'Cost of Sales': [],
       Expenses: [],
     };
 
@@ -495,7 +498,7 @@ const ChartOfAccountPage: React.FC = () => {
     );
   };
 
-  const renderAccountTypeSection = (type: 'Assets' | 'Liabilities' | 'Equity' | 'Revenue' | 'Expenses') => {
+  const renderAccountTypeSection = (type: 'Assets' | 'Liabilities' | 'Equity' | 'Revenue' | 'Cost of Sales' | 'Expenses') => {
     const typeAccounts = accountsByType[type] || [];
     const total = calculateTypeTotal(type);
 
@@ -558,6 +561,10 @@ const ChartOfAccountPage: React.FC = () => {
         </Table>
       </Box>
     );
+  }
+
+  if (loadError) {
+    return <PageError error={loadError} onRetry={loadAccounts} />;
   }
 
   return (
@@ -735,8 +742,9 @@ const ChartOfAccountPage: React.FC = () => {
             {renderAccountTypeSection('Assets')}
             {renderAccountTypeSection('Liabilities')}
             {renderAccountTypeSection('Equity')}
-            {renderAccountTypeSection('Expenses')}
             {renderAccountTypeSection('Revenue')}
+            {renderAccountTypeSection('Cost of Sales')}
+            {renderAccountTypeSection('Expenses')}
           </>
         ) : (
           renderAccountTypeSection(

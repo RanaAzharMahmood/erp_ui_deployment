@@ -1,4 +1,5 @@
 import { Configuration, UsersApi, CategoriesApi, AuthApi, CompaniesApi, ItemsApi, PartiesApi } from './';
+import { ApiError } from '../../utils/apiError';
 
 // Bank Account Types
 export type BankAccountType = 'checking' | 'savings' | 'current';
@@ -123,7 +124,7 @@ export interface TaxFilters {
 }
 
 // Chart of Account Types
-export type AccountType = 'asset' | 'liability' | 'equity' | 'revenue' | 'expense';
+export type AccountType = 'asset' | 'liability' | 'equity' | 'revenue' | 'cost_of_sales' | 'expense';
 
 export interface ChartOfAccount {
   id: number;
@@ -269,7 +270,7 @@ export class BankAccountsApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to fetch bank accounts');
+      throw new ApiError(response.status, error.message || 'Failed to fetch bank accounts');
     }
 
     return response.json();
@@ -285,7 +286,7 @@ export class BankAccountsApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to fetch bank account');
+      throw new ApiError(response.status, error.message || 'Failed to fetch bank account');
     }
 
     return response.json();
@@ -302,7 +303,7 @@ export class BankAccountsApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to create bank account');
+      throw new ApiError(response.status, error.message || 'Failed to create bank account');
     }
 
     return response.json();
@@ -319,7 +320,7 @@ export class BankAccountsApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to update bank account');
+      throw new ApiError(response.status, error.message || 'Failed to update bank account');
     }
 
     return response.json();
@@ -335,7 +336,7 @@ export class BankAccountsApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to delete bank account');
+      throw new ApiError(response.status, error.message || 'Failed to delete bank account');
     }
 
     return response.json();
@@ -368,7 +369,7 @@ export class ChartOfAccountsApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to fetch chart of accounts');
+      throw new ApiError(response.status, error.message || 'Failed to fetch chart of accounts');
     }
 
     return response.json();
@@ -385,7 +386,7 @@ export class ChartOfAccountsApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to fetch chart of account');
+      throw new ApiError(response.status, error.message || 'Failed to fetch chart of account');
     }
 
     return response.json();
@@ -405,7 +406,7 @@ export class ChartOfAccountsApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to fetch account hierarchy');
+      throw new ApiError(response.status, error.message || 'Failed to fetch account hierarchy');
     }
 
     return response.json();
@@ -422,7 +423,7 @@ export class ChartOfAccountsApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to create chart of account');
+      throw new ApiError(response.status, error.message || 'Failed to create chart of account');
     }
 
     return response.json();
@@ -439,7 +440,7 @@ export class ChartOfAccountsApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to update chart of account');
+      throw new ApiError(response.status, error.message || 'Failed to update chart of account');
     }
 
     return response.json();
@@ -455,7 +456,7 @@ export class ChartOfAccountsApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to delete chart of account');
+      throw new ApiError(response.status, error.message || 'Failed to delete chart of account');
     }
 
     return response.json();
@@ -566,7 +567,7 @@ export class CustomersApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to fetch customers');
+      throw new ApiError(response.status, error.message || 'Failed to fetch customers');
     }
 
     return response.json();
@@ -582,7 +583,7 @@ export class CustomersApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to fetch customer');
+      throw new ApiError(response.status, error.message || 'Failed to fetch customer');
     }
 
     return response.json();
@@ -599,7 +600,7 @@ export class CustomersApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to create customer');
+      throw new ApiError(response.status, error.message || 'Failed to create customer');
     }
 
     return response.json();
@@ -616,7 +617,7 @@ export class CustomersApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to update customer');
+      throw new ApiError(response.status, error.message || 'Failed to update customer');
     }
 
     return response.json();
@@ -632,7 +633,7 @@ export class CustomersApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to delete customer');
+      throw new ApiError(response.status, error.message || 'Failed to delete customer');
     }
 
     return response.json();
@@ -748,7 +749,7 @@ export class VendorsApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to fetch vendors');
+      throw new ApiError(response.status, error.message || 'Failed to fetch vendors');
     }
 
     return response.json();
@@ -764,7 +765,7 @@ export class VendorsApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to fetch vendor');
+      throw new ApiError(response.status, error.message || 'Failed to fetch vendor');
     }
 
     return response.json();
@@ -781,7 +782,7 @@ export class VendorsApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to create vendor');
+      throw new ApiError(response.status, error.message || 'Failed to create vendor');
     }
 
     return response.json();
@@ -798,7 +799,7 @@ export class VendorsApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to update vendor');
+      throw new ApiError(response.status, error.message || 'Failed to update vendor');
     }
 
     return response.json();
@@ -814,7 +815,7 @@ export class VendorsApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to delete vendor');
+      throw new ApiError(response.status, error.message || 'Failed to delete vendor');
     }
 
     return response.json();
@@ -932,7 +933,7 @@ export class JournalEntriesApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to fetch journal entries');
+      throw new ApiError(response.status, error.message || 'Failed to fetch journal entries');
     }
 
     return response.json();
@@ -948,7 +949,7 @@ export class JournalEntriesApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to fetch journal entry');
+      throw new ApiError(response.status, error.message || 'Failed to fetch journal entry');
     }
 
     return response.json();
@@ -965,7 +966,7 @@ export class JournalEntriesApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to create journal entry');
+      throw new ApiError(response.status, error.message || 'Failed to create journal entry');
     }
 
     return response.json();
@@ -982,7 +983,7 @@ export class JournalEntriesApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to update journal entry');
+      throw new ApiError(response.status, error.message || 'Failed to update journal entry');
     }
 
     return response.json();
@@ -998,7 +999,7 @@ export class JournalEntriesApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to post journal entry');
+      throw new ApiError(response.status, error.message || 'Failed to post journal entry');
     }
 
     return response.json();
@@ -1014,7 +1015,7 @@ export class JournalEntriesApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to void journal entry');
+      throw new ApiError(response.status, error.message || 'Failed to void journal entry');
     }
 
     return response.json();
@@ -1030,7 +1031,7 @@ export class JournalEntriesApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to delete journal entry');
+      throw new ApiError(response.status, error.message || 'Failed to delete journal entry');
     }
 
     return response.json();
@@ -1063,7 +1064,7 @@ export class TaxesApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to fetch taxes');
+      throw new ApiError(response.status, error.message || 'Failed to fetch taxes');
     }
 
     return response.json();
@@ -1079,7 +1080,7 @@ export class TaxesApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to fetch tax');
+      throw new ApiError(response.status, error.message || 'Failed to fetch tax');
     }
 
     return response.json();
@@ -1096,7 +1097,7 @@ export class TaxesApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to create tax');
+      throw new ApiError(response.status, error.message || 'Failed to create tax');
     }
 
     return response.json();
@@ -1113,7 +1114,7 @@ export class TaxesApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to update tax');
+      throw new ApiError(response.status, error.message || 'Failed to update tax');
     }
 
     return response.json();
@@ -1129,7 +1130,7 @@ export class TaxesApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to delete tax');
+      throw new ApiError(response.status, error.message || 'Failed to delete tax');
     }
 
     return response.json();
@@ -1273,7 +1274,7 @@ export class ExpensesApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to fetch expenses');
+      throw new ApiError(response.status, error.message || 'Failed to fetch expenses');
     }
 
     return response.json();
@@ -1289,7 +1290,7 @@ export class ExpensesApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to fetch expense');
+      throw new ApiError(response.status, error.message || 'Failed to fetch expense');
     }
 
     return response.json();
@@ -1306,7 +1307,7 @@ export class ExpensesApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to create expense');
+      throw new ApiError(response.status, error.message || 'Failed to create expense');
     }
 
     return response.json();
@@ -1323,7 +1324,7 @@ export class ExpensesApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to update expense');
+      throw new ApiError(response.status, error.message || 'Failed to update expense');
     }
 
     return response.json();
@@ -1339,7 +1340,7 @@ export class ExpensesApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to approve expense');
+      throw new ApiError(response.status, error.message || 'Failed to approve expense');
     }
 
     return response.json();
@@ -1355,7 +1356,7 @@ export class ExpensesApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to mark expense as paid');
+      throw new ApiError(response.status, error.message || 'Failed to mark expense as paid');
     }
 
     return response.json();
@@ -1371,7 +1372,7 @@ export class ExpensesApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to void expense');
+      throw new ApiError(response.status, error.message || 'Failed to void expense');
     }
 
     return response.json();
@@ -1387,7 +1388,7 @@ export class ExpensesApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to delete expense');
+      throw new ApiError(response.status, error.message || 'Failed to delete expense');
     }
 
     return response.json();
@@ -1494,7 +1495,7 @@ export class BankDepositsApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to fetch bank deposits');
+      throw new ApiError(response.status, error.message || 'Failed to fetch bank deposits');
     }
 
     return response.json();
@@ -1510,7 +1511,7 @@ export class BankDepositsApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to fetch bank deposit');
+      throw new ApiError(response.status, error.message || 'Failed to fetch bank deposit');
     }
 
     return response.json();
@@ -1527,7 +1528,7 @@ export class BankDepositsApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to create bank deposit');
+      throw new ApiError(response.status, error.message || 'Failed to create bank deposit');
     }
 
     return response.json();
@@ -1544,7 +1545,7 @@ export class BankDepositsApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to update bank deposit');
+      throw new ApiError(response.status, error.message || 'Failed to update bank deposit');
     }
 
     return response.json();
@@ -1560,7 +1561,7 @@ export class BankDepositsApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to complete bank deposit');
+      throw new ApiError(response.status, error.message || 'Failed to complete bank deposit');
     }
 
     return response.json();
@@ -1576,7 +1577,7 @@ export class BankDepositsApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to void bank deposit');
+      throw new ApiError(response.status, error.message || 'Failed to void bank deposit');
     }
 
     return response.json();
@@ -1592,7 +1593,7 @@ export class BankDepositsApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to delete bank deposit');
+      throw new ApiError(response.status, error.message || 'Failed to delete bank deposit');
     }
 
     return response.json();
@@ -1729,7 +1730,7 @@ export class ProductsApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to fetch products');
+      throw new ApiError(response.status, error.message || 'Failed to fetch products');
     }
 
     return response.json();
@@ -1745,7 +1746,7 @@ export class ProductsApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to fetch product');
+      throw new ApiError(response.status, error.message || 'Failed to fetch product');
     }
 
     return response.json();
@@ -1762,7 +1763,7 @@ export class ProductsApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to create product');
+      throw new ApiError(response.status, error.message || 'Failed to create product');
     }
 
     return response.json();
@@ -1779,7 +1780,7 @@ export class ProductsApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to update product');
+      throw new ApiError(response.status, error.message || 'Failed to update product');
     }
 
     return response.json();
@@ -1796,7 +1797,7 @@ export class ProductsApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to adjust product stock');
+      throw new ApiError(response.status, error.message || 'Failed to adjust product stock');
     }
 
     return response.json();
@@ -1812,7 +1813,7 @@ export class ProductsApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to delete product');
+      throw new ApiError(response.status, error.message || 'Failed to delete product');
     }
 
     return response.json();
@@ -1947,7 +1948,7 @@ export class SalesReturnsApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to fetch sales returns');
+      throw new ApiError(response.status, error.message || 'Failed to fetch sales returns');
     }
 
     return response.json();
@@ -1963,7 +1964,7 @@ export class SalesReturnsApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to fetch sales return');
+      throw new ApiError(response.status, error.message || 'Failed to fetch sales return');
     }
 
     return response.json();
@@ -1980,7 +1981,7 @@ export class SalesReturnsApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to create sales return');
+      throw new ApiError(response.status, error.message || 'Failed to create sales return');
     }
 
     return response.json();
@@ -1997,7 +1998,7 @@ export class SalesReturnsApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to update sales return');
+      throw new ApiError(response.status, error.message || 'Failed to update sales return');
     }
 
     return response.json();
@@ -2013,7 +2014,7 @@ export class SalesReturnsApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to approve sales return');
+      throw new ApiError(response.status, error.message || 'Failed to approve sales return');
     }
 
     return response.json();
@@ -2029,7 +2030,7 @@ export class SalesReturnsApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to complete sales return');
+      throw new ApiError(response.status, error.message || 'Failed to complete sales return');
     }
 
     return response.json();
@@ -2045,7 +2046,7 @@ export class SalesReturnsApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to cancel sales return');
+      throw new ApiError(response.status, error.message || 'Failed to cancel sales return');
     }
 
     return response.json();
@@ -2061,7 +2062,7 @@ export class SalesReturnsApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to delete sales return');
+      throw new ApiError(response.status, error.message || 'Failed to delete sales return');
     }
 
     return response.json();
@@ -2217,7 +2218,7 @@ export class SalesInvoicesApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to fetch sales invoices');
+      throw new ApiError(response.status, error.message || 'Failed to fetch sales invoices');
     }
 
     return response.json();
@@ -2233,7 +2234,7 @@ export class SalesInvoicesApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to fetch sales invoice');
+      throw new ApiError(response.status, error.message || 'Failed to fetch sales invoice');
     }
 
     return response.json();
@@ -2250,7 +2251,7 @@ export class SalesInvoicesApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to get next invoice number');
+      throw new ApiError(response.status, error.message || 'Failed to get next invoice number');
     }
 
     return response.json();
@@ -2267,7 +2268,7 @@ export class SalesInvoicesApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to create sales invoice');
+      throw new ApiError(response.status, error.message || 'Failed to create sales invoice');
     }
 
     return response.json();
@@ -2284,7 +2285,7 @@ export class SalesInvoicesApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to update sales invoice');
+      throw new ApiError(response.status, error.message || 'Failed to update sales invoice');
     }
 
     return response.json();
@@ -2301,7 +2302,7 @@ export class SalesInvoicesApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to mark invoice as paid');
+      throw new ApiError(response.status, error.message || 'Failed to mark invoice as paid');
     }
 
     return response.json();
@@ -2317,7 +2318,7 @@ export class SalesInvoicesApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to cancel sales invoice');
+      throw new ApiError(response.status, error.message || 'Failed to cancel sales invoice');
     }
 
     return response.json();
@@ -2333,7 +2334,7 @@ export class SalesInvoicesApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to delete sales invoice');
+      throw new ApiError(response.status, error.message || 'Failed to delete sales invoice');
     }
 
     return response.json();
@@ -2489,7 +2490,7 @@ export class PurchaseInvoicesApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to fetch purchase invoices');
+      throw new ApiError(response.status, error.message || 'Failed to fetch purchase invoices');
     }
 
     return response.json();
@@ -2505,7 +2506,7 @@ export class PurchaseInvoicesApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to fetch purchase invoice');
+      throw new ApiError(response.status, error.message || 'Failed to fetch purchase invoice');
     }
 
     return response.json();
@@ -2522,7 +2523,7 @@ export class PurchaseInvoicesApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to get next bill number');
+      throw new ApiError(response.status, error.message || 'Failed to get next bill number');
     }
 
     return response.json();
@@ -2539,7 +2540,7 @@ export class PurchaseInvoicesApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to create purchase invoice');
+      throw new ApiError(response.status, error.message || 'Failed to create purchase invoice');
     }
 
     return response.json();
@@ -2556,7 +2557,7 @@ export class PurchaseInvoicesApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to update purchase invoice');
+      throw new ApiError(response.status, error.message || 'Failed to update purchase invoice');
     }
 
     return response.json();
@@ -2573,7 +2574,7 @@ export class PurchaseInvoicesApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to mark invoice as paid');
+      throw new ApiError(response.status, error.message || 'Failed to mark invoice as paid');
     }
 
     return response.json();
@@ -2589,7 +2590,7 @@ export class PurchaseInvoicesApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to cancel purchase invoice');
+      throw new ApiError(response.status, error.message || 'Failed to cancel purchase invoice');
     }
 
     return response.json();
@@ -2605,7 +2606,7 @@ export class PurchaseInvoicesApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to delete purchase invoice');
+      throw new ApiError(response.status, error.message || 'Failed to delete purchase invoice');
     }
 
     return response.json();
@@ -2745,7 +2746,7 @@ export class PurchaseReturnsApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to fetch purchase returns');
+      throw new ApiError(response.status, error.message || 'Failed to fetch purchase returns');
     }
 
     return response.json();
@@ -2761,7 +2762,7 @@ export class PurchaseReturnsApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to fetch purchase return');
+      throw new ApiError(response.status, error.message || 'Failed to fetch purchase return');
     }
 
     return response.json();
@@ -2778,7 +2779,7 @@ export class PurchaseReturnsApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to get next return number');
+      throw new ApiError(response.status, error.message || 'Failed to get next return number');
     }
 
     return response.json();
@@ -2795,7 +2796,7 @@ export class PurchaseReturnsApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to create purchase return');
+      throw new ApiError(response.status, error.message || 'Failed to create purchase return');
     }
 
     return response.json();
@@ -2812,7 +2813,7 @@ export class PurchaseReturnsApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to update purchase return');
+      throw new ApiError(response.status, error.message || 'Failed to update purchase return');
     }
 
     return response.json();
@@ -2828,7 +2829,7 @@ export class PurchaseReturnsApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to approve purchase return');
+      throw new ApiError(response.status, error.message || 'Failed to approve purchase return');
     }
 
     return response.json();
@@ -2844,7 +2845,7 @@ export class PurchaseReturnsApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to complete purchase return');
+      throw new ApiError(response.status, error.message || 'Failed to complete purchase return');
     }
 
     return response.json();
@@ -2860,7 +2861,7 @@ export class PurchaseReturnsApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to cancel purchase return');
+      throw new ApiError(response.status, error.message || 'Failed to cancel purchase return');
     }
 
     return response.json();
@@ -2876,7 +2877,7 @@ export class PurchaseReturnsApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to delete purchase return');
+      throw new ApiError(response.status, error.message || 'Failed to delete purchase return');
     }
 
     return response.json();
@@ -2909,7 +2910,7 @@ export class DashboardApi {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to fetch dashboard data');
+      throw new ApiError(response.status, error.message || 'Failed to fetch dashboard data');
     }
 
     return response.json();
@@ -2939,3 +2940,109 @@ export const salesReturnsApi = getSalesReturnsApi();
 export const salesInvoicesApi = getSalesInvoicesApi();
 export const purchaseInvoicesApi = getPurchaseInvoicesApi();
 export const purchaseReturnsApi = getPurchaseReturnsApi();
+
+// Opening Balance types
+export interface OpeningBalanceEntry {
+  accountId: number;
+  debit: number;
+  credit: number;
+}
+
+export interface OpeningBalanceLine {
+  accountId: number;
+  accountCode: string;
+  accountName: string;
+  debit: number;
+  credit: number;
+}
+
+export interface OpeningBalanceData {
+  journalEntryId: number;
+  entryNumber: string;
+  date: string;
+  lines: OpeningBalanceLine[];
+}
+
+// Opening Balance API
+class OpeningBalanceApi {
+  private basePath: string;
+  private customFetch: typeof fetch;
+
+  constructor(configuration?: Configuration, _basePath?: string, customFetch?: typeof fetch) {
+    this.basePath = configuration?.basePath || _basePath || 'http://localhost:8000';
+    this.customFetch = customFetch || fetch;
+  }
+
+  async getOpeningBalances(companyId: number): Promise<{
+    success: boolean;
+    data: { openingBalance: OpeningBalanceData | null; accounts: ChartOfAccount[] };
+  }> {
+    const url = `${this.basePath}/v1/api/companies/${companyId}/opening-balances`;
+    const response = await this.customFetch(url, { method: 'GET', headers: { 'Content-Type': 'application/json' } });
+    const data = await response.json();
+    if (!response.ok) throw new ApiError(response.status, data?.message || 'Failed to fetch opening balances');
+    return data;
+  }
+
+  async saveOpeningBalances(
+    companyId: number,
+    entries: OpeningBalanceEntry[],
+    date: string
+  ): Promise<{ success: boolean; data: OpeningBalanceData }> {
+    const url = `${this.basePath}/v1/api/companies/${companyId}/opening-balances`;
+    const response = await this.customFetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ entries, date }),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new ApiError(response.status, data?.message || 'Failed to save opening balances');
+    return data;
+  }
+}
+
+export const getOpeningBalanceApi = () => new OpeningBalanceApi(getApiConfig(), undefined, fetchWithCredentials as any);
+
+// Trial Balance types
+export interface TrialBalanceLine {
+  accountId: number;
+  accountCode: string;
+  accountName: string;
+  accountType: AccountType;
+  totalDebit: number;
+  totalCredit: number;
+  balance: number;
+}
+
+export interface TrialBalanceResult {
+  asOf: string;
+  companyId: number;
+  lines: TrialBalanceLine[];
+  totalDebit: number;
+  totalCredit: number;
+}
+
+// Trial Balance API
+class TrialBalanceApi {
+  private basePath: string;
+  private customFetch: typeof fetch;
+
+  constructor(configuration?: Configuration, _basePath?: string, customFetch?: typeof fetch) {
+    this.basePath = configuration?.basePath || _basePath || 'http://localhost:8000';
+    this.customFetch = customFetch || fetch;
+  }
+
+  async getTrialBalance(
+    companyId: number,
+    asOf: string
+  ): Promise<{ success: boolean; data: TrialBalanceResult }> {
+    const params = new URLSearchParams({ companyId: String(companyId), asOf });
+    const url = `${this.basePath}/v1/api/reports/trial-balance?${params}`;
+    const response = await this.customFetch(url, { method: 'GET', headers: { 'Content-Type': 'application/json' } });
+    const data = await response.json();
+    if (!response.ok) throw new ApiError(response.status, data?.message || 'Failed to fetch trial balance');
+    return data;
+  }
+}
+
+export const getTrialBalanceApi = () => new TrialBalanceApi(getApiConfig(), undefined, fetchWithCredentials as any);

@@ -48,6 +48,7 @@ const ACCOUNT_TYPES: { value: AccountType; label: string }[] = [
   { value: 'liability', label: 'Liability' },
   { value: 'equity', label: 'Equity' },
   { value: 'revenue', label: 'Revenue' },
+  { value: 'cost_of_sales', label: 'Cost of Sales' },
   { value: 'expense', label: 'Expense' },
 ];
 
@@ -85,15 +86,19 @@ const AddChartOfAccountPage: React.FC = () => {
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
 
-  // Load parent accounts based on account type
+  // Load parent accounts based on account type and company
   useEffect(() => {
     const loadParentAccounts = async () => {
-      if (!formData.accountType) return;
+      if (!formData.accountType || !formData.companyId) {
+        setParentAccounts([]);
+        return;
+      }
 
       try {
         const api = getChartOfAccountsApi();
         const response = await api.getAllAccounts({
           accountType: formData.accountType,
+          companyId: formData.companyId as number,
           isActive: true
         });
 
@@ -111,7 +116,7 @@ const AddChartOfAccountPage: React.FC = () => {
     };
 
     loadParentAccounts();
-  }, [formData.accountType]);
+  }, [formData.accountType, formData.companyId]);
 
   // Load existing account if editing
   useEffect(() => {

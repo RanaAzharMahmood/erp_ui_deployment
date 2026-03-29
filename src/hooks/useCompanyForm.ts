@@ -21,6 +21,11 @@ export const initialCompanyFormState: CompanyFormData = {
   logo: '',
   user: '',
   subscriptionEnd: '',
+  financialYear: '',
+  fiscalYearStart: '',
+  fiscalYearEnd: '',
+  lockPeriod: '',
+  invoicePrefix: '',
 };
 
 interface UseCompanyFormOptions {
@@ -83,7 +88,14 @@ export const useCompanyForm = ({
   const handleInputChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
       const { name, value } = e.target;
-      setFormData((prev) => ({ ...prev, [name]: value }));
+      setFormData((prev) => {
+        const next = { ...prev, [name]: value };
+        // Auto-populate invoicePrefix from company name (first 3 alpha chars)
+        if (name === 'companyName' && !prev.invoicePrefix) {
+          next.invoicePrefix = value.replace(/[^a-zA-Z]/g, '').substring(0, 3).toUpperCase();
+        }
+        return next;
+      });
       // Clear field error when user types
       if (name in fieldErrors) {
         setFieldErrors((prev) => ({ ...prev, [name]: undefined }));
@@ -175,7 +187,12 @@ export const useCompanyForm = ({
 
       if (mode === 'create') {
         // Prepare API payload for create
-        const payload: ApiCompaniesBody = {
+        const payload: ApiCompaniesBody & {
+          financialYear?: string;
+          fiscalYearStart?: string;
+          fiscalYearEnd?: string;
+          lockPeriod?: string;
+        } = {
           name: formData.companyName,
           address: formData.address || undefined,
           city: undefined,
@@ -189,6 +206,10 @@ export const useCompanyForm = ({
           contactName: formData.contactName || undefined,
           contactEmail: formData.contactEmail || undefined,
           isActive: formData.status === 'Active',
+          financialYear: formData.financialYear || undefined,
+          fiscalYearStart: formData.fiscalYearStart || undefined,
+          fiscalYearEnd: formData.fiscalYearEnd || undefined,
+          lockPeriod: formData.lockPeriod || undefined,
         };
 
         // Call API
@@ -200,7 +221,13 @@ export const useCompanyForm = ({
         setSuccessMessage('Company created successfully!');
       } else {
         // Prepare API payload for update
-        const payload: CompaniesIdBody = {
+        const payload: CompaniesIdBody & {
+          financialYear?: string;
+          fiscalYearStart?: string;
+          fiscalYearEnd?: string;
+          lockPeriod?: string;
+          invoicePrefix?: string;
+        } = {
           name: formData.companyName,
           address: formData.address || undefined,
           city: undefined,
@@ -214,6 +241,11 @@ export const useCompanyForm = ({
           contactName: formData.contactName || undefined,
           contactEmail: formData.contactEmail || undefined,
           isActive: formData.status === 'Active',
+          financialYear: formData.financialYear || undefined,
+          fiscalYearStart: formData.fiscalYearStart || undefined,
+          fiscalYearEnd: formData.fiscalYearEnd || undefined,
+          lockPeriod: formData.lockPeriod || undefined,
+          invoicePrefix: formData.invoicePrefix || undefined,
         };
 
         // Call API
