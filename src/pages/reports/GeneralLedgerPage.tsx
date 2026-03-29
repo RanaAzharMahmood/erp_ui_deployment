@@ -96,6 +96,7 @@ const FilterPanel: React.FC<FilterPanelProps> = ({ filters, companies, onApply, 
             value={local.companyId}
             displayEmpty
             onChange={(e) => set('companyId', e.target.value as number)}
+            MenuProps={{ disablePortal: true }}
           >
             <MenuItem value=""><em>All</em></MenuItem>
             {companies.map((c) => (
@@ -150,6 +151,7 @@ const FilterPanel: React.FC<FilterPanelProps> = ({ filters, companies, onApply, 
             value={local.status}
             displayEmpty
             onChange={(e) => set('status', e.target.value as string)}
+            MenuProps={{ disablePortal: true }}
           >
             <MenuItem value=""><em>All</em></MenuItem>
             <MenuItem value="posted">Posted</MenuItem>
