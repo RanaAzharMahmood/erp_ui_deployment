@@ -353,8 +353,8 @@ const GeneralLedgerPage: React.FC = () => {
         {/* Left — filter bar + table */}
         <Box sx={{ flex: 1, minWidth: 0 }}>
           {/* Filter bar */}
-          <Paper sx={{ p: 2, mb: 3 }}>
-            <Box sx={{ position: 'relative' }} ref={filterRef}>
+          <Paper sx={{ p: 2, mb: 3, overflow: 'visible' }}>
+            <Box sx={{ position: 'relative', zIndex: 1200 }} ref={filterRef}>
               <Button
                 variant="outlined"
                 startIcon={<FilterListIcon />}
@@ -371,7 +371,7 @@ const GeneralLedgerPage: React.FC = () => {
 
               {filterOpen && (
                 <ClickAwayListener onClickAway={() => setFilterOpen(false)}>
-                  <Box>
+                  <Box sx={{ position: 'relative' }}>
                     <FilterPanel
                       filters={activeFilters}
                       companies={companies}
