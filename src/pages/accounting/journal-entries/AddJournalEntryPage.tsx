@@ -27,7 +27,6 @@ import {
   Circle as CircleIcon,
   Add as AddIcon,
   Close as CloseIcon,
-
   Save as SaveIcon,
 } from '@mui/icons-material';
 import PageHeader from '../../../components/common/PageHeader';
@@ -35,10 +34,17 @@ import FormSection from '../../../components/common/FormSection';
 import { useCompanies } from '../../../hooks';
 import { useCompany } from '../../../contexts/CompanyContext';
 import { useAuth } from '../../../contexts/AuthContext';
-import { getJournalEntriesApi } from '../../../generated/api/client';
+import { getJournalEntriesApi, getChartOfAccountsApi } from '../../../generated/api/client';
+
+interface Account {
+  id: number;
+  accountCode: string;
+  accountName: string;
+}
 
 interface LineItem {
   id: string;
+  accountId: number | '';
   accountName: string;
   debit: string;
   credit: string;
@@ -55,23 +61,18 @@ interface JournalEntryFormData {
   status: 'Draft' | 'Approved' | 'Pending';
 }
 
-// Memo types - Mandatory when Reference type is Adjustment/Opening Balance
 const MEMO_TYPES = ['Memorandum Entries', 'Debit Memos/Credit Memos'];
 const PAYMENT_METHODS = ['Cash', 'Bank Transfer', 'Cheque', 'Online'];
-// Reference types
 const REFERENCE_TYPES = ['Sales', 'Purchase', 'Expense', 'Tax Adjustment', 'Opening Balance'];
-// Account types
-const ACCOUNT_TYPES = ['Asset', 'Liability', 'Equity', 'Revenue', 'Expense'];
-// Parent accounts for account selection (used in line items)
-const PARENT_ACCOUNTS = [
-  '110-Current',
-  '111-Cash',
-  '112-Bank',
-  '113-Inventory',
-  '120-Non Current Assets',
-  '121-Fixed Assets',
-  '202-Equity',
-];
+const ACCOUNT_TYPES = ['Asset', 'Liability', 'Equity', 'Revenue', 'Cost of Sales', 'Expense'];
+
+const emptyLine = (): LineItem => ({
+  id: Date.now().toString() + Math.random(),
+  accountId: '',
+  accountName: '',
+  debit: '0',
+  credit: '0',
+});
 
 const AddJournalEntryPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -93,107 +94,123 @@ const AddJournalEntryPage: React.FC = () => {
     status: 'Draft',
   });
 
-  const [lineItems, setLineItems] = useState<LineItem[]>([
-    { id: '1', accountName: 'Assets', debit: '2400582.0', credit: '0' },
-    { id: '2', accountName: 'Assets', debit: '0', credit: '2400582.0' },
-  ]);
+  const [lineItems, setLineItems] = useState<LineItem[]>([emptyLine(), emptyLine()]);
+  const [accounts, setAccounts] = useState<Account[]>([]);
 
   const { companies: rawCompanies, refetch: refetchCompanies } = useCompanies();
   const companies = rawCompanies.map((c) => ({ id: c.id, name: c.name }));
 
-  // Refetch companies on mount to ensure fresh data
-  useEffect(() => {
-    refetchCompanies();
-  }, [refetchCompanies]);
+  useEffect(() => { refetchCompanies(); }, [refetchCompanies]);
+
   const [chequeImage, setChequeImage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
 
-  // Generate auto journal number
-  const generateJournalNumber = useCallback(async () => {
-    try {
-      const api = getJournalEntriesApi();
-      const response = await api.getAll({ limit: 1 });
-      if (response.success && response.data) {
-        const nextNumber = (response.data.total || 0) + 1;
-        return `JE-${String(nextNumber).padStart(6, '0')}`;
-      }
-    } catch (err) {
-      console.error('Error generating journal number from API:', err);
+  // Load accounts whenever the selected company changes
+  useEffect(() => {
+    const companyId = formData.companyId;
+    if (!companyId) {
+      setAccounts([]);
+      return;
     }
-    // Fallback to a default starting number
-    return `JE-000001`;
-  }, []);
+    const load = async () => {
+      try {
+        const api = getChartOfAccountsApi();
+        const res = await api.getAllAccounts({ companyId: companyId as number, isActive: true });
+        if (res.success && res.data) {
+          setAccounts(res.data.map((a) => ({
+            id: a.id,
+            accountCode: a.accountCode,
+            accountName: a.accountName,
+          })));
+        }
+      } catch (err) {
+        console.error('Failed to load accounts', err);
+      }
+    };
+    load();
+  }, [formData.companyId]);
 
-  // Check if memo is required (when reference type is Tax Adjustment or Opening Balance)
-  const isMemoRequired = formData.referenceType === 'Tax Adjustment' || formData.referenceType === 'Opening Balance';
+  // Auto-generate journal number for new entries
+  useEffect(() => {
+    if (isEditMode) return;
+    const gen = async () => {
+      try {
+        const api = getJournalEntriesApi();
+        const res = await api.getAll({ limit: 1 });
+        const next = (res.data?.total ?? 0) + 1;
+        setFormData((p) => ({ ...p, journalNumber: `JE-${String(next).padStart(6, '0')}` }));
+      } catch {
+        setFormData((p) => ({ ...p, journalNumber: 'JE-000001' }));
+      }
+    };
+    gen();
+  }, [isEditMode]);
 
   // Load existing entry if editing
   useEffect(() => {
-    const loadData = async () => {
+    if (!isEditMode || !id) return;
+    const load = async () => {
       try {
-        if (isEditMode && id) {
-          // Try to load from API first
-          try {
-            const api = getJournalEntriesApi();
-            const response = await api.getById(parseInt(id, 10));
-            if (response.success && response.data) {
-              const entry = response.data;
-              setFormData({
-                companyId: entry.companyId || '',
-                journalNumber: entry.entryNumber || '',
-                date: entry.date || '',
-                memo: entry.description || '',
-                paymentMethod: '',
-                referenceType: entry.reference || '',
-                accountType: '',
-                status: entry.status === 'draft' ? 'Draft' : entry.status === 'posted' ? 'Approved' : 'Pending',
-              });
-              if (entry.lines) {
-                setLineItems(entry.lines.map((line) => ({
-                  id: String(line.id || Date.now()),
-                  accountName: line.accountName || '',
-                  debit: String(line.debit || 0),
-                  credit: String(line.credit || 0),
-                })));
-              }
-              return;
-            }
-          } catch (apiErr) {
-            console.error('Error loading entry from API:', apiErr);
-            setError('Failed to load journal entry');
+        const api = getJournalEntriesApi();
+        const res = await api.getById(parseInt(id, 10));
+        if (res.success && res.data) {
+          const entry = res.data;
+          setFormData({
+            companyId: entry.companyId || '',
+            journalNumber: entry.entryNumber || '',
+            date: entry.date || '',
+            memo: entry.description || '',
+            paymentMethod: '',
+            referenceType: entry.reference || '',
+            accountType: '',
+            status: entry.status === 'posted' ? 'Approved' : entry.status === 'void' ? 'Pending' : 'Draft',
+          });
+          if (entry.lines) {
+            setLineItems(entry.lines.map((line) => ({
+              id: String(line.id ?? Date.now()),
+              accountId: line.accountId,
+              accountName: line.accountName ?? '',
+              debit: String(line.debit ?? 0),
+              credit: String(line.credit ?? 0),
+            })));
           }
-        } else {
-          // Auto-generate journal number for new entries
-          const journalNumber = await generateJournalNumber();
-          setFormData((prev) => ({ ...prev, journalNumber }));
         }
-      } catch (err) {
-        console.error('Error loading data:', err);
+      } catch {
+        setError('Failed to load journal entry');
       }
     };
-    loadData();
-  }, [id, isEditMode, generateJournalNumber]);
+    load();
+  }, [id, isEditMode]);
 
   const handleInputChange = useCallback((field: keyof JournalEntryFormData, value: string | number) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   }, []);
 
-  const handleLineItemChange = useCallback((itemId: string, field: keyof LineItem, value: string) => {
+  // When user picks an account in a line — set both accountId and accountName
+  const handleLineAccountChange = useCallback((itemId: string, accountId: number | '') => {
+    setLineItems((prev) =>
+      prev.map((item) => {
+        if (item.id !== itemId) return item;
+        const found = accounts.find((a) => a.id === accountId);
+        return {
+          ...item,
+          accountId,
+          accountName: found ? `${found.accountCode} - ${found.accountName}` : '',
+        };
+      })
+    );
+  }, [accounts]);
+
+  const handleLineFieldChange = useCallback((itemId: string, field: 'debit' | 'credit', value: string) => {
     setLineItems((prev) =>
       prev.map((item) => (item.id === itemId ? { ...item, [field]: value } : item))
     );
   }, []);
 
   const handleAddLineItem = useCallback(() => {
-    const newItem: LineItem = {
-      id: Date.now().toString(),
-      accountName: '',
-      debit: '0',
-      credit: '0',
-    };
-    setLineItems((prev) => [...prev, newItem]);
+    setLineItems((prev) => [...prev, emptyLine()]);
   }, []);
 
   const handleRemoveLineItem = useCallback((itemId: string) => {
@@ -202,34 +219,28 @@ const AddJournalEntryPage: React.FC = () => {
 
   const handleImageUpload = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setChequeImage(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onloadend = () => setChequeImage(reader.result as string);
+    reader.readAsDataURL(file);
   }, []);
 
-  const calculateTotals = useCallback(() => {
-    const totalDebit = lineItems.reduce((sum, item) => sum + (parseFloat(item.debit) || 0), 0);
-    const totalCredit = lineItems.reduce((sum, item) => sum + (parseFloat(item.credit) || 0), 0);
-    return { totalDebit, totalCredit, isBalanced: totalDebit === totalCredit };
-  }, [lineItems]);
+  const totalDebit = lineItems.reduce((s, i) => s + (parseFloat(i.debit) || 0), 0);
+  const totalCredit = lineItems.reduce((s, i) => s + (parseFloat(i.credit) || 0), 0);
+  const isBalanced = Math.abs(totalDebit - totalCredit) < 0.001;
 
   const handleSubmit = useCallback(async () => {
-    if (!formData.journalNumber || !formData.date || !formData.referenceType || !formData.accountType) {
+    if (!formData.date || !formData.referenceType || !formData.companyId) {
       setError('Please fill in all required fields');
       return;
     }
 
-    // Memo is mandatory when reference type is Tax Adjustment or Opening Balance
-    if (isMemoRequired && !formData.memo) {
-      setError('Memo is required for Tax Adjustment and Opening Balance entries');
+    const missingAccount = lineItems.some((l) => !l.accountId);
+    if (missingAccount) {
+      setError('Please select an account for every line item');
       return;
     }
 
-    const { isBalanced } = calculateTotals();
     if (!isBalanced) {
       setError('Total Debit must equal Total Credit');
       return;
@@ -238,38 +249,33 @@ const AddJournalEntryPage: React.FC = () => {
     setIsSubmitting(true);
     try {
       const api = getJournalEntriesApi();
-      const entryData = {
+      const payload = {
         companyId: formData.companyId as number,
-        entryNumber: formData.journalNumber,
         date: formData.date,
-        description: formData.memo,
-        reference: formData.referenceType,
-        status: formData.status === 'Draft' ? 'draft' : formData.status === 'Approved' ? 'posted' : 'pending',
+        description: formData.memo || undefined,
+        reference: formData.referenceType || undefined,
         lines: lineItems.map((item) => ({
-          accountId: 0, // TODO: map accountName to accountId
-          accountName: item.accountName,
+          accountId: item.accountId as number,
           debit: parseFloat(item.debit) || 0,
           credit: parseFloat(item.credit) || 0,
         })),
       };
 
       if (isEditMode && id) {
-        await api.update(parseInt(id, 10), entryData);
+        await api.update(parseInt(id, 10), payload);
       } else {
-        await api.create(entryData);
+        await api.create(payload);
       }
 
       setSuccessMessage(isEditMode ? 'Journal entry updated successfully!' : 'Journal entry created successfully!');
       setTimeout(() => navigate('/account/journal-entry'), 1500);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error saving journal entry:', err);
-      setError('Failed to save journal entry');
+      setError(err?.message ?? 'Failed to save journal entry');
     } finally {
       setIsSubmitting(false);
     }
-  }, [formData, lineItems, companies, navigate, isEditMode, id, calculateTotals, isMemoRequired]);
-
-  const { totalDebit, totalCredit, isBalanced } = calculateTotals();
+  }, [formData, lineItems, isBalanced, navigate, isEditMode, id]);
 
   return (
     <Box sx={{ bgcolor: '#F5F5F5', minHeight: '100vh' }}>
@@ -285,37 +291,34 @@ const AddJournalEntryPage: React.FC = () => {
             <FormSection title="Journal Entry" icon={<DescriptionIcon sx={{ color: '#FF6B35' }} />}>
               <Grid container spacing={2}>
                 {isAdmin && (
-                <Grid item xs={12}>
-                  <Typography variant="body2" sx={{ mb: 0.5, fontWeight: 500 }}>
-                    Select Company
-                  </Typography>
-                  <FormControl fullWidth size="small">
-                    <Select
-                      value={formData.companyId}
-                      onChange={(e) => handleInputChange('companyId', e.target.value as number)}
-                      displayEmpty
-                      sx={{ bgcolor: 'white' }}
-                    >
-                      {companies.map((company) => (
-                        <MenuItem key={company.id} value={company.id}>
-                          {company.name}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </Grid>
+                  <Grid item xs={12}>
+                    <Typography variant="body2" sx={{ mb: 0.5, fontWeight: 500 }}>
+                      Select Company
+                    </Typography>
+                    <FormControl fullWidth size="small">
+                      <Select
+                        value={formData.companyId}
+                        onChange={(e) => handleInputChange('companyId', e.target.value as number)}
+                        displayEmpty
+                        sx={{ bgcolor: 'white' }}
+                      >
+                        <MenuItem value="">Select Company</MenuItem>
+                        {companies.map((c) => (
+                          <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  </Grid>
                 )}
 
                 <Grid item xs={12} sm={6}>
                   <Typography variant="body2" sx={{ mb: 0.5, fontWeight: 500 }}>
-                    Journal Number*
+                    Journal Number
                   </Typography>
                   <TextField
-                    fullWidth
-                    size="small"
-                    placeholder="Number"
+                    fullWidth size="small"
                     value={formData.journalNumber}
-                    onChange={(e) => handleInputChange('journalNumber', e.target.value)}
+                    InputProps={{ readOnly: true }}
                     sx={{ bgcolor: 'white' }}
                   />
                 </Grid>
@@ -325,14 +328,11 @@ const AddJournalEntryPage: React.FC = () => {
                     Date*
                   </Typography>
                   <TextField
-                    fullWidth
-                    size="small"
-                    type="date"
+                    fullWidth size="small" type="date"
                     value={formData.date}
                     onChange={(e) => handleInputChange('date', e.target.value)}
                     InputLabelProps={{ shrink: true }}
                     sx={{ bgcolor: 'white' }}
-                    inputProps={{ min: today }}
                   />
                 </Grid>
 
@@ -344,32 +344,26 @@ const AddJournalEntryPage: React.FC = () => {
                     <Select
                       value={formData.memo}
                       onChange={(e) => handleInputChange('memo', e.target.value)}
-                      displayEmpty
-                      sx={{ bgcolor: 'white' }}
+                      displayEmpty sx={{ bgcolor: 'white' }}
                     >
                       <MenuItem value="">Select Memo type</MenuItem>
-                      {MEMO_TYPES.map((type) => (
-                        <MenuItem key={type} value={type}>{type}</MenuItem>
-                      ))}
+                      {MEMO_TYPES.map((t) => <MenuItem key={t} value={t}>{t}</MenuItem>)}
                     </Select>
                   </FormControl>
                 </Grid>
 
                 <Grid item xs={12} sm={6}>
                   <Typography variant="body2" sx={{ mb: 0.5, fontWeight: 500 }}>
-                    Payment Method*
+                    Payment Method
                   </Typography>
                   <FormControl fullWidth size="small">
                     <Select
                       value={formData.paymentMethod}
                       onChange={(e) => handleInputChange('paymentMethod', e.target.value)}
-                      displayEmpty
-                      sx={{ bgcolor: 'white' }}
+                      displayEmpty sx={{ bgcolor: 'white' }}
                     >
                       <MenuItem value="">Select Method</MenuItem>
-                      {PAYMENT_METHODS.map((method) => (
-                        <MenuItem key={method} value={method}>{method}</MenuItem>
-                      ))}
+                      {PAYMENT_METHODS.map((m) => <MenuItem key={m} value={m}>{m}</MenuItem>)}
                     </Select>
                   </FormControl>
                 </Grid>
@@ -382,32 +376,26 @@ const AddJournalEntryPage: React.FC = () => {
                     <Select
                       value={formData.referenceType}
                       onChange={(e) => handleInputChange('referenceType', e.target.value)}
-                      displayEmpty
-                      sx={{ bgcolor: 'white' }}
+                      displayEmpty sx={{ bgcolor: 'white' }}
                     >
                       <MenuItem value="">Select From List</MenuItem>
-                      {REFERENCE_TYPES.map((type) => (
-                        <MenuItem key={type} value={type}>{type}</MenuItem>
-                      ))}
+                      {REFERENCE_TYPES.map((t) => <MenuItem key={t} value={t}>{t}</MenuItem>)}
                     </Select>
                   </FormControl>
                 </Grid>
 
                 <Grid item xs={12} sm={6}>
                   <Typography variant="body2" sx={{ mb: 0.5, fontWeight: 500 }}>
-                    Account Type*
+                    Account Type
                   </Typography>
                   <FormControl fullWidth size="small">
                     <Select
                       value={formData.accountType}
                       onChange={(e) => handleInputChange('accountType', e.target.value)}
-                      displayEmpty
-                      sx={{ bgcolor: 'white' }}
+                      displayEmpty sx={{ bgcolor: 'white' }}
                     >
                       <MenuItem value="">Select type</MenuItem>
-                      {ACCOUNT_TYPES.map((type) => (
-                        <MenuItem key={type} value={type}>{type}</MenuItem>
-                      ))}
+                      {ACCOUNT_TYPES.map((t) => <MenuItem key={t} value={t}>{t}</MenuItem>)}
                     </Select>
                   </FormControl>
                 </Grid>
@@ -422,7 +410,7 @@ const AddJournalEntryPage: React.FC = () => {
                         <TableCell sx={{ color: 'white', fontWeight: 600 }}>Account Name</TableCell>
                         <TableCell sx={{ color: 'white', fontWeight: 600 }}>Debit</TableCell>
                         <TableCell sx={{ color: 'white', fontWeight: 600 }}>Credit</TableCell>
-                        <TableCell sx={{ color: 'white', fontWeight: 600, width: 50 }}></TableCell>
+                        <TableCell sx={{ color: 'white', fontWeight: 600, width: 50 }} />
                       </TableRow>
                     </TableHead>
                     <TableBody>
@@ -431,36 +419,42 @@ const AddJournalEntryPage: React.FC = () => {
                           <TableCell>
                             <FormControl fullWidth size="small">
                               <Select
-                                value={item.accountName}
-                                onChange={(e) => handleLineItemChange(item.id, 'accountName', e.target.value)}
+                                value={item.accountId}
+                                onChange={(e) => handleLineAccountChange(item.id, e.target.value as number | '')}
                                 displayEmpty
                                 sx={{ bgcolor: 'white' }}
                               >
-                                <MenuItem value="">Select Account</MenuItem>
-                                {PARENT_ACCOUNTS.map((account) => (
-                                  <MenuItem key={account} value={account}>{account}</MenuItem>
+                                <MenuItem value="">
+                                  {accounts.length === 0 && formData.companyId
+                                    ? <em>Loading...</em>
+                                    : <em>Select Account</em>}
+                                </MenuItem>
+                                {accounts.map((a) => (
+                                  <MenuItem key={a.id} value={a.id}>
+                                    {a.accountCode} - {a.accountName}
+                                  </MenuItem>
                                 ))}
                               </Select>
                             </FormControl>
                           </TableCell>
                           <TableCell>
                             <TextField
-                              fullWidth
-                              size="small"
+                              fullWidth size="small" type="number"
                               value={item.debit}
-                              onChange={(e) => handleLineItemChange(item.id, 'debit', e.target.value)}
-                              placeholder="0.0 PKR"
+                              onChange={(e) => handleLineFieldChange(item.id, 'debit', e.target.value)}
+                              placeholder="0.00"
                               sx={{ bgcolor: 'white' }}
+                              inputProps={{ min: 0 }}
                             />
                           </TableCell>
                           <TableCell>
                             <TextField
-                              fullWidth
-                              size="small"
+                              fullWidth size="small" type="number"
                               value={item.credit}
-                              onChange={(e) => handleLineItemChange(item.id, 'credit', e.target.value)}
-                              placeholder="0.0 PKR"
+                              onChange={(e) => handleLineFieldChange(item.id, 'credit', e.target.value)}
+                              placeholder="0.00"
                               sx={{ bgcolor: 'white' }}
+                              inputProps={{ min: 0 }}
                             />
                           </TableCell>
                           <TableCell>
@@ -496,8 +490,7 @@ const AddJournalEntryPage: React.FC = () => {
               {/* Balance Indicator */}
               <Box
                 sx={{
-                  mt: 3,
-                  p: 2,
+                  mt: 3, p: 2,
                   bgcolor: isBalanced ? '#E5E7EB' : '#FEE2E2',
                   borderRadius: 1,
                   textAlign: 'center',
@@ -507,7 +500,7 @@ const AddJournalEntryPage: React.FC = () => {
                   Total Debit = Total Credit
                 </Typography>
                 <Typography variant="caption" sx={{ color: isBalanced ? '#6B7280' : '#EF4444' }}>
-                  {totalDebit.toFixed(1)} PKR = {totalCredit.toFixed(1)} PKR
+                  {totalDebit.toFixed(2)} PKR = {totalCredit.toFixed(2)} PKR
                 </Typography>
               </Box>
             </FormSection>
@@ -519,19 +512,13 @@ const AddJournalEntryPage: React.FC = () => {
             <Card sx={{ p: 2.5, mb: 3, border: '1px solid #E5E7EB', boxShadow: 'none' }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2 }}>
                 <ImageIcon sx={{ color: '#FF6B35' }} />
-                <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                  Upload Cheque Image
-                </Typography>
+                <Typography variant="h6" sx={{ fontWeight: 600 }}>Upload Cheque Image</Typography>
               </Box>
               <Divider sx={{ mb: 2 }} />
-
               <Box
                 sx={{
-                  border: '2px dashed #E5E7EB',
-                  borderRadius: 1,
-                  p: 4,
-                  textAlign: 'center',
-                  cursor: 'pointer',
+                  border: '2px dashed #E5E7EB', borderRadius: 1, p: 4,
+                  textAlign: 'center', cursor: 'pointer',
                   '&:hover': { borderColor: '#FF6B35' },
                 }}
                 component="label"
@@ -541,27 +528,15 @@ const AddJournalEntryPage: React.FC = () => {
                   <img src={chequeImage} alt="Cheque" style={{ maxWidth: '100%', maxHeight: 150 }} />
                 ) : (
                   <>
-                    <Box
-                      sx={{
-                        width: 48,
-                        height: 48,
-                        borderRadius: '50%',
-                        bgcolor: '#FFF7ED',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        mx: 'auto',
-                        mb: 1,
-                      }}
-                    >
+                    <Box sx={{
+                      width: 48, height: 48, borderRadius: '50%', bgcolor: '#FFF7ED',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      mx: 'auto', mb: 1,
+                    }}>
                       <ImageIcon sx={{ color: '#FF6B35' }} />
                     </Box>
-                    <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                      Upload Cheque Image
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      SVG, PNG, JPG or GIF (max. 2Mb)
-                    </Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 500 }}>Upload Cheque Image</Typography>
+                    <Typography variant="caption" color="text.secondary">SVG, PNG, JPG or GIF (max. 2Mb)</Typography>
                   </>
                 )}
               </Box>
@@ -571,44 +546,22 @@ const AddJournalEntryPage: React.FC = () => {
             <Card sx={{ p: 2.5, mb: 3, border: '1px solid #E5E7EB', boxShadow: 'none' }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2 }}>
                 <CircleIcon sx={{ color: '#FF6B35', fontSize: 20 }} />
-                <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                  Status
-                </Typography>
+                <Typography variant="h6" sx={{ fontWeight: 600 }}>Status</Typography>
               </Box>
               <Divider sx={{ mb: 2 }} />
-
               {(['Draft', 'Approved', 'Pending'] as const).map((status) => (
                 <Box
                   key={status}
-                  sx={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 1,
-                    mb: 1,
-                    cursor: 'pointer',
-                  }}
+                  sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1, cursor: 'pointer' }}
                   onClick={() => handleInputChange('status', status)}
                 >
-                  <Box
-                    sx={{
-                      width: 16,
-                      height: 16,
-                      borderRadius: '50%',
-                      border: `2px solid ${formData.status === status ? '#FF6B35' : '#D1D5DB'}`,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
+                  <Box sx={{
+                    width: 16, height: 16, borderRadius: '50%',
+                    border: `2px solid ${formData.status === status ? '#FF6B35' : '#D1D5DB'}`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
                     {formData.status === status && (
-                      <Box
-                        sx={{
-                          width: 8,
-                          height: 8,
-                          borderRadius: '50%',
-                          bgcolor: '#FF6B35',
-                        }}
-                      />
+                      <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: '#FF6B35' }} />
                     )}
                   </Box>
                   <Typography variant="body2">{status}</Typography>
@@ -619,30 +572,18 @@ const AddJournalEntryPage: React.FC = () => {
             {/* Action Buttons */}
             <Box sx={{ display: 'flex', gap: 2 }}>
               <Button
-                variant="outlined"
-                fullWidth
+                variant="outlined" fullWidth
                 onClick={() => navigate('/account/journal-entry')}
-                sx={{
-                  py: 1.5,
-                  borderColor: '#E5E7EB',
-                  color: '#374151',
-                  textTransform: 'none',
-                }}
+                sx={{ py: 1.5, borderColor: '#E5E7EB', color: '#374151', textTransform: 'none' }}
               >
                 Cancel
               </Button>
               <Button
-                variant="contained"
-                fullWidth
+                variant="contained" fullWidth
                 startIcon={<SaveIcon />}
                 onClick={handleSubmit}
                 disabled={isSubmitting}
-                sx={{
-                  py: 1.5,
-                  bgcolor: '#FF6B35',
-                  textTransform: 'none',
-                  '&:hover': { bgcolor: '#E55A2B' },
-                }}
+                sx={{ py: 1.5, bgcolor: '#FF6B35', textTransform: 'none', '&:hover': { bgcolor: '#E55A2B' } }}
               >
                 {isEditMode ? 'Save Changes' : 'Save Journal'}
               </Button>
