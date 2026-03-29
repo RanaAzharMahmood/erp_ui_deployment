@@ -80,18 +80,18 @@ const FilterPanel: React.FC<FilterPanelProps> = ({ filters, companies, onApply, 
         left: 0,
         zIndex: 1300,
         mt: 1,
-        width: 400,
+        width: 480,
         bgcolor: '#fff',
         border: '2px solid #FF6B35',
         borderRadius: '12px',
-        p: 2.5,
+        p: 3,
         boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
       }}
     >
       {/* Company */}
-      <Box sx={{ display: 'flex', alignItems: 'center', mb: 2, gap: 2 }}>
-        <Typography sx={{ width: 110, fontSize: 14, color: '#555', flexShrink: 0 }}>Company</Typography>
-        <FormControl size="small" fullWidth>
+      <Box sx={{ display: 'flex', alignItems: 'center', mb: 2.5, gap: 2 }}>
+        <Typography sx={{ width: 100, fontSize: 14, color: '#555', flexShrink: 0 }}>Company</Typography>
+        <FormControl size="small" sx={{ flex: 1 }}>
           <Select
             value={local.companyId}
             displayEmpty
@@ -107,9 +107,9 @@ const FilterPanel: React.FC<FilterPanelProps> = ({ filters, companies, onApply, 
       </Box>
 
       {/* Date Range */}
-      <Box sx={{ display: 'flex', alignItems: 'center', mb: 2, gap: 2 }}>
-        <Typography sx={{ width: 110, fontSize: 14, color: '#555', flexShrink: 0 }}>Date Range</Typography>
-        <Box sx={{ display: 'flex', gap: 1, flex: 1, alignItems: 'center' }}>
+      <Box sx={{ display: 'flex', alignItems: 'flex-start', mb: 2.5, gap: 2 }}>
+        <Typography sx={{ width: 100, fontSize: 14, color: '#555', flexShrink: 0, pt: 1 }}>Date Range</Typography>
+        <Box sx={{ display: 'flex', gap: 1.5, flex: 1 }}>
           <TextField
             size="small"
             type="date"
@@ -117,7 +117,7 @@ const FilterPanel: React.FC<FilterPanelProps> = ({ filters, companies, onApply, 
             onChange={(e) => set('dateFrom', e.target.value)}
             InputLabelProps={{ shrink: true }}
             label="From"
-            sx={{ flex: 1 }}
+            sx={{ flex: 1, minWidth: 0 }}
           />
           <TextField
             size="small"
@@ -126,17 +126,17 @@ const FilterPanel: React.FC<FilterPanelProps> = ({ filters, companies, onApply, 
             onChange={(e) => set('dateTo', e.target.value)}
             InputLabelProps={{ shrink: true }}
             label="To"
-            sx={{ flex: 1 }}
+            sx={{ flex: 1, minWidth: 0 }}
           />
         </Box>
       </Box>
 
       {/* Reference */}
-      <Box sx={{ display: 'flex', alignItems: 'center', mb: 2, gap: 2 }}>
-        <Typography sx={{ width: 110, fontSize: 14, color: '#555', flexShrink: 0 }}>Reference</Typography>
+      <Box sx={{ display: 'flex', alignItems: 'center', mb: 2.5, gap: 2 }}>
+        <Typography sx={{ width: 100, fontSize: 14, color: '#555', flexShrink: 0 }}>Reference</Typography>
         <TextField
           size="small"
-          fullWidth
+          sx={{ flex: 1 }}
           placeholder="All"
           value={local.reference}
           onChange={(e) => set('reference', e.target.value)}
@@ -145,8 +145,8 @@ const FilterPanel: React.FC<FilterPanelProps> = ({ filters, companies, onApply, 
 
       {/* Status */}
       <Box sx={{ display: 'flex', alignItems: 'center', mb: 3, gap: 2 }}>
-        <Typography sx={{ width: 110, fontSize: 14, color: '#555', flexShrink: 0 }}>Status</Typography>
-        <FormControl size="small" fullWidth>
+        <Typography sx={{ width: 100, fontSize: 14, color: '#555', flexShrink: 0 }}>Status</Typography>
+        <FormControl size="small" sx={{ flex: 1 }}>
           <Select
             value={local.status}
             displayEmpty
