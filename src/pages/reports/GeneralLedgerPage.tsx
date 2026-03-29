@@ -290,6 +290,7 @@ const GeneralLedgerPage: React.FC = () => {
         dateFrom: activeFilters.dateFrom || undefined,
         dateTo: activeFilters.dateTo || undefined,
         status: (activeFilters.status as any) || undefined,
+        includeLines: true,
         limit: 500,
       });
 

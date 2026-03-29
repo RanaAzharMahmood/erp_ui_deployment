@@ -899,6 +899,7 @@ export interface JournalEntryFilters {
   dateTo?: string;
   companyId?: number;
   isActive?: boolean;
+  includeLines?: boolean;
   limit?: number;
   offset?: number;
 }
@@ -920,6 +921,7 @@ export class JournalEntriesApi {
     if (filters?.dateTo) queryParams.append('dateTo', filters.dateTo);
     if (filters?.companyId) queryParams.append('companyId', String(filters.companyId));
     if (filters?.isActive !== undefined) queryParams.append('isActive', String(filters.isActive));
+    if (filters?.includeLines !== undefined) queryParams.append('includeLines', String(filters.includeLines));
     if (filters?.limit !== undefined) queryParams.append('limit', String(filters.limit));
     if (filters?.offset !== undefined) queryParams.append('offset', String(filters.offset));
 
