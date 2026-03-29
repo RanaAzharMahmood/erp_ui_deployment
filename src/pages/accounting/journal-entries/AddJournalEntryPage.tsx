@@ -21,6 +21,7 @@ import {
   TableHead,
   TableRow,
 } from '@mui/material';
+import Radio from '@mui/material/Radio';
 import {
   Description as DescriptionIcon,
   Image as ImageIcon,
@@ -556,22 +557,23 @@ const AddJournalEntryPage: React.FC = () => {
                 <Typography variant="h6" sx={{ fontWeight: 600 }}>Status</Typography>
               </Box>
               <Divider sx={{ mb: 2 }} />
-              {(['Draft', 'Approved', 'Pending'] as const).map((status) => (
+              {(['Draft', 'Approved', 'Pending'] as const).map((s) => (
                 <Box
-                  key={status}
-                  sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1, cursor: 'pointer' }}
-                  onClick={() => handleInputChange('status', status)}
+                  key={s}
+                  sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5, cursor: 'pointer' }}
+                  onClick={() => setFormData((prev) => ({ ...prev, status: s }))}
                 >
-                  <Box sx={{
-                    width: 16, height: 16, borderRadius: '50%',
-                    border: `2px solid ${formData.status === status ? '#FF6B35' : '#D1D5DB'}`,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  }}>
-                    {formData.status === status && (
-                      <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: '#FF6B35' }} />
-                    )}
-                  </Box>
-                  <Typography variant="body2">{status}</Typography>
+                  <Radio
+                    checked={formData.status === s}
+                    onChange={() => setFormData((prev) => ({ ...prev, status: s }))}
+                    size="small"
+                    sx={{
+                      color: '#D1D5DB',
+                      '&.Mui-checked': { color: '#FF6B35' },
+                      p: 0.5,
+                    }}
+                  />
+                  <Typography variant="body2">{s}</Typography>
                 </Box>
               ))}
             </Card>
