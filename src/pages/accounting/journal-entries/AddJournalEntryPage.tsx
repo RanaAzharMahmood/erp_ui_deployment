@@ -84,8 +84,13 @@ const AddJournalEntryPage: React.FC = () => {
   const { user } = useAuth();
   const isAdmin = user?.roleName?.toLowerCase() === 'admin';
 
+  // Use user.selectedCompanyId as the most reliable sync source (available from auth token/localStorage)
+  const resolvedCompanyId = !isAdmin
+    ? (selectedCompany?.id ?? user?.selectedCompanyId ?? '')
+    : '';
+
   const [formData, setFormData] = useState<JournalEntryFormData>({
-    companyId: (!isAdmin && selectedCompany) ? selectedCompany.id : '',
+    companyId: resolvedCompanyId,
     journalNumber: '',
     date: today,
     memo: '',
@@ -103,12 +108,13 @@ const AddJournalEntryPage: React.FC = () => {
 
   useEffect(() => { refetchCompanies(); }, [refetchCompanies]);
 
-  // Sync companyId for non-admin users once selectedCompany is available from context
+  // Keep companyId in sync if context resolves after initial render
   useEffect(() => {
-    if (!isAdmin && selectedCompany && !formData.companyId) {
-      setFormData((prev) => ({ ...prev, companyId: selectedCompany.id }));
+    const id = selectedCompany?.id ?? user?.selectedCompanyId;
+    if (!isAdmin && id && !formData.companyId) {
+      setFormData((prev) => ({ ...prev, companyId: id }));
     }
-  }, [isAdmin, selectedCompany, formData.companyId]);
+  }, [isAdmin, selectedCompany, user?.selectedCompanyId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [chequeImage, setChequeImage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -196,12 +202,13 @@ const AddJournalEntryPage: React.FC = () => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   }, []);
 
-  // When user picks an account in a line — set both accountId and accountName
-  const handleLineAccountChange = useCallback((itemId: string, accountId: number | '') => {
+  // When user picks an account — coerce to Number (MUI Select may return string)
+  const handleLineAccountChange = useCallback((itemId: string, rawValue: number | string | '') => {
+    const accountId: number | '' = rawValue === '' ? '' : Number(rawValue);
     setLineItems((prev) =>
       prev.map((item) => {
         if (item.id !== itemId) return item;
-        const found = accounts.find((a) => a.id === accountId);
+        const found = accountId !== '' ? accounts.find((a) => a.id === accountId) : undefined;
         return {
           ...item,
           accountId,
@@ -237,20 +244,28 @@ const AddJournalEntryPage: React.FC = () => {
   const totalCredit = lineItems.reduce((s, i) => s + (parseFloat(i.credit) || 0), 0);
   const isBalanced = Math.abs(totalDebit - totalCredit) < 0.001;
 
-  const handleSubmit = useCallback(async () => {
-    if (!formData.date || !formData.referenceType || !formData.companyId) {
-      setError('Please fill in all required fields');
+  const handleSubmit = async () => {
+    if (!formData.companyId) {
+      setError('Company not selected. Please refresh and try again.');
+      return;
+    }
+    if (!formData.date) {
+      setError('Date is required.');
+      return;
+    }
+    if (!formData.referenceType) {
+      setError('Reference Type is required.');
       return;
     }
 
     const missingAccount = lineItems.some((l) => !l.accountId);
     if (missingAccount) {
-      setError('Please select an account for every line item');
+      setError('Please select an account for every line item.');
       return;
     }
 
     if (!isBalanced) {
-      setError('Total Debit must equal Total Credit');
+      setError('Total Debit must equal Total Credit.');
       return;
     }
 
@@ -258,12 +273,12 @@ const AddJournalEntryPage: React.FC = () => {
     try {
       const api = getJournalEntriesApi();
       const payload = {
-        companyId: formData.companyId as number,
+        companyId: Number(formData.companyId),
         date: formData.date,
         description: formData.memo || undefined,
         reference: formData.referenceType || undefined,
         lines: lineItems.map((item) => ({
-          accountId: item.accountId as number,
+          accountId: Number(item.accountId),
           debit: parseFloat(item.debit) || 0,
           credit: parseFloat(item.credit) || 0,
         })),
@@ -283,7 +298,7 @@ const AddJournalEntryPage: React.FC = () => {
     } finally {
       setIsSubmitting(false);
     }
-  }, [formData, lineItems, isBalanced, navigate, isEditMode, id]);
+  };
 
   return (
     <Box sx={{ bgcolor: '#F5F5F5', minHeight: '100vh' }}>
@@ -428,7 +443,7 @@ const AddJournalEntryPage: React.FC = () => {
                             <FormControl fullWidth size="small">
                               <Select
                                 value={item.accountId}
-                                onChange={(e) => handleLineAccountChange(item.id, e.target.value as number | '')}
+                                onChange={(e) => handleLineAccountChange(item.id, e.target.value)}
                                 displayEmpty
                                 sx={{ bgcolor: 'white' }}
                               >
