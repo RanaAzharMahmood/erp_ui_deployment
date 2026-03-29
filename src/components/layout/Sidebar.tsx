@@ -81,8 +81,10 @@ const allMenuItems: MenuItem[] = [
   {
     text: 'Reports',
     icon: <AssessmentIcon />,
+    path: '/reports',
     permission: 'view_journal_entries',
     children: [
+      { text: 'General Ledger', icon: <AssessmentIcon />, path: '/reports/general-ledger', permission: 'view_journal_entries' },
       { text: 'Trial Balance', icon: <AssessmentIcon />, path: '/reports/trial-balance', permission: 'view_journal_entries' },
     ],
   },

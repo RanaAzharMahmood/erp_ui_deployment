@@ -83,6 +83,8 @@ const ChartOfAccountPage = lazy(() => import('./pages/accounting/chart-of-accoun
 const AddChartOfAccountPage = lazy(() => import('./pages/accounting/chart-of-accounts/AddChartOfAccountPage'))
 const OpeningBalancePage = lazy(() => import('./pages/accounting/opening-balance/OpeningBalancePage'))
 const TrialBalancePage = lazy(() => import('./pages/reports/TrialBalancePage'))
+const ReportsHubPage = lazy(() => import('./pages/reports/ReportsHubPage'))
+const GeneralLedgerPage = lazy(() => import('./pages/reports/GeneralLedgerPage'))
 
 // Company Selection
 const SelectCompanyPage = lazy(() => import('./pages/company/SelectCompanyPage'))
@@ -549,10 +551,26 @@ function App() {
           }
         />
         <Route
+          path="reports"
+          element={
+            <SuspenseRoute>
+              <ReportsHubPage />
+            </SuspenseRoute>
+          }
+        />
+        <Route
           path="reports/trial-balance"
           element={
             <SuspenseRoute>
               <TrialBalancePage />
+            </SuspenseRoute>
+          }
+        />
+        <Route
+          path="reports/general-ledger"
+          element={
+            <SuspenseRoute>
+              <GeneralLedgerPage />
             </SuspenseRoute>
           }
         />
