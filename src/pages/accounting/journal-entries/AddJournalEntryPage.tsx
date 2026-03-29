@@ -102,6 +102,13 @@ const AddJournalEntryPage: React.FC = () => {
 
   useEffect(() => { refetchCompanies(); }, [refetchCompanies]);
 
+  // Sync companyId for non-admin users once selectedCompany is available from context
+  useEffect(() => {
+    if (!isAdmin && selectedCompany && !formData.companyId) {
+      setFormData((prev) => ({ ...prev, companyId: selectedCompany.id }));
+    }
+  }, [isAdmin, selectedCompany, formData.companyId]);
+
   const [chequeImage, setChequeImage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
