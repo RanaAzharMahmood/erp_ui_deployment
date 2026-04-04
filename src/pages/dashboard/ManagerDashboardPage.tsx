@@ -1,4 +1,5 @@
-import React from 'react'
+import React, { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   Box,
   Grid,
@@ -21,6 +22,7 @@ import {
 import RefreshIcon from '@mui/icons-material/Refresh'
 import SearchIcon from '@mui/icons-material/Search'
 import PersonAddIcon from '@mui/icons-material/PersonAdd'
+import ArrowForwardIcon from '@mui/icons-material/ArrowForward'
 import TrendingUpIcon from '@mui/icons-material/TrendingUp'
 import ShoppingCartIcon from '@mui/icons-material/ShoppingCart'
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet'
@@ -32,10 +34,22 @@ import { KPICard, DashboardSkeleton } from '../../components/dashboard'
 import { formatCurrency, formatDate } from '../../utils/formatters'
 import { useCompany } from '../../contexts/CompanyContext'
 import useManagerDashboardData from '../../hooks/queries/useManagerDashboardData'
+import { getApprovalRequestsApi } from '../../generated/api/client'
+import type { ApprovalRequest } from '../../generated/api/client'
+
+const REQUEST_COLORS = ['#EF4444', '#F59E0B', '#10B981', '#3B82F6']
 
 const ManagerDashboardPage: React.FC = () => {
+  const navigate = useNavigate()
   const { selectedCompany } = useCompany()
   const { data, isLoading, error, refresh } = useManagerDashboardData()
+  const [pendingRequests, setPendingRequests] = useState<ApprovalRequest[]>([])
+
+  useEffect(() => {
+    getApprovalRequestsApi().getAll({ status: 'pending', limit: 5 })
+      .then((res) => setPendingRequests(res.data?.data || []))
+      .catch(() => { /* silently ignore */ })
+  }, [])
 
   if (isLoading) {
     return <DashboardSkeleton />
@@ -208,17 +222,46 @@ const ManagerDashboardPage: React.FC = () => {
                 User Requests
               </Typography>
             </Box>
-            <Box
-              sx={{
-                flex: 1,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <Typography variant="body2" sx={{ color: COLORS.text.muted }}>
-                No pending requests
-              </Typography>
+            <Box sx={{ flex: 1, overflow: 'auto', p: 1.5 }}>
+              {pendingRequests.length === 0 ? (
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+                  <Typography variant="body2" sx={{ color: COLORS.text.muted }}>
+                    No pending requests
+                  </Typography>
+                </Box>
+              ) : (
+                pendingRequests.map((req, idx) => (
+                  <Box
+                    key={req.id}
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 1.5,
+                      p: 1.5,
+                      mb: 1,
+                      borderRadius: '8px',
+                      bgcolor: '#FFFBF5',
+                      borderLeft: `4px solid ${REQUEST_COLORS[idx % REQUEST_COLORS.length]}`,
+                    }}
+                  >
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                      <Typography sx={{ fontSize: 13, fontWeight: 600, color: COLORS.text.primary }}>
+                        Permission for {req.action} {(req.entityType || '').replace(/_/g, ' ')}
+                      </Typography>
+                      <Typography sx={{ fontSize: 11, color: COLORS.text.muted }}>
+                        {req.requesterName}
+                      </Typography>
+                    </Box>
+                    <IconButton
+                      size="small"
+                      onClick={() => navigate('/approval')}
+                      sx={{ bgcolor: COLORS.primary, color: '#fff', width: 28, height: 28, '&:hover': { bgcolor: COLORS.primaryHover } }}
+                    >
+                      <ArrowForwardIcon sx={{ fontSize: 16 }} />
+                    </IconButton>
+                  </Box>
+                ))
+              )}
             </Box>
           </Card>
         </Grid>

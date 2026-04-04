@@ -244,7 +244,7 @@ const GeneralLedgerPage: React.FC = () => {
   const [filterOpen, setFilterOpen] = useState(false);
   const filterRef = useRef<HTMLDivElement>(null);
 
-  const defaultCompanyId = !isAdmin && user?.selectedCompanyId ? user.selectedCompanyId : '';
+  const defaultCompanyId = user?.selectedCompanyId || '';
 
   const [activeFilters, setActiveFilters] = useState<FilterState>({
     companyId: defaultCompanyId,
@@ -267,17 +267,17 @@ const GeneralLedgerPage: React.FC = () => {
       try {
         const api = getCompaniesApi();
         const res = await api.v1ApiCompaniesGet();
-        if (res.data) {
-          const mapped = res.data.map((c: any) => ({ id: c.id, name: c.name || '' }));
-          setCompanies(mapped);
-          if (mapped.length > 0) {
-            setActiveFilters((prev) => ({ ...prev, companyId: mapped[0].id }));
-          }
+        const raw = res?.data;
+        const list: any[] = Array.isArray(raw) ? raw : Array.isArray((raw as any)?.data) ? (raw as any).data : [];
+        const mapped = list.map((c: any) => ({ id: c.id, name: c.name || c.companyName || '' }));
+        setCompanies(mapped);
+        if (mapped.length > 0 && !activeFilters.companyId) {
+          setActiveFilters((prev) => ({ ...prev, companyId: mapped[0].id }));
         }
       } catch { /* ignore */ }
     };
     load();
-  }, [isAdmin]);
+  }, [isAdmin]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchData = useCallback(async () => {
     if (!activeFilters.companyId) return;

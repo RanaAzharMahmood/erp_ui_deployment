@@ -32,35 +32,25 @@ interface ReportCategory {
 
 const ALL_CATEGORIES: ReportCategory[] = [
   {
-    title: 'Sales Reports',
+    title: 'Sales & Purchase Reports',
     items: [
-      { label: 'Monthly Sales Report', path: '/reports/general-ledger', params: { type: 'sales', period: 'monthly' } },
-      { label: 'Quarter Sales Report', path: '/reports/general-ledger', params: { type: 'sales', period: 'quarterly' } },
-      { label: 'Annual Sales Report', path: '/reports/general-ledger', params: { type: 'sales', period: 'annual' } },
+      { label: 'Company Year Report (Purchase & Sales)', path: '/reports/viewer', params: { type: 'company-year-report' } },
+      { label: 'Sales Ledger', path: '/reports/viewer', params: { type: 'sales-ledger' } },
+      { label: 'Monthly Stock Sheet', path: '/reports/viewer', params: { type: 'monthly-stock-sheet' } },
     ],
   },
   {
-    title: 'Purchase Reports',
+    title: 'Financial Reports',
     items: [
-      { label: 'Monthly Purchase Report', path: '/reports/general-ledger', params: { type: 'purchase', period: 'monthly' } },
-      { label: 'Quarter Purchase Report', path: '/reports/general-ledger', params: { type: 'purchase', period: 'quarterly' } },
-      { label: 'Annual Purchase Report', path: '/reports/general-ledger', params: { type: 'purchase', period: 'annual' } },
+      { label: 'Daily Expense Sheet', path: '/reports/viewer', params: { type: 'daily-expense-sheet' } },
+      { label: 'Cheque Book Detail', path: '/reports/viewer', params: { type: 'cheque-book-detail' } },
     ],
   },
   {
     title: 'Tax Reports',
     items: [
-      { label: 'Monthly Tax Report', path: '/reports/general-ledger', params: { type: 'tax', period: 'monthly' } },
-      { label: 'Quarter Tax Report', path: '/reports/general-ledger', params: { type: 'tax', period: 'quarterly' } },
-      { label: 'Annual Tax Report', path: '/reports/general-ledger', params: { type: 'tax', period: 'annual' } },
-    ],
-  },
-  {
-    title: 'Audit Reports',
-    items: [
-      { label: 'Monthly Audit Report', path: '/reports/general-ledger', params: { type: 'audit', period: 'monthly' } },
-      { label: 'Quarter Audit Report', path: '/reports/general-ledger', params: { type: 'audit', period: 'quarterly' } },
-      { label: 'Annual Audit Report', path: '/reports/general-ledger', params: { type: 'audit', period: 'annual' } },
+      { label: 'Monthly Tax Report', path: '/reports/viewer', params: { type: 'monthly-tax-report' } },
+      { label: 'Yearly Tax Report', path: '/reports/viewer', params: { type: 'yearly-tax-report' } },
     ],
   },
 ];

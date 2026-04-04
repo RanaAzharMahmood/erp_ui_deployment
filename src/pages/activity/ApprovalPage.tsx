@@ -21,6 +21,11 @@ import {
   TablePagination,
   Alert,
   Snackbar,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Divider,
 } from '@mui/material'
 import {
   Search as SearchIcon,
@@ -28,6 +33,7 @@ import {
   GridOn as GridOnIcon,
   CheckCircle as CheckCircleIcon,
   Cancel as CancelIcon,
+  Close as CloseIcon,
 } from '@mui/icons-material'
 import { useAuth } from '../../contexts/AuthContext'
 import { useCompany } from '../../contexts/CompanyContext'
@@ -56,6 +62,17 @@ const mapStatusLabel = (status: string): string => {
   }
 }
 
+// Extract a meaningful name from the payload
+function getEntityName(record: ApprovalRequest): string {
+  const p = record.payload as Record<string, unknown> | undefined
+  if (!p) return ''
+  // Try common name fields
+  const name = p.categoryName || p.itemName || p.partyName || p.payeeName
+    || p.accountName || p.name || p.description || p.payFor
+    || p.invoiceNumber || p.expenseNumber || p.depositNumber || p.entryNumber
+  return name ? ` — ${name}` : ''
+}
+
 const ApprovalPage: React.FC = () => {
   const { user } = useAuth()
   const { selectedCompany } = useCompany()
@@ -74,6 +91,7 @@ const ApprovalPage: React.FC = () => {
   const [order, setOrder] = useState<'asc' | 'desc'>('desc')
   const [successMessage, setSuccessMessage] = useState('')
   const [errorMessage, setErrorMessage] = useState('')
+  const [selectedRecord, setSelectedRecord] = useState<ApprovalRequest | null>(null)
 
   const debouncedSearch = useDebounce(searchTerm, 300)
 
@@ -418,7 +436,8 @@ const ApprovalPage: React.FC = () => {
                   <TableRow
                     key={record.id}
                     hover
-                    sx={{ '&:last-child td': { border: 0 } }}
+                    onClick={() => setSelectedRecord(record)}
+                    sx={{ cursor: 'pointer', '&:last-child td': { border: 0 } }}
                   >
                     <TableCell>
                       <Avatar
@@ -435,7 +454,7 @@ const ApprovalPage: React.FC = () => {
                     </TableCell>
                     <TableCell>
                       <Typography sx={{ fontSize: '0.875rem' }}>
-                        {record.action} {(record.entityType || '').replace(/_/g, ' ')}
+                        {record.action} {(record.entityType || '').replace(/_/g, ' ')}{getEntityName(record)}
                       </Typography>
                     </TableCell>
                     <TableCell>
@@ -464,7 +483,7 @@ const ApprovalPage: React.FC = () => {
                         <>
                           <IconButton
                             size="small"
-                            onClick={() => handleApprove(record.id)}
+                            onClick={(e) => { e.stopPropagation(); handleApprove(record.id); }}
                             sx={{ color: COLORS.success, mr: 0.5 }}
                             aria-label={`Approve ${record.requesterName}'s request`}
                           >
@@ -472,7 +491,7 @@ const ApprovalPage: React.FC = () => {
                           </IconButton>
                           <IconButton
                             size="small"
-                            onClick={() => handleReject(record.id)}
+                            onClick={(e) => { e.stopPropagation(); handleReject(record.id); }}
                             sx={{ color: COLORS.error }}
                             aria-label={`Reject ${record.requesterName}'s request`}
                           >
@@ -502,6 +521,116 @@ const ApprovalPage: React.FC = () => {
           />
         )}
       </Box>
+
+      {/* Detail Dialog */}
+      <Dialog
+        open={!!selectedRecord}
+        onClose={() => setSelectedRecord(null)}
+        maxWidth="sm"
+        fullWidth
+      >
+        {selectedRecord && (
+          <>
+            <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', pb: 1 }}>
+              <Typography variant="h6" fontWeight={600}>
+                Approval Request #{selectedRecord.id}
+              </Typography>
+              <IconButton size="small" onClick={() => setSelectedRecord(null)}>
+                <CloseIcon />
+              </IconButton>
+            </DialogTitle>
+            <DialogContent>
+              <Box sx={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: 1.5, mb: 2 }}>
+                <Typography sx={{ fontSize: 13, color: COLORS.text.secondary, fontWeight: 600 }}>Requester</Typography>
+                <Typography sx={{ fontSize: 13 }}>{selectedRecord.requesterName}</Typography>
+
+                <Typography sx={{ fontSize: 13, color: COLORS.text.secondary, fontWeight: 600 }}>Action</Typography>
+                <Typography sx={{ fontSize: 13 }}>{selectedRecord.action} {(selectedRecord.entityType || '').replace(/_/g, ' ')}</Typography>
+
+                <Typography sx={{ fontSize: 13, color: COLORS.text.secondary, fontWeight: 600 }}>Status</Typography>
+                <Box>
+                  <Chip
+                    label={mapStatusLabel(selectedRecord.status)}
+                    size="small"
+                    sx={{ ...getStatusChipStyles(mapStatusToChip(selectedRecord.status)), fontWeight: 500, fontSize: '0.75rem' }}
+                  />
+                </Box>
+
+                <Typography sx={{ fontSize: 13, color: COLORS.text.secondary, fontWeight: 600 }}>Company</Typography>
+                <Typography sx={{ fontSize: 13 }}>{selectedRecord.companyName}</Typography>
+
+                <Typography sx={{ fontSize: 13, color: COLORS.text.secondary, fontWeight: 600 }}>Submitted</Typography>
+                <Typography sx={{ fontSize: 13 }}>{formatDate(selectedRecord.createdAt)} at {formatTime(selectedRecord.createdAt)}</Typography>
+
+                {selectedRecord.reviewerName && (
+                  <>
+                    <Typography sx={{ fontSize: 13, color: COLORS.text.secondary, fontWeight: 600 }}>Reviewed by</Typography>
+                    <Typography sx={{ fontSize: 13 }}>{selectedRecord.reviewerName}</Typography>
+                  </>
+                )}
+
+                {selectedRecord.reviewedAt && (
+                  <>
+                    <Typography sx={{ fontSize: 13, color: COLORS.text.secondary, fontWeight: 600 }}>Reviewed at</Typography>
+                    <Typography sx={{ fontSize: 13 }}>{formatDate(selectedRecord.reviewedAt)} at {formatTime(selectedRecord.reviewedAt)}</Typography>
+                  </>
+                )}
+
+                {selectedRecord.reviewNote && (
+                  <>
+                    <Typography sx={{ fontSize: 13, color: COLORS.text.secondary, fontWeight: 600 }}>Note</Typography>
+                    <Typography sx={{ fontSize: 13 }}>{selectedRecord.reviewNote}</Typography>
+                  </>
+                )}
+              </Box>
+
+              {selectedRecord.payload && Object.keys(selectedRecord.payload).length > 0 && (
+                <>
+                  <Divider sx={{ my: 2 }} />
+                  <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 1.5 }}>
+                    Request Data
+                  </Typography>
+                  <Box sx={{ display: 'grid', gridTemplateColumns: '160px 1fr', gap: 1, bgcolor: '#F9FAFB', p: 2, borderRadius: '8px' }}>
+                    {Object.entries(selectedRecord.payload).map(([key, value]) => (
+                      <React.Fragment key={key}>
+                        <Typography sx={{ fontSize: 12, color: COLORS.text.secondary, fontWeight: 500 }}>
+                          {key.replace(/([A-Z])/g, ' $1').replace(/^./, (s) => s.toUpperCase())}
+                        </Typography>
+                        <Typography sx={{ fontSize: 12, wordBreak: 'break-word' }}>
+                          {typeof value === 'object' ? JSON.stringify(value) : String(value ?? '—')}
+                        </Typography>
+                      </React.Fragment>
+                    ))}
+                  </Box>
+                </>
+              )}
+            </DialogContent>
+            <DialogActions sx={{ px: 3, pb: 2 }}>
+              {selectedRecord.status === 'pending' && (
+                <>
+                  <Button
+                    variant="outlined"
+                    onClick={() => { handleReject(selectedRecord.id); setSelectedRecord(null); }}
+                    sx={{ color: COLORS.error, borderColor: COLORS.error, textTransform: 'none', '&:hover': { borderColor: COLORS.errorHover, bgcolor: COLORS.errorLight } }}
+                  >
+                    Reject
+                  </Button>
+                  <Button
+                    variant="contained"
+                    onClick={() => { handleApprove(selectedRecord.id); setSelectedRecord(null); }}
+                    sx={{ bgcolor: COLORS.success, textTransform: 'none', '&:hover': { bgcolor: COLORS.successHover } }}
+                  >
+                    Approve
+                  </Button>
+                </>
+              )}
+              {selectedRecord.status !== 'pending' && (
+                <Button onClick={() => setSelectedRecord(null)} sx={{ textTransform: 'none' }}>Close</Button>
+              )}
+            </DialogActions>
+          </>
+        )}
+      </Dialog>
 
       <Snackbar
         open={!!successMessage}

@@ -85,6 +85,7 @@ const OpeningBalancePage = lazy(() => import('./pages/accounting/opening-balance
 const TrialBalancePage = lazy(() => import('./pages/reports/TrialBalancePage'))
 const ReportsHubPage = lazy(() => import('./pages/reports/ReportsHubPage'))
 const GeneralLedgerPage = lazy(() => import('./pages/reports/GeneralLedgerPage'))
+const ReportViewerPage = lazy(() => import('./pages/reports/ReportViewerPage'))
 
 // Company Selection
 const SelectCompanyPage = lazy(() => import('./pages/company/SelectCompanyPage'))
@@ -571,6 +572,14 @@ function App() {
           element={
             <SuspenseRoute>
               <GeneralLedgerPage />
+            </SuspenseRoute>
+          }
+        />
+        <Route
+          path="reports/viewer"
+          element={
+            <SuspenseRoute>
+              <ReportViewerPage />
             </SuspenseRoute>
           }
         />
