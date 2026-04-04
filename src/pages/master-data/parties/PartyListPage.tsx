@@ -33,6 +33,7 @@ import {
   Upload as UploadIcon,
 } from '@mui/icons-material';
 import PageHeader from '../../../components/common/PageHeader';
+import PageError from '../../../components/common/PageError';
 import TableSkeleton from '../../../components/common/TableSkeleton';
 import ConfirmDialog from '../../../components/feedback/ConfirmDialog';
 import { COLORS } from '../../../constants/colors';
@@ -60,6 +61,7 @@ const PartyListPage: React.FC = () => {
   const navigate = useNavigate();
   const [parties, setParties] = useState<Party[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<unknown>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterAnchorEl, setFilterAnchorEl] = useState<HTMLButtonElement | null>(null);
   const [filters, setFilters] = useState({
@@ -82,6 +84,7 @@ const PartyListPage: React.FC = () => {
   // Load parties from API
   const loadParties = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const partiesApi = getPartiesApi();
       const response = await partiesApi.v1ApiPartiesGet();
@@ -113,12 +116,7 @@ const PartyListPage: React.FC = () => {
       }
     } catch (error: unknown) {
       console.error('Error loading parties from API:', error);
-      setParties([]);
-      setSnackbar({
-        open: true,
-        message: 'Failed to load parties from server.',
-        severity: 'error',
-      });
+      setLoadError(error);
     } finally {
       setLoading(false);
     }
@@ -247,7 +245,7 @@ const PartyListPage: React.FC = () => {
       }
     }
     setDeleteDialog({ open: false, id: null });
-  }, [parties, deleteDialog.id]);
+  }, [deleteDialog.id]);
 
   const handleDeleteCancel = useCallback(() => {
     setDeleteDialog({ open: false, id: null });
@@ -292,6 +290,10 @@ const PartyListPage: React.FC = () => {
         </Table>
       </Box>
     );
+  }
+
+  if (loadError) {
+    return <PageError error={loadError} onRetry={loadParties} />;
   }
 
   return (

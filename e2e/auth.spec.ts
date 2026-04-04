@@ -62,7 +62,7 @@ test.describe('Authentication - Login Flow', () => {
     await loginPage.expectErrorMessage(/fill in all fields/i)
   })
 
-  test('should show loading state while submitting', async ({ page }) => {
+  test('should show loading state while submitting', async ({ page: _page }) => {
     await loginPage.fillEmail(TEST_USER.email)
     await loginPage.fillPassword(TEST_USER.password)
 

@@ -158,7 +158,7 @@ const UpdateCompanyPage: React.FC = () => {
     };
 
     loadCompany();
-  }, [id, navigate, setFormData, setLogoPreview]);
+  }, [id, navigate, setFormData, setLogoPreview, setError]);
 
   // Handle delete with API
   const handleDelete = useCallback(async () => {

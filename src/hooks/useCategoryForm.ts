@@ -135,7 +135,7 @@ export const useCategoryForm = ({
       // Clear field error when user starts typing
       setFieldErrors((prev) => {
         if (prev[name]) {
-          const { [name]: _, ...rest } = prev;
+          const { [name]: _omit, ...rest } = prev; // eslint-disable-line @typescript-eslint/no-unused-vars
           return rest;
         }
         return prev;
@@ -149,7 +149,7 @@ export const useCategoryForm = ({
     // Clear field error when selection changes
     setFieldErrors((prev) => {
       if (prev[name]) {
-        const { [name]: _, ...rest } = prev;
+        const { [name]: _omit, ...rest } = prev; // eslint-disable-line @typescript-eslint/no-unused-vars
         return rest;
       }
       return prev;

@@ -86,7 +86,7 @@ export const useCustomerForm = (
       // Clear field error when user starts typing
       setFieldErrors((prev) => {
         if (prev[name]) {
-          const { [name]: _, ...rest } = prev;
+          const { [name]: _omit, ...rest } = prev; // eslint-disable-line @typescript-eslint/no-unused-vars
           return rest;
         }
         return prev;
@@ -102,7 +102,7 @@ export const useCustomerForm = (
       // Clear field error when user selects
       setFieldErrors((prev) => {
         if (prev[name]) {
-          const { [name]: _, ...rest } = prev;
+          const { [name]: _omit, ...rest } = prev; // eslint-disable-line @typescript-eslint/no-unused-vars
           return rest;
         }
         return prev;

@@ -89,6 +89,7 @@ const AddSalesInvoicePage: React.FC = () => {
   const [customers, setCustomers] = useState<CustomerOption[]>([]);
   const [taxes, setTaxes] = useState<TaxOption[]>([]);
   const [items, setItems] = useState<ItemOption[]>([]);
+  const [dataLoadWarning, setDataLoadWarning] = useState('');
   const [receiptImage, setReceiptImage] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -138,8 +139,9 @@ const AddSalesInvoicePage: React.FC = () => {
           id: String(c.id),
           name: c.partyName || c.name || '',
         })));
-      } catch (err) {
-        console.error('Error loading customers from API:', err);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : 'Failed to load customers';
+        setDataLoadWarning(msg);
         setCustomers([]);
       }
     };
@@ -266,8 +268,9 @@ const AddSalesInvoicePage: React.FC = () => {
         } else {
           setItems([]);
         }
-      } catch (err) {
-        console.error('Error loading items from API:', err);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : 'Failed to load items';
+        setDataLoadWarning(msg);
         setItems([]);
       }
     };
@@ -450,7 +453,7 @@ const AddSalesInvoicePage: React.FC = () => {
       setError(message);
       setIsSubmitting(false);
     }
-  }, [formData, lineItems, receiptImage, navigate, isEditMode, id, requiresImageAndAccount, items, selectedTax]);
+  }, [formData, lineItems, receiptImage, navigate, isEditMode, id, requiresImageAndAccount, items, selectedTax, originalLineQuantities]);
 
   const handleCancel = useCallback(() => {
     navigate('/sales/invoice');
@@ -512,6 +515,12 @@ const AddSalesInvoicePage: React.FC = () => {
   return (
     <Box sx={{ p: 3, maxWidth: 1400, mx: 'auto', bgcolor: '#F9FAFB', minHeight: '100vh' }}>
       <PageHeader title={isEditMode ? 'Update Sales Invoice' : 'Sales Invoice'} backPath="/sales/invoice" />
+
+      {dataLoadWarning && (
+        <Alert severity="warning" sx={{ mb: 2 }} onClose={() => setDataLoadWarning('')}>
+          {dataLoadWarning} — Some dropdowns may be empty. Contact your administrator to assign the required permissions.
+        </Alert>
+      )}
 
       {isReturned && (
         <Alert severity="info" sx={{ mb: 2 }}>

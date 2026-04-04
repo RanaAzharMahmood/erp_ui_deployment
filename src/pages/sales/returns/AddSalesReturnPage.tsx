@@ -152,7 +152,7 @@ const AddSalesReturnPage: React.FC = () => {
       }
     };
     loadInvoices();
-  }, [formData.companyId]);
+  }, [formData.companyId, isEditMode]);
 
   // Prefill line items when an invoice is selected
   useEffect(() => {
@@ -430,7 +430,7 @@ const AddSalesReturnPage: React.FC = () => {
       setError(message);
       setIsSubmitting(false);
     }
-  }, [formData, items, lineItems, receiptImage, navigate, isEditMode, id, requiresImageAndAccount]);
+  }, [formData, items, lineItems, receiptImage, navigate, isEditMode, id, requiresImageAndAccount, originalStatus]);
 
   const handleCancel = useCallback(() => {
     navigate('/sales/return');

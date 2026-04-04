@@ -181,7 +181,7 @@ const AddOtherPaymentsPage: React.FC = () => {
     } finally {
       setIsSubmitting(false);
     }
-  }, [formData, lineItems, slipImage, companies, calculateTotal]);
+  }, [formData]);
 
   return (
     <Box sx={{ bgcolor: '#F5F5F5', minHeight: '100vh' }}>

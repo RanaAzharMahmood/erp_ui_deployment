@@ -203,7 +203,7 @@ const AddExpensePage: React.FC = () => {
       setError('Failed to create expense. Please try again.');
       setIsSubmitting(false);
     }
-  }, [formData, lineItems, taxes, grossAmount, taxAmount, subtotal, navigate]);
+  }, [formData, taxAmount, subtotal, navigate]);
 
   const handleCancel = useCallback(() => {
     navigate('/account/expense');

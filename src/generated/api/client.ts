@@ -3048,3 +3048,101 @@ class TrialBalanceApi {
 }
 
 export const getTrialBalanceApi = () => new TrialBalanceApi(getApiConfig(), undefined, fetchWithCredentials as any);
+
+// Activity Log Types
+export interface ActivityLog {
+  id: number;
+  userId: number;
+  userName: string;
+  companyId: number;
+  companyName: string;
+  action: string;
+  entityType?: string;
+  entityId?: number;
+  description: string;
+  metadata?: Record<string, unknown>;
+  ipAddress?: string;
+  createdAt: string;
+}
+
+export interface ActivityLogApiResponse<T> {
+  success: boolean;
+  message: string;
+  data: T;
+}
+
+export interface ActivityLogPaginatedResponse {
+  data: ActivityLog[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface ActivityLogFilters {
+  companyId?: number;
+  userId?: number;
+  action?: string;
+  entityType?: string;
+  search?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  limit?: number;
+  offset?: number;
+}
+
+// Activity Logs API Client
+export class ActivityLogsApi {
+  private basePath: string;
+  private fetch: typeof fetch;
+
+  constructor(configuration?: Configuration, basePath?: string, customFetch?: typeof fetch) {
+    this.basePath = configuration?.basePath || basePath || 'http://localhost:8000';
+    this.fetch = customFetch || fetch;
+  }
+
+  async getAll(filters?: ActivityLogFilters): Promise<ActivityLogApiResponse<ActivityLogPaginatedResponse>> {
+    const queryParams = new URLSearchParams();
+    if (filters?.companyId) queryParams.append('companyId', String(filters.companyId));
+    if (filters?.userId) queryParams.append('userId', String(filters.userId));
+    if (filters?.action) queryParams.append('action', filters.action);
+    if (filters?.entityType) queryParams.append('entityType', filters.entityType);
+    if (filters?.search) queryParams.append('search', filters.search);
+    if (filters?.dateFrom) queryParams.append('dateFrom', filters.dateFrom);
+    if (filters?.dateTo) queryParams.append('dateTo', filters.dateTo);
+    if (filters?.limit) queryParams.append('limit', String(filters.limit));
+    if (filters?.offset) queryParams.append('offset', String(filters.offset));
+
+    const queryString = queryParams.toString();
+    const url = `${this.basePath}/v1/api/activity-logs${queryString ? `?${queryString}` : ''}`;
+
+    const response = await this.fetch(url, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new ApiError(response.status, error.message || 'Failed to fetch activity logs');
+    }
+
+    return response.json();
+  }
+
+  async getById(id: number): Promise<ActivityLogApiResponse<ActivityLog>> {
+    const url = `${this.basePath}/v1/api/activity-logs/${id}`;
+
+    const response = await this.fetch(url, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new ApiError(response.status, error.message || 'Failed to fetch activity log');
+    }
+
+    return response.json();
+  }
+}
+
+export const getActivityLogsApi = () => new ActivityLogsApi(getApiConfig(), undefined, fetchWithCredentials as any);
