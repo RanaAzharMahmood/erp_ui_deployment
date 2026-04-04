@@ -3146,3 +3146,154 @@ export class ActivityLogsApi {
 }
 
 export const getActivityLogsApi = () => new ActivityLogsApi(getApiConfig(), undefined, fetchWithCredentials as any);
+
+// Approval Request Types
+export interface ApprovalRequest {
+  id: number;
+  requesterId: number;
+  requesterName: string;
+  companyId: number;
+  companyName: string;
+  action: string;
+  entityType?: string;
+  entityId?: number;
+  method: string;
+  path: string;
+  payload?: Record<string, unknown>;
+  queryParams?: Record<string, unknown>;
+  status: 'pending' | 'approved' | 'rejected';
+  reviewerId?: number;
+  reviewerName?: string;
+  reviewedAt?: string;
+  reviewNote?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ApprovalRequestApiResponse<T> {
+  success: boolean;
+  message: string;
+  data: T;
+}
+
+export interface ApprovalRequestPaginatedResponse {
+  data: ApprovalRequest[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface ApprovalRequestFilters {
+  companyId?: number;
+  status?: string;
+  entityType?: string;
+  action?: string;
+  search?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  limit?: number;
+  offset?: number;
+}
+
+// Approval Requests API Client
+export class ApprovalRequestsApi {
+  private basePath: string;
+  private fetch: typeof fetch;
+
+  constructor(configuration?: Configuration, basePath?: string, customFetch?: typeof fetch) {
+    this.basePath = configuration?.basePath || basePath || 'http://localhost:8000';
+    this.fetch = customFetch || fetch;
+  }
+
+  async getAll(filters?: ApprovalRequestFilters): Promise<ApprovalRequestApiResponse<ApprovalRequestPaginatedResponse>> {
+    const queryParams = new URLSearchParams();
+    if (filters?.companyId) queryParams.append('companyId', String(filters.companyId));
+    if (filters?.status) queryParams.append('status', filters.status);
+    if (filters?.entityType) queryParams.append('entityType', filters.entityType);
+    if (filters?.action) queryParams.append('action', filters.action);
+    if (filters?.search) queryParams.append('search', filters.search);
+    if (filters?.dateFrom) queryParams.append('dateFrom', filters.dateFrom);
+    if (filters?.dateTo) queryParams.append('dateTo', filters.dateTo);
+    if (filters?.limit) queryParams.append('limit', String(filters.limit));
+    if (filters?.offset) queryParams.append('offset', String(filters.offset));
+
+    const queryString = queryParams.toString();
+    const url = `${this.basePath}/v1/api/approval-requests${queryString ? `?${queryString}` : ''}`;
+
+    const response = await this.fetch(url, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new ApiError(response.status, error.message || 'Failed to fetch approval requests');
+    }
+
+    return response.json();
+  }
+
+  async getById(id: number): Promise<ApprovalRequestApiResponse<ApprovalRequest>> {
+    const url = `${this.basePath}/v1/api/approval-requests/${id}`;
+    const response = await this.fetch(url, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new ApiError(response.status, error.message || 'Failed to fetch approval request');
+    }
+
+    return response.json();
+  }
+
+  async approve(id: number, note?: string): Promise<ApprovalRequestApiResponse<ApprovalRequest>> {
+    const url = `${this.basePath}/v1/api/approval-requests/${id}/approve`;
+    const response = await this.fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ note }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new ApiError(response.status, error.message || 'Failed to approve request');
+    }
+
+    return response.json();
+  }
+
+  async reject(id: number, note?: string): Promise<ApprovalRequestApiResponse<ApprovalRequest>> {
+    const url = `${this.basePath}/v1/api/approval-requests/${id}/reject`;
+    const response = await this.fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ note }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new ApiError(response.status, error.message || 'Failed to reject request');
+    }
+
+    return response.json();
+  }
+
+  async getPendingCount(): Promise<ApprovalRequestApiResponse<{ count: number }>> {
+    const url = `${this.basePath}/v1/api/approval-requests/count`;
+    const response = await this.fetch(url, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new ApiError(response.status, error.message || 'Failed to fetch pending count');
+    }
+
+    return response.json();
+  }
+}
+
+export const getApprovalRequestsApi = () => new ApprovalRequestsApi(getApiConfig(), undefined, fetchWithCredentials as any);

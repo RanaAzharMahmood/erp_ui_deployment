@@ -1,5 +1,6 @@
-import React, { lazy } from 'react';
+import React, { lazy, useState, useEffect } from 'react';
 import { Box, Grid, Typography, Alert, IconButton, Tooltip, useMediaQuery, useTheme } from '@mui/material';
+import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import ShoppingCartIcon from '@mui/icons-material/ShoppingCart';
@@ -7,6 +8,7 @@ import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import InventoryIcon from '@mui/icons-material/Inventory';
 import ReceiptIcon from '@mui/icons-material/Receipt';
 import PaymentsIcon from '@mui/icons-material/Payments';
+import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import { DASHBOARD_COLORS, COLORS } from '../../constants/colors';
 import { KPICard, DashboardSkeleton } from '../../components/dashboard';
 import {
@@ -21,12 +23,41 @@ import {
 } from '../../components/dashboard/tables';
 import useDashboardData from '../../hooks/queries/useDashboardData';
 import { useAuth } from '../../contexts/AuthContext';
+import { getApprovalRequestsApi } from '../../generated/api/client';
 
 const ManagerDashboardPage = lazy(() => import('./ManagerDashboardPage'));
 
-const DashboardPage: React.FC = () => {
+const WelcomePage: React.FC = () => {
   const { user } = useAuth();
+  return (
+    <Box
+      sx={{
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        p: 4,
+      }}
+    >
+      <LockOutlinedIcon sx={{ fontSize: 64, color: '#CCCCCC', mb: 2 }} />
+      <Typography variant="h5" sx={{ fontWeight: 600, color: COLORS.text.primary, mb: 1 }}>
+        Welcome, {user?.fullName || 'User'}
+      </Typography>
+      <Typography variant="body1" sx={{ color: COLORS.text.secondary, textAlign: 'center' }}>
+        You don't have access to any modules yet. Contact your administrator to get permissions assigned.
+      </Typography>
+    </Box>
+  );
+};
+
+const DashboardPage: React.FC = () => {
+  const { user, hasPermission } = useAuth();
   const isAdmin = user?.roleName?.toLowerCase() === 'admin';
+
+  if (!isAdmin && !hasPermission('view_dashboard')) {
+    return <WelcomePage />;
+  }
 
   if (!isAdmin) {
     return <ManagerDashboardPage />;
@@ -39,6 +70,13 @@ const AdminDashboard: React.FC = () => {
   const { data, isLoading, error, refresh } = useDashboardData();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const [pendingApprovals, setPendingApprovals] = useState(0);
+
+  useEffect(() => {
+    getApprovalRequestsApi().getPendingCount()
+      .then((res) => setPendingApprovals(res.data?.count || 0))
+      .catch(() => { /* silently ignore */ });
+  }, []);
 
   if (isLoading) {
     return <DashboardSkeleton />;
@@ -116,6 +154,13 @@ const AdminDashboard: React.FC = () => {
       backgroundColor: DASHBOARD_COLORS.kpiBackgrounds.payable,
       iconColor: DASHBOARD_COLORS.kpiIcons.payable,
       trend: { value: 3.2, isPositive: false },
+    },
+    {
+      title: 'Pending Approvals',
+      value: pendingApprovals,
+      icon: <CheckCircleOutlineIcon />,
+      backgroundColor: 'rgba(255, 152, 0, 0.1)',
+      iconColor: '#FF9800',
     },
   ];
 

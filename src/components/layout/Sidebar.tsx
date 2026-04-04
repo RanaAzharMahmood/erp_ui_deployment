@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
+  Badge,
   Box,
   List,
   ListItem,
@@ -31,6 +32,7 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import HistoryIcon from '@mui/icons-material/History';
 import petrozenLogo from '../../assets/images/petrozen-logo.svg';
 import { useAuth } from '../../contexts/AuthContext';
+import { getApprovalRequestsApi } from '../../generated/api/client';
 
 interface MenuItem {
   text: string;
@@ -109,7 +111,24 @@ const Sidebar: React.FC<SidebarProps> = () => {
   const location = useLocation();
   const { user, hasPermission } = useAuth();
   const isAdmin = user?.roleName?.toLowerCase() === 'admin';
+  const isManager = user?.roleName?.toLowerCase() === 'manager';
   const [openMenus, setOpenMenus] = useState<string[]>(['Account', 'Sales', 'Purchase']);
+  const [pendingApprovalCount, setPendingApprovalCount] = useState(0);
+
+  // Fetch pending approval count for admin/manager
+  useEffect(() => {
+    if (!isAdmin && !isManager) return;
+
+    const fetchCount = () => {
+      getApprovalRequestsApi().getPendingCount()
+        .then((res) => setPendingApprovalCount(res.data?.count || 0))
+        .catch(() => { /* silently ignore */ });
+    };
+
+    fetchCount();
+    const interval = setInterval(fetchCount, 60000);
+    return () => clearInterval(interval);
+  }, [isAdmin, isManager]);
 
   const isItemVisible = (item: MenuItem): boolean => {
     if (isAdmin) return true;
@@ -191,7 +210,11 @@ const Sidebar: React.FC<SidebarProps> = () => {
                 minWidth: 40,
               }}
             >
-              {item.icon}
+              {item.text === 'Approval' && pendingApprovalCount > 0 ? (
+                <Badge badgeContent={pendingApprovalCount} color="error" max={99}>
+                  {item.icon}
+                </Badge>
+              ) : item.icon}
             </ListItemIcon>
             <ListItemText
               primary={item.text}

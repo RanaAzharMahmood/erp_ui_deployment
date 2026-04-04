@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import {
   Box,
   Table,
@@ -19,6 +19,8 @@ import {
   Chip,
   IconButton,
   TablePagination,
+  Alert,
+  Snackbar,
 } from '@mui/material'
 import {
   Search as SearchIcon,
@@ -31,30 +33,28 @@ import { useAuth } from '../../contexts/AuthContext'
 import { useCompany } from '../../contexts/CompanyContext'
 import { useCompanies, useDebounce } from '../../hooks'
 import { COLORS, getStatusChipStyles } from '../../constants/colors'
+import TableSkeleton from '../../components/common/TableSkeleton'
+import PageError from '../../components/common/PageError'
+import { getApprovalRequestsApi } from '../../generated/api/client'
+import type { ApprovalRequest } from '../../generated/api/client'
 
-type ApprovalStatus = 'Pending' | 'Submit' | 'Reject'
+type ChipStatus = 'Pending' | 'Submit' | 'Reject'
 
-interface ApprovalRecord {
-  id: number
-  userName: string
-  imageUrl?: string
-  activity: string
-  status: ApprovalStatus
-  time: string
-  date: string
-  companyId: number
-  companyName: string
+const mapStatusToChip = (status: string): ChipStatus => {
+  switch (status) {
+    case 'approved': return 'Submit'
+    case 'rejected': return 'Reject'
+    default: return 'Pending'
+  }
 }
 
-// Mock data for UI-only implementation
-const MOCK_APPROVALS: ApprovalRecord[] = [
-  { id: 1, userName: 'Harib Ansary', activity: 'Add sales invoice', status: 'Pending', time: '12:24 PM', date: 'Dec 31, 2025', companyId: 1, companyName: 'ERP Gas LTD' },
-  { id: 2, userName: 'Harib Ansary', activity: 'Edit purchase invoice', status: 'Submit', time: '12:24 PM', date: 'Dec 31, 2025', companyId: 1, companyName: 'ERP Gas LTD' },
-  { id: 3, userName: 'Harib Ansary', activity: 'Delete expense entry', status: 'Reject', time: '12:24 PM', date: 'Dec 31, 2025', companyId: 1, companyName: 'ERP Gas LTD' },
-  { id: 4, userName: 'Harib Ansary', activity: 'Add sales invoice', status: 'Pending', time: '12:24 PM', date: 'Dec 31, 2025', companyId: 2, companyName: 'Tech Solutions' },
-  { id: 5, userName: 'Harib Ansary', activity: 'Edit journal entry', status: 'Pending', time: '12:24 PM', date: 'Dec 31, 2025', companyId: 2, companyName: 'Tech Solutions' },
-  { id: 6, userName: 'Harib Ansary', activity: 'Add bank deposit', status: 'Submit', time: '12:24 PM', date: 'Dec 31, 2025', companyId: 1, companyName: 'ERP Gas LTD' },
-]
+const mapStatusLabel = (status: string): string => {
+  switch (status) {
+    case 'approved': return 'Approved'
+    case 'rejected': return 'Rejected'
+    default: return 'Pending'
+  }
+}
 
 const ApprovalPage: React.FC = () => {
   const { user } = useAuth()
@@ -62,15 +62,53 @@ const ApprovalPage: React.FC = () => {
   const isAdmin = user?.roleName?.toLowerCase() === 'admin'
 
   const { companies } = useCompanies()
-  const [approvals, setApprovals] = useState<ApprovalRecord[]>(MOCK_APPROVALS)
+  const [approvals, setApprovals] = useState<ApprovalRequest[]>([])
+  const [total, setTotal] = useState(0)
+  const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState<unknown>(null)
   const [selectedCompanyFilter, setSelectedCompanyFilter] = useState<string>('')
   const [searchTerm, setSearchTerm] = useState('')
   const [page, setPage] = useState(0)
   const [rowsPerPage, setRowsPerPage] = useState(10)
   const [orderBy, setOrderBy] = useState<string>('date')
   const [order, setOrder] = useState<'asc' | 'desc'>('desc')
+  const [successMessage, setSuccessMessage] = useState('')
+  const [errorMessage, setErrorMessage] = useState('')
 
   const debouncedSearch = useDebounce(searchTerm, 300)
+
+  const selectedCompanyId = isAdmin && selectedCompanyFilter
+    ? companies.find((c) => c.name === selectedCompanyFilter)?.id
+    : undefined
+
+  const loadApprovals = useCallback(async () => {
+    setIsLoading(true)
+    setLoadError(null)
+
+    try {
+      const api = getApprovalRequestsApi()
+      const response = await api.getAll({
+        companyId: selectedCompanyId,
+        search: debouncedSearch || undefined,
+        limit: rowsPerPage,
+        offset: page * rowsPerPage,
+      })
+
+      if (response.data) {
+        setApprovals(response.data.data || [])
+        setTotal(response.data.total || 0)
+      }
+    } catch (err) {
+      console.error('Error loading approval requests:', err)
+      setLoadError(err)
+    } finally {
+      setIsLoading(false)
+    }
+  }, [selectedCompanyId, debouncedSearch, rowsPerPage, page])
+
+  useEffect(() => {
+    loadApprovals()
+  }, [loadApprovals])
 
   const handleSort = useCallback(
     (property: string) => {
@@ -81,65 +119,34 @@ const ApprovalPage: React.FC = () => {
     [orderBy, order]
   )
 
-  const filteredApprovals = useMemo(() => {
-    let filtered = approvals
-
-    if (isAdmin && selectedCompanyFilter) {
-      filtered = filtered.filter((a) => a.companyName === selectedCompanyFilter)
+  const sortedApprovals = [...approvals].sort((a, b) => {
+    let aValue: string = ''
+    let bValue: string = ''
+    switch (orderBy) {
+      case 'userName':
+        aValue = a.requesterName.toLowerCase()
+        bValue = b.requesterName.toLowerCase()
+        break
+      case 'activity':
+        aValue = `${a.action} ${a.entityType || ''}`.toLowerCase()
+        bValue = `${b.action} ${b.entityType || ''}`.toLowerCase()
+        break
+      case 'status':
+        aValue = a.status
+        bValue = b.status
+        break
+      case 'time':
+      case 'date':
+        aValue = a.createdAt
+        bValue = b.createdAt
+        break
+      default:
+        return 0
     }
-
-    if (!isAdmin && selectedCompany) {
-      filtered = filtered.filter((a) => a.companyId === selectedCompany.id)
-    }
-
-    if (debouncedSearch) {
-      const search = debouncedSearch.toLowerCase()
-      filtered = filtered.filter(
-        (a) =>
-          a.userName.toLowerCase().includes(search) ||
-          a.activity.toLowerCase().includes(search)
-      )
-    }
-
-    const sorted = [...filtered].sort((a, b) => {
-      let aValue: string = ''
-      let bValue: string = ''
-      switch (orderBy) {
-        case 'userName':
-          aValue = a.userName.toLowerCase()
-          bValue = b.userName.toLowerCase()
-          break
-        case 'activity':
-          aValue = a.activity.toLowerCase()
-          bValue = b.activity.toLowerCase()
-          break
-        case 'status':
-          aValue = a.status
-          bValue = b.status
-          break
-        case 'time':
-          aValue = a.time
-          bValue = b.time
-          break
-        case 'date':
-          aValue = a.date
-          bValue = b.date
-          break
-        default:
-          return 0
-      }
-      if (aValue < bValue) return order === 'asc' ? -1 : 1
-      if (aValue > bValue) return order === 'asc' ? 1 : -1
-      return 0
-    })
-
-    return sorted
-  }, [approvals, debouncedSearch, selectedCompanyFilter, isAdmin, selectedCompany, orderBy, order])
-
-  const paginatedApprovals = useMemo(() => {
-    const startIndex = page * rowsPerPage
-    return filteredApprovals.slice(startIndex, startIndex + rowsPerPage)
-  }, [filteredApprovals, page, rowsPerPage])
+    if (aValue < bValue) return order === 'asc' ? -1 : 1
+    if (aValue > bValue) return order === 'asc' ? 1 : -1
+    return 0
+  })
 
   const handleChangePage = useCallback((_event: unknown, newPage: number) => {
     setPage(newPage)
@@ -150,17 +157,29 @@ const ApprovalPage: React.FC = () => {
     setPage(0)
   }, [])
 
-  const handleApprove = useCallback((id: number) => {
-    setApprovals((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, status: 'Submit' as ApprovalStatus } : a))
-    )
-  }, [])
+  const handleApprove = useCallback(async (id: number) => {
+    try {
+      const api = getApprovalRequestsApi()
+      await api.approve(id)
+      setSuccessMessage('Request approved and action executed successfully')
+      loadApprovals()
+    } catch (err) {
+      console.error('Error approving request:', err)
+      setErrorMessage(err instanceof Error ? err.message : 'Failed to approve request')
+    }
+  }, [loadApprovals])
 
-  const handleReject = useCallback((id: number) => {
-    setApprovals((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, status: 'Reject' as ApprovalStatus } : a))
-    )
-  }, [])
+  const handleReject = useCallback(async (id: number) => {
+    try {
+      const api = getApprovalRequestsApi()
+      await api.reject(id)
+      setSuccessMessage('Request rejected successfully')
+      loadApprovals()
+    } catch (err) {
+      console.error('Error rejecting request:', err)
+      setErrorMessage(err instanceof Error ? err.message : 'Failed to reject request')
+    }
+  }, [loadApprovals])
 
   const handlePrint = useCallback(() => {
     window.print()
@@ -168,7 +187,16 @@ const ApprovalPage: React.FC = () => {
 
   const handleExportCSV = useCallback(() => {
     const headers = ['User Name', 'Activity', 'Status', 'Time', 'Date']
-    const rows = filteredApprovals.map((a) => [a.userName, a.activity, a.status, a.time, a.date])
+    const rows = approvals.map((a) => {
+      const d = new Date(a.createdAt)
+      return [
+        a.requesterName,
+        `${a.action} ${(a.entityType || '').replace(/_/g, ' ')}`,
+        mapStatusLabel(a.status),
+        d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+        d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
+      ]
+    })
     const csvContent = [headers, ...rows].map((row) => row.join(',')).join('\n')
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
     const link = document.createElement('a')
@@ -176,9 +204,23 @@ const ApprovalPage: React.FC = () => {
     link.download = 'approval_log.csv'
     link.click()
     URL.revokeObjectURL(link.href)
-  }, [filteredApprovals])
+  }, [approvals])
+
+  const formatTime = (dateStr: string) => {
+    const d = new Date(dateStr)
+    return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+  }
+
+  const formatDate = (dateStr: string) => {
+    const d = new Date(dateStr)
+    return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+  }
 
   const displayCompanyName = !isAdmin && selectedCompany ? selectedCompany.name : ''
+
+  if (loadError) {
+    return <PageError error={loadError} onRetry={loadApprovals} />
+  }
 
   return (
     <Box sx={{ p: 3 }}>
@@ -361,7 +403,9 @@ const ApprovalPage: React.FC = () => {
               </TableRow>
             </TableHead>
             <TableBody>
-              {filteredApprovals.length === 0 ? (
+              {isLoading ? (
+                <TableSkeleton rows={5} columns={7} />
+              ) : sortedApprovals.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={7} align="center" sx={{ py: 8 }}>
                     <Typography color="text.secondary">
@@ -370,7 +414,7 @@ const ApprovalPage: React.FC = () => {
                   </TableCell>
                 </TableRow>
               ) : (
-                paginatedApprovals.map((record) => (
+                sortedApprovals.map((record) => (
                   <TableRow
                     key={record.id}
                     hover
@@ -378,29 +422,28 @@ const ApprovalPage: React.FC = () => {
                   >
                     <TableCell>
                       <Avatar
-                        src={record.imageUrl}
-                        alt={record.userName}
+                        alt={record.requesterName}
                         sx={{ width: 40, height: 40, bgcolor: '#9E9E9E' }}
                       >
-                        {record.userName.charAt(0)}
+                        {record.requesterName.charAt(0)}
                       </Avatar>
                     </TableCell>
                     <TableCell>
                       <Typography sx={{ fontSize: '0.875rem' }}>
-                        {record.userName}
+                        {record.requesterName}
                       </Typography>
                     </TableCell>
                     <TableCell>
                       <Typography sx={{ fontSize: '0.875rem' }}>
-                        {record.activity}
+                        {record.action} {(record.entityType || '').replace(/_/g, ' ')}
                       </Typography>
                     </TableCell>
                     <TableCell>
                       <Chip
-                        label={record.status === 'Submit' ? 'Approved' : record.status === 'Reject' ? 'Rejected' : record.status}
+                        label={mapStatusLabel(record.status)}
                         size="small"
                         sx={{
-                          ...getStatusChipStyles(record.status),
+                          ...getStatusChipStyles(mapStatusToChip(record.status)),
                           fontWeight: 500,
                           fontSize: '0.75rem',
                         }}
@@ -408,22 +451,22 @@ const ApprovalPage: React.FC = () => {
                     </TableCell>
                     <TableCell>
                       <Typography sx={{ fontSize: '0.875rem' }}>
-                        {record.time}
+                        {formatTime(record.createdAt)}
                       </Typography>
                     </TableCell>
                     <TableCell>
                       <Typography sx={{ fontSize: '0.875rem' }}>
-                        {record.date}
+                        {formatDate(record.createdAt)}
                       </Typography>
                     </TableCell>
                     <TableCell align="right">
-                      {record.status === 'Pending' && (
+                      {record.status === 'pending' && (
                         <>
                           <IconButton
                             size="small"
                             onClick={() => handleApprove(record.id)}
                             sx={{ color: COLORS.success, mr: 0.5 }}
-                            aria-label={`Approve ${record.userName}'s request`}
+                            aria-label={`Approve ${record.requesterName}'s request`}
                           >
                             <CheckCircleIcon sx={{ fontSize: 22 }} />
                           </IconButton>
@@ -431,7 +474,7 @@ const ApprovalPage: React.FC = () => {
                             size="small"
                             onClick={() => handleReject(record.id)}
                             sx={{ color: COLORS.error }}
-                            aria-label={`Reject ${record.userName}'s request`}
+                            aria-label={`Reject ${record.requesterName}'s request`}
                           >
                             <CancelIcon sx={{ fontSize: 22 }} />
                           </IconButton>
@@ -445,10 +488,10 @@ const ApprovalPage: React.FC = () => {
           </Table>
         </TableContainer>
 
-        {filteredApprovals.length > 0 && (
+        {!isLoading && total > 0 && (
           <TablePagination
             component="div"
-            count={filteredApprovals.length}
+            count={total}
             page={page}
             onPageChange={handleChangePage}
             rowsPerPage={rowsPerPage}
@@ -459,6 +502,28 @@ const ApprovalPage: React.FC = () => {
           />
         )}
       </Box>
+
+      <Snackbar
+        open={!!successMessage}
+        autoHideDuration={4000}
+        onClose={() => setSuccessMessage('')}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert onClose={() => setSuccessMessage('')} severity="success" sx={{ width: '100%' }}>
+          {successMessage}
+        </Alert>
+      </Snackbar>
+
+      <Snackbar
+        open={!!errorMessage}
+        autoHideDuration={6000}
+        onClose={() => setErrorMessage('')}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert onClose={() => setErrorMessage('')} severity="error" sx={{ width: '100%' }}>
+          {errorMessage}
+        </Alert>
+      </Snackbar>
     </Box>
   )
 }
