@@ -180,7 +180,17 @@ const UpdateCompanyPage: React.FC = () => {
       }, 1500);
     } catch (err: unknown) {
       console.error('Error deleting company:', err);
-      setDeleteError('Failed to delete company. Please try again.');
+      const apiError = err as { json?: () => Promise<{ message?: string }> };
+      if (apiError.json) {
+        try {
+          const errorData = await apiError.json();
+          setDeleteError(errorData.message || 'Failed to delete company. Please try again.');
+        } catch {
+          setDeleteError('Failed to delete company. Please try again.');
+        }
+      } else {
+        setDeleteError('Failed to delete company. Please try again.');
+      }
       setIsDeleting(false);
     }
   }, [id, navigate, setSuccessMessage]);
