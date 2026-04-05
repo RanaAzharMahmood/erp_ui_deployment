@@ -228,6 +228,20 @@ const CompanyFormFields: React.FC<CompanyFormFieldsProps> = ({
               helperText="Transactions before this date are locked"
             />
           </Grid>
+          <Grid item xs={12} sm={6}>
+            <TextField
+              fullWidth
+              label="Opening Amount"
+              name="openingAmount"
+              type="number"
+              value={formData.openingAmount || ''}
+              onChange={onInputChange}
+              placeholder="0.00"
+              size="small"
+              inputProps={{ min: 0, step: '0.01' }}
+              helperText="Opening balance for Cash in Hand and Owner's Capital"
+            />
+          </Grid>
         </Grid>
       </FormSection>
 

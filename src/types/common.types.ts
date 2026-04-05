@@ -177,7 +177,7 @@ export interface User extends BaseEntity {
 }
 
 // Form data types (without id and timestamps)
-export type CompanyFormData = Omit<Company, 'id' | 'createdAt' | 'updatedAt'>;
+export type CompanyFormData = Omit<Company, 'id' | 'createdAt' | 'updatedAt'> & { openingAmount: string };
 export type CustomerFormData = Omit<Customer, 'id' | 'createdAt' | 'updatedAt'>;
 export type VendorFormData = Omit<Vendor, 'id' | 'createdAt' | 'updatedAt'>;
 export type TaxFormData = Omit<Tax, 'id' | 'createdAt' | 'updatedAt'>;

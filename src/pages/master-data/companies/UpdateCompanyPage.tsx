@@ -20,7 +20,7 @@ import DangerZone from '../../../components/common/DangerZone';
 import ActionButtons from '../../../components/common/ActionButtons';
 import { CompanyFormFields, CompanyFormSkeleton, LogoUpload } from '../../../components/companies';
 import { useCompanyForm } from '../../../hooks/useCompanyForm';
-import { getCompaniesApi } from '../../../generated/api/client';
+import { getCompaniesApi, getOpeningBalanceApi } from '../../../generated/api/client';
 import type { Company as ApiCompany } from '../../../generated/api/api';
 // import type { Status } from '../../../types/common.types';
 
@@ -143,7 +143,23 @@ const UpdateCompanyPage: React.FC = () => {
             ? new Date(company.lockPeriod).toISOString().slice(0, 10)
             : '',
           invoicePrefix: company.invoicePrefix || '',
+          openingAmount: '',
         });
+
+        // Load opening amount from opening balance entries
+        try {
+          const obApi = getOpeningBalanceApi();
+          const obResult = await obApi.getOpeningBalances(Number(id));
+          const obData = obResult.data?.openingBalance;
+          if (obData) {
+            const cashLine = obData.lines.find((l: { accountCode: string }) => l.accountCode === '1010');
+            if (cashLine && cashLine.debit > 0) {
+              setFormData((prev) => ({ ...prev, openingAmount: String(cashLine.debit) }));
+            }
+          }
+        } catch {
+          // Non-critical — opening amount field just won't be pre-populated
+        }
 
         if (company.logoUrl || company.logo) {
           setLogoPreview(company.logoUrl || company.logo || '');

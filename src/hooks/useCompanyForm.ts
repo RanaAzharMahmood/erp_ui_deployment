@@ -26,6 +26,7 @@ export const initialCompanyFormState: CompanyFormData = {
   fiscalYearEnd: '',
   lockPeriod: '',
   invoicePrefix: '',
+  openingAmount: '',
 };
 
 interface UseCompanyFormOptions {
@@ -192,6 +193,7 @@ export const useCompanyForm = ({
           fiscalYearStart?: string;
           fiscalYearEnd?: string;
           lockPeriod?: string;
+          openingAmount?: number;
         } = {
           name: formData.companyName,
           address: formData.address || undefined,
@@ -210,6 +212,7 @@ export const useCompanyForm = ({
           fiscalYearStart: formData.fiscalYearStart || undefined,
           fiscalYearEnd: formData.fiscalYearEnd || undefined,
           lockPeriod: formData.lockPeriod || undefined,
+          openingAmount: formData.openingAmount ? parseFloat(formData.openingAmount) : undefined,
         };
 
         // Call API
@@ -227,6 +230,7 @@ export const useCompanyForm = ({
           fiscalYearEnd?: string;
           lockPeriod?: string;
           invoicePrefix?: string;
+          openingAmount?: number;
         } = {
           name: formData.companyName,
           address: formData.address || undefined,
@@ -246,6 +250,7 @@ export const useCompanyForm = ({
           fiscalYearEnd: formData.fiscalYearEnd || undefined,
           lockPeriod: formData.lockPeriod || undefined,
           invoicePrefix: formData.invoicePrefix || undefined,
+          openingAmount: formData.openingAmount ? parseFloat(formData.openingAmount) : undefined,
         };
 
         // Call API
