@@ -44,6 +44,7 @@ import ConfirmDialog from '../../../components/common/ConfirmDialog';
 import { COLORS } from '../../../constants/colors';
 import { useDebounce } from '../../../hooks/useDebounce';
 import { expenseService, type Expense, type ExpenseStatus } from '../../../services';
+import { useAuth } from '../../../contexts/AuthContext';
 
 const STATUSES = ['All', 'draft', 'approved', 'paid', 'void'];
 
@@ -72,6 +73,8 @@ const formatStatusLabel = (status: ExpenseStatus): string => {
 
 const ExpenseListPage: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const isEmployee = user?.roleName?.toLowerCase() === 'employee';
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<unknown>(null);
@@ -714,14 +717,16 @@ const ExpenseListPage: React.FC = () => {
                         <Box sx={{ display: 'flex', gap: 0.5 }}>
                           {expense.status === 'draft' && (
                             <>
-                              <IconButton
-                                size="small"
-                                onClick={() => handleActionClick(expense.id, 'approve')}
-                                sx={{ color: '#2196F3' }}
-                                aria-label={`Approve expense ${expense.expenseNumber}`}
-                              >
-                                <ApproveIcon fontSize="small" />
-                              </IconButton>
+                              {!isEmployee && (
+                                <IconButton
+                                  size="small"
+                                  onClick={() => handleActionClick(expense.id, 'approve')}
+                                  sx={{ color: '#2196F3' }}
+                                  aria-label={`Approve expense ${expense.expenseNumber}`}
+                                >
+                                  <ApproveIcon fontSize="small" />
+                                </IconButton>
+                              )}
                               <IconButton
                                 size="small"
                                 onClick={() => handleEditExpense(expense.id)}
@@ -740,7 +745,7 @@ const ExpenseListPage: React.FC = () => {
                               </IconButton>
                             </>
                           )}
-                          {expense.status === 'approved' && (
+                          {expense.status === 'approved' && !isEmployee && (
                             <>
                               <IconButton
                                 size="small"
@@ -760,7 +765,7 @@ const ExpenseListPage: React.FC = () => {
                               </IconButton>
                             </>
                           )}
-                          {expense.status === 'paid' && (
+                          {expense.status === 'paid' && !isEmployee && (
                             <IconButton
                               size="small"
                               onClick={() => handleActionClick(expense.id, 'void')}
