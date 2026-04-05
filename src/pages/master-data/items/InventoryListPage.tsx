@@ -33,6 +33,7 @@ import {
   GridOn as GridIcon,
 } from '@mui/icons-material';
 import TableSkeleton from '../../../components/common/TableSkeleton';
+import PageError from '../../../components/common/PageError';
 import ConfirmDialog from '../../../components/feedback/ConfirmDialog';
 import { COLORS } from '../../../constants/colors';
 import { getItemsApi } from '../../../generated/api/client';
@@ -64,6 +65,7 @@ const InventoryListPage: React.FC = () => {
   const navigate = useNavigate();
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<unknown>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterAnchorEl, setFilterAnchorEl] = useState<HTMLButtonElement | null>(null);
   const [filters, setFilters] = useState({
@@ -87,6 +89,7 @@ const InventoryListPage: React.FC = () => {
   // Load items from API
   const loadItems = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const itemsApi = getItemsApi();
       // Pass undefined to get all items regardless of status for the filter to work
@@ -134,11 +137,7 @@ const InventoryListPage: React.FC = () => {
       }
     } catch (error: unknown) {
       console.error('Error loading items:', error);
-      setSnackbar({
-        open: true,
-        message: 'Failed to load items. Please try again.',
-        severity: 'error',
-      });
+      setLoadError(error);
     } finally {
       setLoading(false);
     }
@@ -202,6 +201,10 @@ const InventoryListPage: React.FC = () => {
         case 'purchasePrice':
           aValue = a.purchasePrice;
           bValue = b.purchasePrice;
+          break;
+        case 'currentStock':
+          aValue = a.currentStock;
+          bValue = b.currentStock;
           break;
         case 'status':
           aValue = a.isActive ? 'Active' : 'Inactive';
@@ -315,6 +318,10 @@ const InventoryListPage: React.FC = () => {
         </Table>
       </Box>
     );
+  }
+
+  if (loadError) {
+    return <PageError error={loadError} onRetry={loadItems} />;
   }
 
   return (
@@ -589,6 +596,19 @@ const InventoryListPage: React.FC = () => {
                 <TableCell
                   scope="col"
                   sx={{ fontWeight: 600, color: '#374151' }}
+                  aria-sort={orderBy === 'currentStock' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
+                >
+                  <TableSortLabel
+                    active={orderBy === 'currentStock'}
+                    direction={orderBy === 'currentStock' ? order : 'asc'}
+                    onClick={() => handleSort('currentStock')}
+                  >
+                    Quantity
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell
+                  scope="col"
+                  sx={{ fontWeight: 600, color: '#374151' }}
                   aria-sort={orderBy === 'status' ? (order === 'asc' ? 'ascending' : 'descending') : undefined}
                 >
                   <TableSortLabel
@@ -605,7 +625,7 @@ const InventoryListPage: React.FC = () => {
             <TableBody>
               {filteredItems.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} align="center" sx={{ py: 8 }}>
+                  <TableCell colSpan={9} align="center" sx={{ py: 8 }}>
                     <Typography color="text.secondary">
                       No items found. Click "Add Item" to add one.
                     </Typography>
@@ -625,6 +645,9 @@ const InventoryListPage: React.FC = () => {
                     <TableCell>{item.categoryName || '-'}</TableCell>
                     <TableCell>{item.unitPrice.toFixed(1)} PKR</TableCell>
                     <TableCell>{item.purchasePrice.toFixed(1)}</TableCell>
+                    <TableCell sx={{ fontWeight: 500, color: item.currentStock <= 0 ? COLORS.error : COLORS.text.primary }}>
+                      {item.currentStock} {item.unitOfMeasure}
+                    </TableCell>
                     <TableCell>
                       <Chip
                         label={item.isActive ? 'Active' : 'Inactive'}
