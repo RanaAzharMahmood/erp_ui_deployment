@@ -39,6 +39,7 @@ import {
   Block as VoidIcon,
 } from '@mui/icons-material';
 import TableSkeleton from '../../../components/common/TableSkeleton';
+import PageError from '../../../components/common/PageError';
 import ConfirmDialog from '../../../components/common/ConfirmDialog';
 import { COLORS } from '../../../constants/colors';
 import { useDebounce } from '../../../hooks/useDebounce';
@@ -65,6 +66,7 @@ const getStatusColor = (status: ExpenseStatus) => {
 };
 
 const formatStatusLabel = (status: ExpenseStatus): string => {
+  if (!status) return 'Unknown';
   return status.charAt(0).toUpperCase() + status.slice(1);
 };
 
@@ -72,6 +74,7 @@ const ExpenseListPage: React.FC = () => {
   const navigate = useNavigate();
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<unknown>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterAnchorEl, setFilterAnchorEl] = useState<HTMLButtonElement | null>(null);
   const [filters, setFilters] = useState({
@@ -109,6 +112,7 @@ const ExpenseListPage: React.FC = () => {
   // Load expenses from API
   const loadExpenses = useCallback(async () => {
     setIsLoading(true);
+    setLoadError(null);
     setError('');
 
     try {
@@ -156,10 +160,7 @@ const ExpenseListPage: React.FC = () => {
       setTotalCount(response.data.total);
     } catch (err: unknown) {
       console.error('Error loading expenses:', err);
-      const errorMessage = err instanceof Error ? err.message : 'Failed to load expenses';
-      setError(errorMessage);
-      setExpenses([]);
-      setTotalCount(0);
+      setLoadError(err);
     } finally {
       setIsLoading(false);
     }
@@ -392,6 +393,10 @@ const ExpenseListPage: React.FC = () => {
         return '';
     }
   };
+
+  if (loadError) {
+    return <PageError error={loadError} onRetry={loadExpenses} />;
+  }
 
   return (
     <Box sx={{ p: 3 }}>
