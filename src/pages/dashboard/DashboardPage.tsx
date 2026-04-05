@@ -207,7 +207,6 @@ const AdminDashboard: React.FC = () => {
               icon={kpi.icon}
               backgroundColor={kpi.backgroundColor}
               iconColor={kpi.iconColor}
-              trend={kpi.trend}
             />
           </Grid>
         ))}
