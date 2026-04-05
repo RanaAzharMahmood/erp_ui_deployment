@@ -114,7 +114,6 @@ const AdminDashboard: React.FC = () => {
       icon: <TrendingUpIcon />,
       backgroundColor: DASHBOARD_COLORS.kpiBackgrounds.sales,
       iconColor: DASHBOARD_COLORS.kpiIcons.sales,
-      trend: { value: 12.5, isPositive: true },
     },
     {
       title: "Today's Purchase",
@@ -122,7 +121,6 @@ const AdminDashboard: React.FC = () => {
       icon: <ShoppingCartIcon />,
       backgroundColor: DASHBOARD_COLORS.kpiBackgrounds.purchase,
       iconColor: DASHBOARD_COLORS.kpiIcons.purchase,
-      trend: { value: 8.3, isPositive: true },
     },
     {
       title: 'Profit/Loss',
@@ -130,7 +128,6 @@ const AdminDashboard: React.FC = () => {
       icon: <AccountBalanceWalletIcon />,
       backgroundColor: DASHBOARD_COLORS.kpiBackgrounds.profit,
       iconColor: DASHBOARD_COLORS.kpiIcons.profit,
-      trend: { value: 15.2, isPositive: true },
     },
     {
       title: 'Stock Value',
@@ -145,7 +142,6 @@ const AdminDashboard: React.FC = () => {
       icon: <ReceiptIcon />,
       backgroundColor: DASHBOARD_COLORS.kpiBackgrounds.receivable,
       iconColor: DASHBOARD_COLORS.kpiIcons.receivable,
-      trend: { value: 5.7, isPositive: false },
     },
     {
       title: 'Payable',
@@ -153,7 +149,6 @@ const AdminDashboard: React.FC = () => {
       icon: <PaymentsIcon />,
       backgroundColor: DASHBOARD_COLORS.kpiBackgrounds.payable,
       iconColor: DASHBOARD_COLORS.kpiIcons.payable,
-      trend: { value: 3.2, isPositive: false },
     },
     {
       title: 'Pending Approvals',
