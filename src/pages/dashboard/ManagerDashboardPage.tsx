@@ -165,6 +165,7 @@ const ManagerDashboardPage: React.FC = () => {
           <Button
             variant="contained"
             startIcon={<PersonAddIcon />}
+            onClick={() => navigate('/users/add')}
             sx={{
               bgcolor: '#FF6B35',
               textTransform: 'none',
