@@ -273,7 +273,17 @@ const CompaniesPage: React.FC = () => {
         setSuccessMessage('Company deleted successfully');
       } catch (err: unknown) {
         console.error('Error deleting company:', err);
-        setError('Failed to delete company. Please try again.');
+        const apiError = err as { json?: () => Promise<{ message?: string }> };
+        if (apiError.json) {
+          try {
+            const errorData = await apiError.json();
+            setError(errorData.message || 'Failed to delete company. Please try again.');
+          } catch {
+            setError('Failed to delete company. Please try again.');
+          }
+        } else {
+          setError('Failed to delete company. Please try again.');
+        }
       }
     }
     setDeleteDialog({ open: false, id: null });
