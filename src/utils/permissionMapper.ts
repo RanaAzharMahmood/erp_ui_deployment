@@ -66,11 +66,20 @@ export const PERMISSION_MAP: Record<string, Record<string, string>> = {
     Pay: 'pay_expenses,pay_other_payments',
   },
 
-  // Reports & Activity (Read-only)
-  reports: {
-    View: 'view_dashboard,view_reports,view_activity_logs',
-  },
 };
+
+// Reverse mapping: permission name -> { module, action } (built from PERMISSION_MAP)
+export const PERMISSION_NAME_REVERSE_MAP: Record<string, { module: string; action: string }> = (() => {
+  const map: Record<string, { module: string; action: string }> = {};
+  for (const [module, actions] of Object.entries(PERMISSION_MAP)) {
+    for (const [action, nameStr] of Object.entries(actions)) {
+      for (const name of nameStr.split(',').map((n) => n.trim())) {
+        map[name] = { module, action };
+      }
+    }
+  }
+  return map;
+})();
 
 // Reverse mapping: permission ID -> { module, action }
 export const PERMISSION_ID_MAP: Record<number, { module: string; action: string }> = {
@@ -165,13 +174,16 @@ export function permissionNamesToModulePermissions(
   const modulePermissions: Record<string, string[]> = {};
 
   for (const perm of permissions) {
-    const mapping = PERMISSION_ID_MAP[perm.id];
+    // Look up by name first (covers dynamically created permissions), fall back to ID
+    const mapping = PERMISSION_NAME_REVERSE_MAP[perm.name] || PERMISSION_ID_MAP[perm.id];
     if (!mapping) continue;
 
     if (!modulePermissions[mapping.module]) {
       modulePermissions[mapping.module] = [];
     }
-    modulePermissions[mapping.module].push(mapping.action);
+    if (!modulePermissions[mapping.module].includes(mapping.action)) {
+      modulePermissions[mapping.module].push(mapping.action);
+    }
   }
 
   return modulePermissions;

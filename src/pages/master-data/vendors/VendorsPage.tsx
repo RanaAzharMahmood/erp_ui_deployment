@@ -31,6 +31,7 @@ import {
   Delete as DeleteIcon,
 } from '@mui/icons-material';
 import TableSkeleton from '../../../components/common/TableSkeleton';
+import PageError from '../../../components/common/PageError';
 import ConfirmDialog from '../../../components/feedback/ConfirmDialog';
 import { COLORS } from '../../../constants/colors';
 import { useDebounce } from '../../../hooks/useDebounce';
@@ -42,6 +43,7 @@ const VendorsPage: React.FC = () => {
   const navigate = useNavigate();
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<unknown>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('All');
   const [page, setPage] = useState(0);
@@ -62,6 +64,7 @@ const VendorsPage: React.FC = () => {
   // Load vendors from API
   const loadVendors = useCallback(async () => {
     setIsLoading(true);
+    setLoadError(null);
     setError('');
 
     try {
@@ -89,10 +92,7 @@ const VendorsPage: React.FC = () => {
       setTotalCount(response.pagination.total);
     } catch (err: unknown) {
       console.error('Error loading vendors:', err);
-      const errorMessage = err instanceof Error ? err.message : 'Failed to load vendors';
-      setError(errorMessage);
-      setVendors([]);
-      setTotalCount(0);
+      setLoadError(err);
     } finally {
       setIsLoading(false);
     }
@@ -208,6 +208,10 @@ const VendorsPage: React.FC = () => {
   const getStatusFromIsActive = (isActive: boolean): string => {
     return isActive ? 'Active' : 'Inactive';
   };
+
+  if (loadError) {
+    return <PageError error={loadError} onRetry={loadVendors} />;
+  }
 
   return (
     <Box sx={{ p: 3 }}>

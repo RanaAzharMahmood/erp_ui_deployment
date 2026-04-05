@@ -36,6 +36,7 @@ import {
   Block as VoidIcon,
 } from '@mui/icons-material';
 import TableSkeleton from '../../../components/common/TableSkeleton';
+import PageError from '../../../components/common/PageError';
 import ConfirmDialog from '../../../components/common/ConfirmDialog';
 import { COLORS } from '../../../constants/colors';
 import {
@@ -52,6 +53,7 @@ const JournalEntryListPage: React.FC = () => {
   const navigate = useNavigate();
   const [entries, setEntries] = useState<JournalEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<unknown>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [error, setError] = useState<string>('');
   const [successMessage, setSuccessMessage] = useState<string>('');
@@ -83,6 +85,7 @@ const JournalEntryListPage: React.FC = () => {
   // Load entries from API
   const loadEntries = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const api = getJournalEntriesApi();
       const apiFilters: ApiFilters = {
@@ -105,7 +108,7 @@ const JournalEntryListPage: React.FC = () => {
       }
     } catch (err) {
       console.error('Error loading journal entries:', err);
-      setError(err instanceof Error ? err.message : 'Failed to load journal entries. Please try again.');
+      setLoadError(err);
     } finally {
       setLoading(false);
     }
@@ -343,6 +346,10 @@ const JournalEntryListPage: React.FC = () => {
         </Table>
       </Box>
     );
+  }
+
+  if (loadError) {
+    return <PageError error={loadError} onRetry={loadEntries} />;
   }
 
   return (

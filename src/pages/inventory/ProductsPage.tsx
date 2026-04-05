@@ -31,6 +31,7 @@ import InventoryIcon from '@mui/icons-material/Inventory';
 import { useCategories } from '../../hooks/useCategories';
 import ConfirmDialog from '../../components/feedback/ConfirmDialog';
 import TableSkeleton from '../../components/common/TableSkeleton';
+import PageError from '../../components/common/PageError';
 import { COLORS } from '../../constants/colors';
 import {
   getProductsApi,
@@ -80,6 +81,7 @@ type OrderBy = 'name' | 'code' | 'categoryId' | 'costPrice' | 'sellingPrice' | '
 const ProductsPage: React.FC = () => {
   const [products, setProducts] = useState<ProductData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<unknown>(null);
   const [open, setOpen] = useState(false);
   const [stockDialogOpen, setStockDialogOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<ProductData | null>(null);
@@ -108,6 +110,7 @@ const ProductsPage: React.FC = () => {
 
   const loadProducts = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const api = getProductsApi();
       const response = await api.getAll({ isActive: true });
@@ -116,11 +119,7 @@ const ProductsPage: React.FC = () => {
       }
     } catch (error) {
       console.error('Error loading products:', error);
-      setSnackbar({
-        open: true,
-        message: error instanceof Error ? error.message : 'Failed to load products',
-        severity: 'error',
-      });
+      setLoadError(error);
     } finally {
       setLoading(false);
     }
@@ -354,6 +353,10 @@ const ProductsPage: React.FC = () => {
         </Table>
       </Box>
     );
+  }
+
+  if (loadError) {
+    return <PageError error={loadError} onRetry={loadProducts} />;
   }
 
   return (

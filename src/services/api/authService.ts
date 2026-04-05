@@ -110,6 +110,18 @@ export const authService = {
 
     return data
   },
+
+  /**
+   * Persist selected company for the current user
+   */
+  async selectCompany(companyId: number): Promise<void> {
+    await fetch(`${API_BASE_URL}/v1/api/users/me/company`, {
+      method: 'PUT',
+      headers: getHeaders(),
+      credentials: 'include',
+      body: JSON.stringify({ companyId }),
+    })
+  },
 }
 
 export default authService

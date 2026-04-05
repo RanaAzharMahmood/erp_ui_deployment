@@ -36,6 +36,7 @@ import {
   Cancel as VoidIcon,
 } from '@mui/icons-material';
 import TableSkeleton from '../../../components/common/TableSkeleton';
+import PageError from '../../../components/common/PageError';
 import ConfirmDialog from '../../../components/common/ConfirmDialog';
 import { COLORS } from '../../../constants/colors';
 import {
@@ -52,6 +53,7 @@ const BankDepositListPage: React.FC = () => {
   const navigate = useNavigate();
   const [deposits, setDeposits] = useState<BankDeposit[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<unknown>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterAnchorEl, setFilterAnchorEl] = useState<HTMLButtonElement | null>(null);
   const [filters, setFilters] = useState({
@@ -84,6 +86,7 @@ const BankDepositListPage: React.FC = () => {
   // Load deposits from API
   const loadDeposits = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const api = getBankDepositsApi();
       const apiFilters: BankDepositFilters = {
@@ -106,11 +109,7 @@ const BankDepositListPage: React.FC = () => {
       }
     } catch (error) {
       console.error('Error loading deposits:', error);
-      setSnackbar({
-        open: true,
-        message: error instanceof Error ? error.message : 'Failed to load bank deposits',
-        severity: 'error',
-      });
+      setLoadError(error);
     } finally {
       setLoading(false);
     }
@@ -344,6 +343,10 @@ const BankDepositListPage: React.FC = () => {
         </Table>
       </Box>
     );
+  }
+
+  if (loadError) {
+    return <PageError error={loadError} onRetry={loadDeposits} />;
   }
 
   return (

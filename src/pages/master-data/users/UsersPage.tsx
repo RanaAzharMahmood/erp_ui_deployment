@@ -34,6 +34,7 @@ import { useDebounce } from '../../../hooks/useDebounce';
 import { useCompanies } from '../../../hooks';
 import { preloadRoute } from '../../../utils/routePreloader';
 import TableSkeleton from '../../../components/common/TableSkeleton';
+import PageError from '../../../components/common/PageError';
 import FilterManager, { type FilterField } from '../../../components/common/FilterManager';
 import ConfirmDialog from '../../../components/feedback/ConfirmDialog';
 import { COLORS } from '../../../constants/colors';
@@ -58,6 +59,7 @@ const UsersPage: React.FC = () => {
   const isAdmin = authUser?.roleName?.toLowerCase() === 'admin';
   const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<unknown>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCompany, setSelectedCompany] = useState('');
   const [selectedRole, setSelectedRole] = useState('');
@@ -91,6 +93,7 @@ const UsersPage: React.FC = () => {
   // Load users from API
   const loadUsers = useCallback(async () => {
     setIsLoading(true);
+    setLoadError(null);
     setError('');
 
     try {
@@ -133,8 +136,7 @@ const UsersPage: React.FC = () => {
       }
     } catch (err: unknown) {
       console.error('Error loading users:', err);
-      setError('Failed to load users. Please try again.');
-      setUsers([]);
+      setLoadError(err);
     } finally {
       setIsLoading(false);
     }
@@ -384,6 +386,10 @@ const UsersPage: React.FC = () => {
         return 'default';
     }
   };
+
+  if (loadError) {
+    return <PageError error={loadError} onRetry={loadUsers} />;
+  }
 
   return (
     <Box sx={{ p: 3 }}>

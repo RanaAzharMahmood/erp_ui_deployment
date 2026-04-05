@@ -34,6 +34,7 @@ import {
 } from '@mui/icons-material';
 import TableSkeleton from '../../../components/common/TableSkeleton';
 import ConfirmDialog from '../../../components/feedback/ConfirmDialog';
+import PageError from '../../../components/common/PageError';
 import { COLORS } from '../../../constants/colors';
 import { getSalesInvoicesApi } from '../../../generated/api/client';
 
@@ -58,6 +59,7 @@ const SalesInvoiceListPage: React.FC = () => {
   const navigate = useNavigate();
   const [invoices, setInvoices] = useState<SalesInvoice[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<unknown>(null);
   const [deleting, setDeleting] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [error, setError] = useState<string>('');
@@ -80,40 +82,42 @@ const SalesInvoiceListPage: React.FC = () => {
   const [order, setOrder] = useState<Order>('desc');
 
   // Load invoices from API
-  useEffect(() => {
-    const loadInvoices = async () => {
-      try {
-        const salesInvoicesApi = getSalesInvoicesApi();
-        const response = await salesInvoicesApi.getAll();
-        if (response.data?.data) {
-          const apiInvoices = response.data.data.map((inv: any) => {
-            const total = inv.totalAmount || 0;
-            const paid = inv.paidAmount || 0;
-            return {
-              id: String(inv.id),
-              invoiceNumber: inv.invoiceNumber,
-              companyName: inv.companyName || '',
-              customerName: inv.customerName || '',
-              totalAmount: total,
-              paidAmount: paid,
-              balance: total - paid,
-              paymentMethod: inv.paymentMethod || '-',
-              status: (inv.status === 'paid' ? 'Paid' : inv.status === 'overdue' ? 'Overdue' : inv.status === 'returned' ? 'Returned' : 'Pending') as 'Active' | 'Paid' | 'Overdue' | 'Pending' | 'Returned',
-              date: inv.date,
-              createdAt: inv.createdAt || '',
-            };
-          });
-          setInvoices(apiInvoices);
-        }
-      } catch (err) {
-        console.error('Error loading sales invoices from API:', err);
-        setError('Failed to load sales invoices. Please try again.');
-      } finally {
-        setLoading(false);
+  const loadInvoices = useCallback(async () => {
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const salesInvoicesApi = getSalesInvoicesApi();
+      const response = await salesInvoicesApi.getAll();
+      if (response.data?.data) {
+        const apiInvoices = response.data.data.map((inv: any) => {
+          const total = inv.totalAmount || 0;
+          const paid = inv.paidAmount || 0;
+          return {
+            id: String(inv.id),
+            invoiceNumber: inv.invoiceNumber,
+            companyName: inv.companyName || '',
+            customerName: inv.customerName || '',
+            totalAmount: total,
+            paidAmount: paid,
+            balance: total - paid,
+            paymentMethod: inv.paymentMethod || '-',
+            status: (inv.status === 'paid' ? 'Paid' : inv.status === 'overdue' ? 'Overdue' : inv.status === 'returned' ? 'Returned' : 'Pending') as 'Active' | 'Paid' | 'Overdue' | 'Pending' | 'Returned',
+            date: inv.date,
+            createdAt: inv.createdAt || '',
+          };
+        });
+        setInvoices(apiInvoices);
       }
-    };
-    loadInvoices();
+    } catch (err) {
+      setLoadError(err);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    loadInvoices();
+  }, [loadInvoices]);
 
   // Handle sort
   const handleSort = useCallback((property: OrderBy) => {
@@ -245,6 +249,10 @@ const SalesInvoiceListPage: React.FC = () => {
         </Table>
       </Box>
     );
+  }
+
+  if (loadError) {
+    return <PageError error={loadError} onRetry={loadInvoices} />;
   }
 
   return (

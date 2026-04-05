@@ -88,6 +88,7 @@ const AddPurchaseInvoicePage: React.FC = () => {
   const [vendors, setVendors] = useState<VendorOption[]>([]);
   const [taxes, setTaxes] = useState<TaxOption[]>([]);
   const [items, setItems] = useState<ItemOption[]>([]);
+  const [dataLoadWarning, setDataLoadWarning] = useState('');
   const [receiptImage, setReceiptImage] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(isEditMode);
@@ -133,8 +134,9 @@ const AddPurchaseInvoicePage: React.FC = () => {
           : Array.isArray(raw?.data) ? raw.data
           : [];
         setVendors(partiesList.map((c) => ({ id: String(c.id), name: c.partyName || c.name || '' })));
-      } catch (err) {
-        console.error('Error loading vendors from API:', err);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : 'Failed to load vendors';
+        setDataLoadWarning(msg);
         setVendors([]);
       }
     };
@@ -186,8 +188,9 @@ const AddPurchaseInvoicePage: React.FC = () => {
               isActive: i.isActive !== false,
             })));
           }
-        } catch (err) {
-          console.error('Error loading items from API:', err);
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : 'Failed to load items';
+          setDataLoadWarning(msg);
           setItems([]);
         }
 
@@ -393,6 +396,12 @@ const AddPurchaseInvoicePage: React.FC = () => {
   return (
     <Box sx={{ p: 3, maxWidth: 1400, mx: 'auto', bgcolor: '#F9FAFB', minHeight: '100vh' }}>
       <PageHeader title={isEditMode ? 'Update Purchase Invoice' : 'Purchase Invoice'} backPath="/purchase/invoice" />
+
+      {dataLoadWarning && (
+        <Alert severity="warning" sx={{ mb: 2 }} onClose={() => setDataLoadWarning('')}>
+          {dataLoadWarning} — Some dropdowns may be empty. Contact your administrator to assign the required permissions.
+        </Alert>
+      )}
 
       <Grid container spacing={3}>
         {/* Left Column */}

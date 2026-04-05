@@ -33,6 +33,7 @@ import {
   GridOn as GridIcon,
 } from '@mui/icons-material';
 import TableSkeleton from '../../../components/common/TableSkeleton';
+import PageError from '../../../components/common/PageError';
 import ConfirmDialog from '../../../components/feedback/ConfirmDialog';
 import { COLORS } from '../../../constants/colors';
 import { getPurchaseInvoicesApi } from '../../../generated/api/client';
@@ -57,6 +58,7 @@ const PurchaseInvoiceListPage: React.FC = () => {
   const navigate = useNavigate();
   const [invoices, setInvoices] = useState<PurchaseInvoice[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<unknown>(null);
   const [deleting, setDeleting] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [error, setError] = useState<string>('');
@@ -79,42 +81,45 @@ const PurchaseInvoiceListPage: React.FC = () => {
   const [order, setOrder] = useState<Order>('desc');
 
   // Load invoices from API
-  useEffect(() => {
-    const loadInvoices = async () => {
-      try {
-        const purchaseInvoicesApi = getPurchaseInvoicesApi();
-        const response = await purchaseInvoicesApi.getAll();
-        if (response.data?.data) {
-          const statusMap: Record<string, PurchaseInvoice['status']> = {
-            draft: 'Draft',
-            received: 'Received',
-            paid: 'Paid',
-            overdue: 'Overdue',
-            cancelled: 'Cancelled',
-          };
-          const apiInvoices = response.data.data.map((inv) => ({
-            id: String(inv.id),
-            invoiceNumber: inv.invoiceNumber,
-            companyName: inv.companyName || '',
-            vendorName: inv.vendorName || '',
-            totalAmount: inv.totalAmount || 0,
-            paidAmount: inv.paidAmount || 0,
-            dueDate: inv.dueDate || '',
-            status: (statusMap[inv.status] ?? 'Draft') as PurchaseInvoice['status'],
-            date: inv.date,
-            createdAt: inv.createdAt || '',
-          }));
-          setInvoices(apiInvoices);
-        }
-      } catch (err) {
-        console.error('Error loading purchase invoices from API:', err);
-        setError('Failed to load purchase invoices. Please try again.');
-      } finally {
-        setLoading(false);
+  const loadInvoices = useCallback(async () => {
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const purchaseInvoicesApi = getPurchaseInvoicesApi();
+      const response = await purchaseInvoicesApi.getAll();
+      if (response.data?.data) {
+        const statusMap: Record<string, PurchaseInvoice['status']> = {
+          draft: 'Draft',
+          received: 'Received',
+          paid: 'Paid',
+          overdue: 'Overdue',
+          cancelled: 'Cancelled',
+        };
+        const apiInvoices = response.data.data.map((inv) => ({
+          id: String(inv.id),
+          invoiceNumber: inv.invoiceNumber,
+          companyName: inv.companyName || '',
+          vendorName: inv.vendorName || '',
+          totalAmount: inv.totalAmount || 0,
+          paidAmount: inv.paidAmount || 0,
+          dueDate: inv.dueDate || '',
+          status: (statusMap[inv.status] ?? 'Draft') as PurchaseInvoice['status'],
+          date: inv.date,
+          createdAt: inv.createdAt || '',
+        }));
+        setInvoices(apiInvoices);
       }
-    };
-    loadInvoices();
+    } catch (err) {
+      console.error('Error loading purchase invoices from API:', err);
+      setLoadError(err);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    loadInvoices();
+  }, [loadInvoices]);
 
   // Handle sort
   const handleSort = useCallback((property: OrderBy) => {
@@ -243,6 +248,10 @@ const PurchaseInvoiceListPage: React.FC = () => {
         </Table>
       </Box>
     );
+  }
+
+  if (loadError) {
+    return <PageError error={loadError} onRetry={loadInvoices} />;
   }
 
   return (

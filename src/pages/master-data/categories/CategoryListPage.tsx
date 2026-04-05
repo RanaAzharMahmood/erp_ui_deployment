@@ -33,6 +33,7 @@ import {
   GridOn as GridIcon,
 } from '@mui/icons-material';
 import TableSkeleton from '../../../components/common/TableSkeleton';
+import PageError from '../../../components/common/PageError';
 import ConfirmDialog from '../../../components/feedback/ConfirmDialog';
 import { COLORS } from '../../../constants/colors';
 import { getCategoriesApi } from '../../../generated/api/client';
@@ -57,6 +58,7 @@ const CategoryListPage: React.FC = () => {
   const navigate = useNavigate();
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<unknown>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterAnchorEl, setFilterAnchorEl] = useState<HTMLButtonElement | null>(null);
   const [filters, setFilters] = useState({
@@ -79,6 +81,7 @@ const CategoryListPage: React.FC = () => {
   // Load categories from API
   const loadCategories = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const categoriesApi = getCategoriesApi();
       // Pass undefined to get all categories regardless of status for the filter to work
@@ -108,11 +111,7 @@ const CategoryListPage: React.FC = () => {
       }
     } catch (error: unknown) {
       console.error('Error loading categories:', error);
-      setSnackbar({
-        open: true,
-        message: 'Failed to load categories. Please try again.',
-        severity: 'error',
-      });
+      setLoadError(error);
     } finally {
       setLoading(false);
     }
@@ -268,6 +267,10 @@ const CategoryListPage: React.FC = () => {
         </Table>
       </Box>
     );
+  }
+
+  if (loadError) {
+    return <PageError error={loadError} onRetry={loadCategories} />;
   }
 
   return (

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react'
 import { useAuth } from './AuthContext'
 import type { Company } from '../types/auth.types'
+import { authService } from '../services/api/authService'
 
 interface CompanyContextType {
   selectedCompany: Company | null
@@ -21,7 +22,7 @@ export const useCompany = () => {
 }
 
 export const CompanyProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const { companies } = useAuth()
+  const { companies, user } = useAuth()
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY)
@@ -30,6 +31,17 @@ export const CompanyProvider: React.FC<{ children: ReactNode }> = ({ children })
       return null
     }
   })
+
+  // Auto-select company from backend selectedCompanyId when companies load
+  useEffect(() => {
+    if (!selectedCompany && companies.length > 0 && user?.selectedCompanyId) {
+      const match = companies.find((c) => c.id === user.selectedCompanyId)
+      if (match) {
+        setSelectedCompany(match)
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(match))
+      }
+    }
+  }, [companies, user, selectedCompany])
 
   // Validate stored company is still in user's companies list
   useEffect(() => {
@@ -45,6 +57,10 @@ export const CompanyProvider: React.FC<{ children: ReactNode }> = ({ children })
   const selectCompany = useCallback((company: Company) => {
     setSelectedCompany(company)
     localStorage.setItem(STORAGE_KEY, JSON.stringify(company))
+    // Persist to backend (fire-and-forget — UI is already responsive)
+    authService.selectCompany(company.id).catch(() => {
+      // Silently ignore API errors — localStorage is the fallback
+    })
   }, [])
 
   const clearCompany = useCallback(() => {

@@ -33,6 +33,7 @@ import {
   GridOn as GridIcon,
 } from '@mui/icons-material';
 import TableSkeleton from '../../../components/common/TableSkeleton';
+import PageError from '../../../components/common/PageError';
 import ConfirmDialog from '../../../components/feedback/ConfirmDialog';
 import { COLORS } from '../../../constants/colors';
 import { taxService, Tax } from '../../../services';
@@ -67,6 +68,7 @@ const TaxListPage: React.FC = () => {
   const navigate = useNavigate();
   const [taxes, setTaxes] = useState<LocalTax[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<unknown>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterAnchorEl, setFilterAnchorEl] = useState<HTMLButtonElement | null>(null);
   const [filters, setFilters] = useState({
@@ -94,6 +96,7 @@ const TaxListPage: React.FC = () => {
   // Load taxes from API
   const loadTaxes = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const response = await taxService.getAll();
       if (response.success && response.data) {
@@ -102,12 +105,7 @@ const TaxListPage: React.FC = () => {
       }
     } catch (error) {
       console.error('Error loading taxes from API:', error);
-      setTaxes([]);
-      setSnackbar({
-        open: true,
-        message: 'Failed to load taxes from server.',
-        severity: 'error',
-      });
+      setLoadError(error);
     } finally {
       setLoading(false);
     }
@@ -255,6 +253,10 @@ const TaxListPage: React.FC = () => {
         </Table>
       </Box>
     );
+  }
+
+  if (loadError) {
+    return <PageError error={loadError} onRetry={loadTaxes} />;
   }
 
   return (

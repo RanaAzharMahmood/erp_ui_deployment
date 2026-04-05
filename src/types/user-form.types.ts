@@ -80,13 +80,6 @@ export const PERMISSION_MODULES: PermissionModule[] = [
     description: 'Approve & Pay permissions are granted automatically to managers',
   },
 
-  // Reports & Activity (Read-only)
-  {
-    id: 'reports',
-    name: 'Reports & Activity',
-    permissions: ['View'],
-    description: 'Dashboard, reports, activity logs',
-  },
 ];
 
 /**

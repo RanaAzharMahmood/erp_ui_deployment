@@ -33,6 +33,7 @@ import {
   GridOn as GridIcon,
 } from '@mui/icons-material';
 import TableSkeleton from '../../../components/common/TableSkeleton';
+import PageError from '../../../components/common/PageError';
 import ConfirmDialog from '../../../components/common/ConfirmDialog';
 import { COLORS } from '../../../constants/colors';
 import { bankAccountService, BankAccount as ApiBankAccount } from '../../../services';
@@ -73,6 +74,7 @@ const BankAccountListPage: React.FC = () => {
   const navigate = useNavigate();
   const [accounts, setAccounts] = useState<BankAccount[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<unknown>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterAnchorEl, setFilterAnchorEl] = useState<HTMLButtonElement | null>(null);
   const [filters, setFilters] = useState({
@@ -100,6 +102,7 @@ const BankAccountListPage: React.FC = () => {
   // Load accounts from API
   const loadAccounts = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const response = await bankAccountService.getAll();
       if (response.success && response.data?.data) {
@@ -108,12 +111,7 @@ const BankAccountListPage: React.FC = () => {
       }
     } catch (error) {
       console.error('Error loading bank accounts from API:', error);
-      setAccounts([]);
-      setSnackbar({
-        open: true,
-        message: 'Failed to load bank accounts',
-        severity: 'error',
-      });
+      setLoadError(error);
     } finally {
       setLoading(false);
     }
@@ -291,6 +289,10 @@ const BankAccountListPage: React.FC = () => {
         </Table>
       </Box>
     );
+  }
+
+  if (loadError) {
+    return <PageError error={loadError} onRetry={loadAccounts} />;
   }
 
   return (

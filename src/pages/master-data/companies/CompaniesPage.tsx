@@ -34,6 +34,7 @@ import {
 import { useDebounce } from '../../../hooks/useDebounce';
 import { preloadRoute } from '../../../utils/routePreloader';
 import TableSkeleton from '../../../components/common/TableSkeleton';
+import PageError from '../../../components/common/PageError';
 import LazyImage from '../../../components/common/LazyImage';
 import FilterManager, { type FilterField } from '../../../components/common/FilterManager';
 import ConfirmDialog from '../../../components/feedback/ConfirmDialog';
@@ -72,6 +73,7 @@ const CompaniesPage: React.FC = () => {
   const navigate = useNavigate();
   const [companies, setCompanies] = useState<Company[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<unknown>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedIndustry, setSelectedIndustry] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('');
@@ -131,6 +133,7 @@ const CompaniesPage: React.FC = () => {
   // Load companies from API
   const loadCompanies = useCallback(async () => {
     setIsLoading(true);
+    setLoadError(null);
     setError('');
 
     try {
@@ -155,8 +158,7 @@ const CompaniesPage: React.FC = () => {
       setCompanies(transformedCompanies);
     } catch (err: unknown) {
       console.error('Error loading companies:', err);
-      setError('Failed to load companies.');
-      setCompanies([]);
+      setLoadError(err);
     } finally {
       setIsLoading(false);
     }
@@ -339,6 +341,10 @@ const CompaniesPage: React.FC = () => {
     ],
     [selectedIndustry, selectedStatus]
   );
+
+  if (loadError) {
+    return <PageError error={loadError} onRetry={loadCompanies} />;
+  }
 
   return (
     <Box sx={{ p: 3 }}>

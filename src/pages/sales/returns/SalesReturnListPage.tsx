@@ -33,6 +33,7 @@ import {
   GridOn as GridIcon,
 } from '@mui/icons-material';
 import TableSkeleton from '../../../components/common/TableSkeleton';
+import PageError from '../../../components/common/PageError';
 import ConfirmDialog from '../../../components/feedback/ConfirmDialog';
 import { COLORS } from '../../../constants/colors';
 import { getSalesReturnsApi } from '../../../generated/api/client';
@@ -57,6 +58,7 @@ const SalesReturnListPage: React.FC = () => {
   const navigate = useNavigate();
   const [returns, setReturns] = useState<SalesReturn[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<unknown>(null);
   const [deleting, setDeleting] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [error, setError] = useState<string>('');
@@ -79,40 +81,43 @@ const SalesReturnListPage: React.FC = () => {
   const [order, setOrder] = useState<Order>('desc');
 
   // Load returns from API
-  useEffect(() => {
-    const loadReturns = async () => {
-      try {
-        const salesReturnsApi = getSalesReturnsApi();
-        const response = await salesReturnsApi.getAll({ isActive: true });
-        if (response.data?.data) {
-          const apiReturns = response.data.data.map((ret) => {
-            // Get first line item name and total quantity from lines
-            const firstItem = ret.lines?.[0]?.itemName || '';
-            const totalQuantity = ret.lines?.reduce((sum, l) => sum + (l.quantity || 0), 0) || 0;
-            return {
-              id: String(ret.id),
-              returnNumber: ret.returnNumber,
-              companyName: ret.companyName || '',
-              customerName: ret.customerName || '',
-              item: firstItem,
-              quantity: totalQuantity,
-              netAmount: ret.totalAmount || 0,
-              status: (ret.status === 'approved' || ret.status === 'completed' ? 'Approved' : ret.status === 'cancelled' ? 'Rejected' : 'Pending') as SalesReturn['status'],
-              date: ret.date,
-              createdAt: ret.createdAt || '',
-            };
-          });
-          setReturns(apiReturns);
-        }
-      } catch (err) {
-        console.error('Error loading sales returns from API:', err);
-        setError('Failed to load sales returns. Please try again.');
-      } finally {
-        setLoading(false);
+  const loadReturns = useCallback(async () => {
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const salesReturnsApi = getSalesReturnsApi();
+      const response = await salesReturnsApi.getAll({ isActive: true });
+      if (response.data?.data) {
+        const apiReturns = response.data.data.map((ret) => {
+          // Get first line item name and total quantity from lines
+          const firstItem = ret.lines?.[0]?.itemName || '';
+          const totalQuantity = ret.lines?.reduce((sum, l) => sum + (l.quantity || 0), 0) || 0;
+          return {
+            id: String(ret.id),
+            returnNumber: ret.returnNumber,
+            companyName: ret.companyName || '',
+            customerName: ret.customerName || '',
+            item: firstItem,
+            quantity: totalQuantity,
+            netAmount: ret.totalAmount || 0,
+            status: (ret.status === 'approved' || ret.status === 'completed' ? 'Approved' : ret.status === 'cancelled' ? 'Rejected' : 'Pending') as SalesReturn['status'],
+            date: ret.date,
+            createdAt: ret.createdAt || '',
+          };
+        });
+        setReturns(apiReturns);
       }
-    };
-    loadReturns();
+    } catch (err) {
+      console.error('Error loading sales returns from API:', err);
+      setLoadError(err);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    loadReturns();
+  }, [loadReturns]);
 
   // Handle sort
   const handleSort = useCallback((property: OrderBy) => {
@@ -241,6 +246,10 @@ const SalesReturnListPage: React.FC = () => {
         </Table>
       </Box>
     );
+  }
+
+  if (loadError) {
+    return <PageError error={loadError} onRetry={loadReturns} />;
   }
 
   return (

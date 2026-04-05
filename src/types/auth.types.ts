@@ -9,6 +9,7 @@ export interface AuthUser {
   roleId: number
   roleName: string
   isActive?: boolean
+  selectedCompanyId?: number
 }
 
 export interface Company {
