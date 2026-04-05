@@ -73,10 +73,11 @@ const AdminDashboard: React.FC = () => {
   const [pendingApprovals, setPendingApprovals] = useState(0);
 
   useEffect(() => {
+    if (!data) return;
     getApprovalRequestsApi().getPendingCount()
       .then((res) => setPendingApprovals(res.data?.count || 0))
       .catch(() => { /* silently ignore */ });
-  }, []);
+  }, [data]);
 
   if (isLoading) {
     return <DashboardSkeleton />;

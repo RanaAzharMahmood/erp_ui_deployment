@@ -117,20 +117,20 @@ const Sidebar: React.FC<SidebarProps> = () => {
   const [openMenus, setOpenMenus] = useState<string[]>(['Account', 'Sales', 'Purchase']);
   const [pendingApprovalCount, setPendingApprovalCount] = useState(0);
 
-  // Fetch pending approval count for admin/manager
+  // Fetch pending approval count for admin/manager (only if authenticated)
   useEffect(() => {
-    if (!isAdmin && !isManager) return;
+    if ((!isAdmin && !isManager) || !user) return;
 
     const fetchCount = () => {
       getApprovalRequestsApi().getPendingCount()
         .then((res) => setPendingApprovalCount(res.data?.count || 0))
-        .catch(() => { /* silently ignore */ });
+        .catch(() => { /* silently ignore auth errors */ });
     };
 
     fetchCount();
     const interval = setInterval(fetchCount, 60000);
     return () => clearInterval(interval);
-  }, [isAdmin, isManager]);
+  }, [isAdmin, isManager, user]);
 
   const isItemVisible = (item: MenuItem): boolean => {
     if (isAdmin) return true;

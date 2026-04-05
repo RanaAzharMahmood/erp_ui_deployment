@@ -46,10 +46,11 @@ const ManagerDashboardPage: React.FC = () => {
   const [pendingRequests, setPendingRequests] = useState<ApprovalRequest[]>([])
 
   useEffect(() => {
+    if (!selectedCompany) return;
     getApprovalRequestsApi().getAll({ status: 'pending', limit: 5 })
       .then((res) => setPendingRequests(res.data?.data || []))
       .catch(() => { /* silently ignore */ })
-  }, [])
+  }, [selectedCompany])
 
   if (isLoading) {
     return <DashboardSkeleton />
