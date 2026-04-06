@@ -212,7 +212,7 @@ export interface RawPurchaseReturnData {
 // Form Data Types
 // =============================================================================
 
-export type InvoiceStatus = 'Paid' | 'Overdue' | 'Pending';
+export type InvoiceStatus = 'Draft' | 'Posted' | 'Partially Paid' | 'Paid' | 'Overdue' | 'Pending' | 'Cancelled' | 'Returned';
 export type ReturnStatus = 'Pending' | 'Approved' | 'Rejected';
 
 export interface SalesInvoiceFormData {

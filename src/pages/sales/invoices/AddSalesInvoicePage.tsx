@@ -77,7 +77,7 @@ const AddSalesInvoicePage: React.FC = () => {
     paymentMethod: '',
     accountNumber: '',
     remarks: '',
-    status: 'Paid',
+    status: 'Draft',
     taxId: '',
     paidAmount: 0,
     discount: 0,
@@ -188,6 +188,16 @@ const AddSalesInvoicePage: React.FC = () => {
               if (invoice.status === 'returned') {
                 setIsReturned(true);
               }
+              const apiStatusMap: Record<string, InvoiceStatus> = {
+                draft: 'Draft',
+                posted: 'Posted',
+                sent: 'Posted',
+                partially_paid: 'Partially Paid',
+                paid: 'Paid',
+                overdue: 'Overdue',
+                cancelled: 'Cancelled',
+                returned: 'Returned',
+              };
               setFormData({
                 companyId: invoice.companyId || '',
                 customerId: String(invoice.customerId) || '',
@@ -197,7 +207,7 @@ const AddSalesInvoicePage: React.FC = () => {
                 paymentMethod: invoice.paymentMethod || '',
                 accountNumber: invoice.accountNumber || '',
                 remarks: invoice.notes || invoice.remarks || '',
-                status: invoice.status === 'paid' ? 'Paid' : invoice.status === 'overdue' ? 'Overdue' : 'Pending',
+                status: apiStatusMap[invoice.status] || 'Draft',
                 taxId: lineTaxId,
                 paidAmount: invoice.paidAmount || 0,
                 discount: invoice.discountAmount || 0,
@@ -292,10 +302,6 @@ const AddSalesInvoicePage: React.FC = () => {
     if (name === 'companyId') {
       setLineItems([{ id: '1', itemId: '', quantity: 0, rate: 0, amount: 0 }]);
     }
-  }, []);
-
-  const handleStatusChange = useCallback((status: InvoiceStatus) => {
-    setFormData((prev) => ({ ...prev, status }));
   }, []);
 
   const handleLineItemChange = useCallback((id: string, field: string, value: string | number) => {
@@ -434,10 +440,8 @@ const AddSalesInvoicePage: React.FC = () => {
       };
 
       if (isEditMode && id) {
-        await api.update(Number(id), {
-          ...apiData,
-          status: formData.status === 'Paid' ? 'paid' : formData.status === 'Overdue' ? 'overdue' : 'draft',
-        });
+        // Status is auto-derived on the backend from paidAmount/totalAmount - do not send it
+        await api.update(Number(id), apiData);
       } else {
         await api.create(apiData);
       }
@@ -945,50 +949,55 @@ const AddSalesInvoicePage: React.FC = () => {
             />
           </FormSection>
 
-          {/* Status - Only show in edit mode */}
-          {isEditMode && (
-            <FormSection title="Status" icon={<CircleIcon />} sx={{ mb: 3 }}>
-              <Divider sx={{ mb: 2, mt: -1 }} />
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                {(['Paid', 'Overdue', 'Pending'] as const).map((status) => (
+          {/* Status - Auto-derived from paid amount, read-only */}
+          <FormSection title="Status" icon={<CircleIcon />} sx={{ mb: 3 }}>
+            <Divider sx={{ mb: 2, mt: -1 }} />
+            {(() => {
+              const total = subtotal;
+              const paid = Number(formData.paidAmount) || 0;
+              let derivedLabel = 'Draft';
+              let derivedColor = '#F59E0B';
+              if (formData.status === 'Cancelled') {
+                derivedLabel = 'Cancelled';
+                derivedColor = '#6B7280';
+              } else if (formData.status === 'Returned') {
+                derivedLabel = 'Returned';
+                derivedColor = '#8B5CF6';
+              } else if (total > 0 && paid >= total) {
+                derivedLabel = 'Paid';
+                derivedColor = '#10B981';
+              } else if (paid > 0) {
+                derivedLabel = 'Partially Paid';
+                derivedColor = '#06B6D4';
+              } else if (formData.status === 'Posted') {
+                derivedLabel = 'Posted';
+                derivedColor = '#3B82F6';
+              }
+              return (
+                <Box>
                   <Box
-                    key={status}
-                    onClick={() => handleStatusChange(status)}
                     sx={{
-                      display: 'flex',
+                      display: 'inline-flex',
                       alignItems: 'center',
-                      gap: 1,
-                      cursor: 'pointer',
+                      px: 1.5,
+                      py: 0.5,
+                      borderRadius: '16px',
+                      bgcolor: `${derivedColor}1A`,
+                      border: `1px solid ${derivedColor}`,
+                      color: derivedColor,
+                      fontSize: 13,
+                      fontWeight: 500,
                     }}
                   >
-                    <Box
-                      sx={{
-                        width: 16,
-                        height: 16,
-                        borderRadius: '50%',
-                        border: '2px solid #FF6B35',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                      }}
-                    >
-                      {formData.status === status && (
-                        <Box
-                          sx={{
-                            width: 8,
-                            height: 8,
-                            borderRadius: '50%',
-                            bgcolor: '#FF6B35',
-                          }}
-                        />
-                      )}
-                    </Box>
-                    <Typography variant="body2">{status}</Typography>
+                    {derivedLabel}
                   </Box>
-                ))}
-              </Box>
-            </FormSection>
-          )}
+                  <Typography variant="caption" display="block" sx={{ mt: 1, color: '#6B7280' }}>
+                    Status is automatically determined by the paid amount.
+                  </Typography>
+                </Box>
+              );
+            })()}
+          </FormSection>
 
           {/* Action Buttons */}
           <Box sx={{ display: 'flex', gap: 2, flexDirection: 'column' }}>
