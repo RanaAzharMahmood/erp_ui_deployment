@@ -2074,7 +2074,7 @@ export class SalesReturnsApi {
 export const getSalesReturnsApi = () => new SalesReturnsApi(getApiConfig(), undefined, fetchWithCredentials as any);
 
 // Sales Invoice Types
-export type SalesInvoiceStatus = 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled';
+export type SalesInvoiceStatus = 'draft' | 'posted' | 'sent' | 'partially_paid' | 'paid' | 'overdue' | 'cancelled' | 'returned';
 
 export interface SalesInvoiceLine {
   id?: number;
@@ -2326,6 +2326,22 @@ export class SalesInvoicesApi {
     return response.json();
   }
 
+  async post(id: number): Promise<SalesInvoiceApiResponse<SalesInvoice>> {
+    const url = `${this.basePath}/v1/api/sales-invoices/${id}/post`;
+
+    const response = await this.fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new ApiError(response.status, error.message || 'Failed to post sales invoice');
+    }
+
+    return response.json();
+  }
+
   async delete(id: number): Promise<SalesInvoiceApiResponse<null>> {
     const url = `${this.basePath}/v1/api/sales-invoices/${id}`;
 
@@ -2346,7 +2362,7 @@ export class SalesInvoicesApi {
 export const getSalesInvoicesApi = () => new SalesInvoicesApi(getApiConfig(), undefined, fetchWithCredentials as any);
 
 // Purchase Invoice Types
-export type PurchaseInvoiceStatus = 'draft' | 'received' | 'paid' | 'overdue' | 'cancelled';
+export type PurchaseInvoiceStatus = 'draft' | 'posted' | 'sent' | 'received' | 'partially_paid' | 'paid' | 'overdue' | 'cancelled' | 'returned';
 
 export interface PurchaseInvoiceLine {
   id?: number;
@@ -2593,6 +2609,22 @@ export class PurchaseInvoicesApi {
     if (!response.ok) {
       const error = await response.json();
       throw new ApiError(response.status, error.message || 'Failed to cancel purchase invoice');
+    }
+
+    return response.json();
+  }
+
+  async post(id: number): Promise<PurchaseInvoiceApiResponse<PurchaseInvoice>> {
+    const url = `${this.basePath}/v1/api/purchase-invoices/${id}/post`;
+
+    const response = await this.fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new ApiError(response.status, error.message || 'Failed to post purchase invoice');
     }
 
     return response.json();

@@ -31,6 +31,7 @@ import {
   FilterList as FilterIcon,
   Print as PrintIcon,
   GridOn as GridIcon,
+  PostAdd as PostAddIcon,
 } from '@mui/icons-material';
 import TableSkeleton from '../../../components/common/TableSkeleton';
 import ConfirmDialog from '../../../components/feedback/ConfirmDialog';
@@ -47,7 +48,9 @@ interface SalesInvoice {
   paidAmount: number;
   balance: number;
   paymentMethod: string;
-  status: 'Active' | 'Paid' | 'Overdue' | 'Pending' | 'Returned';
+  status: 'Draft' | 'Posted' | 'Partially Paid' | 'Paid' | 'Overdue' | 'Pending' | 'Returned' | 'Cancelled';
+  rawStatus: string;
+  stockConfirmed: boolean;
   date: string;
   createdAt: string;
 }
@@ -92,6 +95,15 @@ const SalesInvoiceListPage: React.FC = () => {
         const apiInvoices = response.data.data.map((inv: any) => {
           const total = inv.totalAmount || 0;
           const paid = inv.paidAmount || 0;
+          const statusLabel: SalesInvoice['status'] =
+            inv.status === 'paid' ? 'Paid'
+            : inv.status === 'partially_paid' ? 'Partially Paid'
+            : inv.status === 'posted' ? 'Posted'
+            : inv.status === 'overdue' ? 'Overdue'
+            : inv.status === 'returned' ? 'Returned'
+            : inv.status === 'cancelled' ? 'Cancelled'
+            : inv.status === 'draft' ? 'Draft'
+            : 'Pending';
           return {
             id: String(inv.id),
             invoiceNumber: inv.invoiceNumber,
@@ -101,7 +113,9 @@ const SalesInvoiceListPage: React.FC = () => {
             paidAmount: paid,
             balance: total - paid,
             paymentMethod: inv.paymentMethod || '-',
-            status: (inv.status === 'paid' ? 'Paid' : inv.status === 'overdue' ? 'Overdue' : inv.status === 'returned' ? 'Returned' : 'Pending') as 'Active' | 'Paid' | 'Overdue' | 'Pending' | 'Returned',
+            status: statusLabel,
+            rawStatus: inv.status || '',
+            stockConfirmed: !!inv.stockConfirmed,
             date: inv.date,
             createdAt: inv.createdAt || '',
           };
@@ -145,8 +159,8 @@ const SalesInvoiceListPage: React.FC = () => {
 
     // Sort the filtered results
     return [...filtered].sort((a, b) => {
-      let aValue: string | number = a[orderBy];
-      let bValue: string | number = b[orderBy];
+      let aValue: string | number = a[orderBy] as string | number;
+      let bValue: string | number = b[orderBy] as string | number;
 
       // Handle numeric sorting
       if (orderBy === 'totalAmount' || orderBy === 'paidAmount' || orderBy === 'balance') {
@@ -206,6 +220,20 @@ const SalesInvoiceListPage: React.FC = () => {
   const handleDeleteCancel = useCallback(() => {
     setDeleteDialog({ open: false, id: null });
   }, []);
+
+  const handlePostInvoice = useCallback(async (id: string) => {
+    try {
+      const salesInvoicesApi = getSalesInvoicesApi();
+      await salesInvoicesApi.post(Number(id));
+      setSuccessMessage('Sales invoice posted successfully! GL entry created.');
+      await loadInvoices();
+    } catch (err) {
+      console.error('Error posting sales invoice:', err);
+      const apiError = err as { response?: { data?: { message?: string } }; message?: string };
+      const message = apiError?.response?.data?.message || apiError?.message || 'Failed to post sales invoice. Please try again.';
+      setError(message);
+    }
+  }, [loadInvoices]);
 
   const handleFilterClick = (event: React.MouseEvent<HTMLButtonElement>) => {
     setFilterAnchorEl(event.currentTarget);
@@ -395,11 +423,14 @@ const SalesInvoiceListPage: React.FC = () => {
               label="Status"
             >
               <MenuItem value="">All</MenuItem>
-              <MenuItem value="Active">Active</MenuItem>
+              <MenuItem value="Draft">Draft</MenuItem>
+              <MenuItem value="Posted">Posted</MenuItem>
+              <MenuItem value="Partially Paid">Partially Paid</MenuItem>
               <MenuItem value="Paid">Paid</MenuItem>
               <MenuItem value="Overdue">Overdue</MenuItem>
               <MenuItem value="Pending">Pending</MenuItem>
               <MenuItem value="Returned">Returned</MenuItem>
+              <MenuItem value="Cancelled">Cancelled</MenuItem>
             </Select>
           </FormControl>
 
@@ -586,39 +617,48 @@ const SalesInvoiceListPage: React.FC = () => {
                     <TableCell sx={{ color: invoice.balance > 0 ? '#EF4444' : '#10B981', fontWeight: 500 }}>{invoice.balance.toFixed(2)} PKR</TableCell>
                     <TableCell>{invoice.paymentMethod}</TableCell>
                     <TableCell>
-                      <Chip
-                        label={invoice.status}
-                        size="small"
-                        sx={{
-                          bgcolor: invoice.status === 'Active' || invoice.status === 'Paid'
-                            ? 'rgba(16, 185, 129, 0.1)'
-                            : invoice.status === 'Overdue'
-                            ? 'rgba(239, 68, 68, 0.1)'
-                            : invoice.status === 'Returned'
-                            ? 'rgba(139, 92, 246, 0.1)'
-                            : 'rgba(251, 191, 36, 0.1)',
-                          color: invoice.status === 'Active' || invoice.status === 'Paid'
+                      {(() => {
+                        const color =
+                          invoice.status === 'Paid'
                             ? '#10B981'
+                            : invoice.status === 'Posted'
+                            ? '#3B82F6'
+                            : invoice.status === 'Partially Paid'
+                            ? '#06B6D4'
                             : invoice.status === 'Overdue'
                             ? '#EF4444'
                             : invoice.status === 'Returned'
                             ? '#8B5CF6'
-                            : '#F59E0B',
-                          fontWeight: 500,
-                          border: `1px solid ${
-                            invoice.status === 'Active' || invoice.status === 'Paid'
-                              ? '#10B981'
-                              : invoice.status === 'Overdue'
-                              ? '#EF4444'
-                              : invoice.status === 'Returned'
-                              ? '#8B5CF6'
-                              : '#F59E0B'
-                          }`,
-                        }}
-                      />
+                            : invoice.status === 'Cancelled'
+                            ? '#6B7280'
+                            : '#F59E0B'; // Draft / Pending
+                        return (
+                          <Chip
+                            label={invoice.status}
+                            size="small"
+                            sx={{
+                              bgcolor: `${color}1A`,
+                              color,
+                              fontWeight: 500,
+                              border: `1px solid ${color}`,
+                            }}
+                          />
+                        );
+                      })()}
                     </TableCell>
                     <TableCell>{invoice.date}</TableCell>
                     <TableCell>
+                      {(invoice.rawStatus === 'draft' || invoice.rawStatus === 'sent') && invoice.stockConfirmed && (
+                        <IconButton
+                          size="small"
+                          onClick={() => handlePostInvoice(invoice.id)}
+                          sx={{ color: '#3B82F6' }}
+                          aria-label={`Post invoice ${invoice.invoiceNumber}`}
+                          title="Post invoice (creates GL entry)"
+                        >
+                          <PostAddIcon fontSize="small" />
+                        </IconButton>
+                      )}
                       <IconButton
                         size="small"
                         onClick={() => handleEditInvoice(invoice.id)}

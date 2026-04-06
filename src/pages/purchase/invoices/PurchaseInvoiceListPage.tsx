@@ -31,6 +31,7 @@ import {
   FilterList as FilterIcon,
   Print as PrintIcon,
   GridOn as GridIcon,
+  PostAdd as PostAddIcon,
 } from '@mui/icons-material';
 import TableSkeleton from '../../../components/common/TableSkeleton';
 import PageError from '../../../components/common/PageError';
@@ -46,7 +47,9 @@ interface PurchaseInvoice {
   totalAmount: number;
   paidAmount: number;
   dueDate: string;
-  status: 'Draft' | 'Received' | 'Paid' | 'Overdue' | 'Cancelled';
+  status: 'Draft' | 'Posted' | 'Received' | 'Partially Paid' | 'Paid' | 'Overdue' | 'Cancelled' | 'Returned';
+  rawStatus: string;
+  stockConfirmed: boolean;
   date: string;
   createdAt: string;
 }
@@ -90,12 +93,16 @@ const PurchaseInvoiceListPage: React.FC = () => {
       if (response.data?.data) {
         const statusMap: Record<string, PurchaseInvoice['status']> = {
           draft: 'Draft',
+          posted: 'Posted',
+          sent: 'Received',
           received: 'Received',
+          partially_paid: 'Partially Paid',
           paid: 'Paid',
           overdue: 'Overdue',
           cancelled: 'Cancelled',
+          returned: 'Returned',
         };
-        const apiInvoices = response.data.data.map((inv) => ({
+        const apiInvoices = response.data.data.map((inv: any) => ({
           id: String(inv.id),
           invoiceNumber: inv.invoiceNumber,
           companyName: inv.companyName || '',
@@ -104,6 +111,8 @@ const PurchaseInvoiceListPage: React.FC = () => {
           paidAmount: inv.paidAmount || 0,
           dueDate: inv.dueDate || '',
           status: (statusMap[inv.status] ?? 'Draft') as PurchaseInvoice['status'],
+          rawStatus: inv.status || '',
+          stockConfirmed: !!inv.stockConfirmed,
           date: inv.date,
           createdAt: inv.createdAt || '',
         }));
@@ -146,8 +155,8 @@ const PurchaseInvoiceListPage: React.FC = () => {
 
     // Sort the filtered results
     return [...filtered].sort((a, b) => {
-      let aValue: string | number = a[orderBy];
-      let bValue: string | number = b[orderBy];
+      let aValue: string | number = a[orderBy] as string | number;
+      let bValue: string | number = b[orderBy] as string | number;
 
       // Handle numeric sorting
       if (orderBy === 'totalAmount' || orderBy === 'paidAmount') {
@@ -206,6 +215,20 @@ const PurchaseInvoiceListPage: React.FC = () => {
   const handleDeleteCancel = useCallback(() => {
     setDeleteDialog({ open: false, id: null });
   }, []);
+
+  const handlePostInvoice = useCallback(async (id: string) => {
+    try {
+      const purchaseInvoicesApi = getPurchaseInvoicesApi();
+      await purchaseInvoicesApi.post(Number(id));
+      setSuccessMessage('Purchase invoice posted successfully! GL entry created.');
+      await loadInvoices();
+    } catch (err) {
+      console.error('Error posting purchase invoice:', err);
+      const apiError = err as { response?: { data?: { message?: string } }; message?: string };
+      const message = apiError?.response?.data?.message || apiError?.message || 'Failed to post purchase invoice. Please try again.';
+      setError(message);
+    }
+  }, [loadInvoices]);
 
   const handleFilterClick = (event: React.MouseEvent<HTMLButtonElement>) => {
     setFilterAnchorEl(event.currentTarget);
@@ -395,10 +418,13 @@ const PurchaseInvoiceListPage: React.FC = () => {
             >
               <MenuItem value="">All</MenuItem>
               <MenuItem value="Draft">Draft</MenuItem>
+              <MenuItem value="Posted">Posted</MenuItem>
               <MenuItem value="Received">Received</MenuItem>
+              <MenuItem value="Partially Paid">Partially Paid</MenuItem>
               <MenuItem value="Paid">Paid</MenuItem>
               <MenuItem value="Overdue">Overdue</MenuItem>
               <MenuItem value="Cancelled">Cancelled</MenuItem>
+              <MenuItem value="Returned">Returned</MenuItem>
             </Select>
           </FormControl>
 
@@ -571,41 +597,48 @@ const PurchaseInvoiceListPage: React.FC = () => {
                     <TableCell>{invoice.paidAmount.toLocaleString()} PKR</TableCell>
                     <TableCell>{invoice.dueDate || '—'}</TableCell>
                     <TableCell>
-                      <Chip
-                        label={invoice.status}
-                        size="small"
-                        sx={{
-                          bgcolor:
-                            invoice.status === 'Paid' || invoice.status === 'Received'
-                              ? 'rgba(16, 185, 129, 0.1)'
-                              : invoice.status === 'Overdue'
-                              ? 'rgba(239, 68, 68, 0.1)'
-                              : invoice.status === 'Cancelled'
-                              ? 'rgba(107, 114, 128, 0.1)'
-                              : 'rgba(251, 191, 36, 0.1)',
-                          color:
-                            invoice.status === 'Paid' || invoice.status === 'Received'
-                              ? '#10B981'
-                              : invoice.status === 'Overdue'
-                              ? '#EF4444'
-                              : invoice.status === 'Cancelled'
-                              ? '#6B7280'
-                              : '#F59E0B',
-                          fontWeight: 500,
-                          border: `1px solid ${
-                            invoice.status === 'Paid' || invoice.status === 'Received'
-                              ? '#10B981'
-                              : invoice.status === 'Overdue'
-                              ? '#EF4444'
-                              : invoice.status === 'Cancelled'
-                              ? '#6B7280'
-                              : '#F59E0B'
-                          }`,
-                        }}
-                      />
+                      {(() => {
+                        const color =
+                          invoice.status === 'Paid' || invoice.status === 'Received'
+                            ? '#10B981'
+                            : invoice.status === 'Posted'
+                            ? '#3B82F6'
+                            : invoice.status === 'Partially Paid'
+                            ? '#06B6D4'
+                            : invoice.status === 'Overdue'
+                            ? '#EF4444'
+                            : invoice.status === 'Returned'
+                            ? '#8B5CF6'
+                            : invoice.status === 'Cancelled'
+                            ? '#6B7280'
+                            : '#F59E0B'; // Draft
+                        return (
+                          <Chip
+                            label={invoice.status}
+                            size="small"
+                            sx={{
+                              bgcolor: `${color}1A`,
+                              color,
+                              fontWeight: 500,
+                              border: `1px solid ${color}`,
+                            }}
+                          />
+                        );
+                      })()}
                     </TableCell>
                     <TableCell>{invoice.date}</TableCell>
                     <TableCell>
+                      {(invoice.rawStatus === 'draft' || invoice.rawStatus === 'sent') && invoice.stockConfirmed && (
+                        <IconButton
+                          size="small"
+                          onClick={() => handlePostInvoice(invoice.id)}
+                          sx={{ color: '#3B82F6' }}
+                          aria-label={`Post invoice ${invoice.invoiceNumber}`}
+                          title="Post invoice (creates GL entry)"
+                        >
+                          <PostAddIcon fontSize="small" />
+                        </IconButton>
+                      )}
                       <IconButton
                         size="small"
                         onClick={() => handleEditInvoice(invoice.id)}
