@@ -9,6 +9,7 @@ import {
   TableHead,
   TableRow,
   TableSortLabel,
+  TablePagination,
   IconButton,
   Chip,
   Typography,
@@ -80,39 +81,29 @@ const PartyListPage: React.FC = () => {
   });
   const [orderBy, setOrderBy] = useState<string>('partyName');
   const [order, setOrder] = useState<'asc' | 'desc'>('asc');
+  const [page, setPage] = useState(0);
+  const [rowsPerPage] = useState(25);
+  const [totalCount, setTotalCount] = useState(0);
 
-  // Load parties from API
+  // Load parties from API with pagination
   const loadParties = useCallback(async () => {
     setLoading(true);
     setLoadError(null);
     try {
-      const partiesApi = getPartiesApi();
-      const response = await partiesApi.v1ApiPartiesGet();
-      if (response.data?.data) {
-        interface ApiParty {
-          id: number;
-          partyName: string;
-          partyType: 'Customer' | 'Vendor';
-          contactName: string;
-          contactEmail?: string;
-          companyId?: number;
-          companyName?: string;
-          isActive: boolean;
-          createdAt: string;
-        }
-        const apiData = response.data.data as unknown as ApiParty[];
-        const apiParties = apiData.map((p: ApiParty) => ({
-          id: p.id,
-          partyName: p.partyName,
-          partyType: p.partyType,
-          contactName: p.contactName,
-          contactEmail: p.contactEmail,
-          companyId: p.companyId,
-          companyName: p.companyName,
-          isActive: p.isActive,
-          createdAt: p.createdAt,
-        }));
-        setParties(apiParties);
+      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      const params = new URLSearchParams({
+        limit: String(rowsPerPage),
+        offset: String(page * rowsPerPage),
+      });
+      const response = await fetch(`${baseUrl}/v1/api/parties?${params}`, {
+        method: 'GET',
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error(`Failed to fetch parties: ${response.status}`);
+      const result = await response.json();
+      if (result.success && result.data) {
+        setParties(result.data.data || []);
+        setTotalCount(result.data.total ?? 0);
       }
     } catch (error: unknown) {
       console.error('Error loading parties from API:', error);
@@ -120,7 +111,7 @@ const PartyListPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [page, rowsPerPage]);
 
   useEffect(() => {
     loadParties();
@@ -216,8 +207,8 @@ const PartyListPage: React.FC = () => {
         const partiesApi = getPartiesApi();
         await partiesApi.v1ApiPartiesIdDelete(deleteDialog.id);
 
-        // Remove from local state
-        setParties((prev) => prev.filter((p) => p.id !== deleteDialog.id));
+        // Reload current page to keep pagination counts accurate
+        await loadParties();
 
         setSnackbar({
           open: true,
@@ -245,7 +236,7 @@ const PartyListPage: React.FC = () => {
       }
     }
     setDeleteDialog({ open: false, id: null });
-  }, [deleteDialog.id]);
+  }, [deleteDialog.id, loadParties]);
 
   const handleDeleteCancel = useCallback(() => {
     setDeleteDialog({ open: false, id: null });
@@ -266,6 +257,10 @@ const PartyListPage: React.FC = () => {
   const handleApplyFilters = () => {
     handleFilterClose();
   };
+
+  const handleChangePage = useCallback((_event: unknown, newPage: number) => {
+    setPage(newPage);
+  }, []);
 
   const handleSnackbarClose = () => {
     setSnackbar((prev) => ({ ...prev, open: false }));
@@ -458,7 +453,7 @@ const PartyListPage: React.FC = () => {
       </Popover>
 
       {/* Table */}
-      <Box sx={{ border: '1px solid #E0E0E0', borderRadius: '12px', overflow: 'hidden', bgcolor: '#FFFFFF' }}>
+      <Box sx={{ border: '1px solid #E0E0E0', borderRadius: '12px', bgcolor: '#FFFFFF' }}>
         <TableContainer>
           <Table aria-label="Parties list">
             <TableHead sx={{ bgcolor: '#F8FAFC' }}>
@@ -613,6 +608,14 @@ const PartyListPage: React.FC = () => {
             </TableBody>
           </Table>
         </TableContainer>
+        <TablePagination
+          component="div"
+          count={totalCount}
+          page={page}
+          onPageChange={handleChangePage}
+          rowsPerPage={rowsPerPage}
+          rowsPerPageOptions={[25]}
+        />
       </Box>
 
       <ConfirmDialog

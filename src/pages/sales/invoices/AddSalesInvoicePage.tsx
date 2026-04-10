@@ -32,6 +32,7 @@ import {
   Save as SaveIcon,
   Print as PrintIcon,
   Inventory as InventoryIcon,
+  PostAdd as PostAddIcon,
 } from '@mui/icons-material';
 import PageHeader from '../../../components/common/PageHeader';
 import FormSection from '../../../components/common/FormSection';
@@ -97,6 +98,8 @@ const AddSalesInvoicePage: React.FC = () => {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [successMessage, setSuccessMessage] = useState('');
   const [isReturned, setIsReturned] = useState(false);
+  const [isPosting, setIsPosting] = useState(false);
+  const [rawStatus, setRawStatus] = useState('');
   const [originalLineQuantities, setOriginalLineQuantities] = useState<Record<string, number>>({});
   const invoiceSectionRef = useRef<HTMLDivElement>(null);
 
@@ -185,6 +188,7 @@ const AddSalesInvoicePage: React.FC = () => {
             if (invoice) {
               // Extract taxId from first line item if available
               const lineTaxId = invoice.lines?.[0]?.taxId ? String(invoice.lines[0].taxId) : '';
+              setRawStatus(invoice.status || '');
               if (invoice.status === 'returned') {
                 setIsReturned(true);
               }
@@ -494,6 +498,26 @@ const AddSalesInvoicePage: React.FC = () => {
     printWindow.focus();
     setTimeout(() => { printWindow.print(); printWindow.close(); }, 300);
   }, [formData.invoiceNumber]);
+
+  const handlePostInvoice = useCallback(async () => {
+    if (!id) return;
+    setIsPosting(true);
+    try {
+      const api = getSalesInvoicesApi();
+      await api.post(Number(id));
+      setRawStatus('posted');
+      setFormData((prev) => ({ ...prev, status: 'Posted' as InvoiceStatus }));
+      setSuccessMessage('Invoice posted successfully! Journal entry created.');
+    } catch (err: unknown) {
+      console.error('Error posting invoice:', err);
+      const apiError = err as { message?: string };
+      setError(apiError?.message || 'Failed to post invoice. Please try again.');
+    } finally {
+      setIsPosting(false);
+    }
+  }, [id]);
+
+  const canPost = isEditMode && (rawStatus === 'draft' || rawStatus === 'sent') && formData.stockConfirmed;
 
   // Stock warning helper for inline display
   const getStockWarning = (itemId: string) => {
@@ -1019,6 +1043,25 @@ const AddSalesInvoicePage: React.FC = () => {
                 }}
               >
                 Download PDF
+              </Button>
+            )}
+            {canPost && (
+              <Button
+                fullWidth
+                variant="contained"
+                onClick={handlePostInvoice}
+                disabled={isPosting}
+                startIcon={<PostAddIcon />}
+                sx={{
+                  py: 1.5,
+                  textTransform: 'none',
+                  bgcolor: '#3B82F6',
+                  '&:hover': {
+                    bgcolor: '#2563EB',
+                  },
+                }}
+              >
+                {isPosting ? 'Posting...' : 'Post Invoice'}
               </Button>
             )}
             <Box sx={{ display: 'flex', gap: 2 }}>

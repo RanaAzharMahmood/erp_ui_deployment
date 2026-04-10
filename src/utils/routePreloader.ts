@@ -9,10 +9,7 @@ const routeMap: Record<string, RouteLoader> = {
   '/dashboard': () => import('../pages/dashboard/DashboardPage'),
   '/companies/add': () => import('../pages/master-data/companies/AddCompanyPage'),
   '/companies/update': () => import('../pages/master-data/companies/UpdateCompanyPage'),
-  '/customer/add': () => import('../pages/master-data/customers/AddCustomerPage'),
-  '/customer/update': () => import('../pages/master-data/customers/UpdateCustomerPage'),
-  '/vendor/add': () => import('../pages/master-data/vendors/AddVendorPage'),
-  '/vendor/update': () => import('../pages/master-data/vendors/UpdateVendorPage'),
+
   '/tax/add': () => import('../pages/master-data/taxes/AddTaxPage'),
   '/tax/update': () => import('../pages/master-data/taxes/UpdateTaxPage'),
   '/users/add': () => import('../pages/master-data/users/AddUserPage'),

@@ -16,15 +16,6 @@ const CompaniesPage = lazy(() => import('./pages/master-data/companies/Companies
 const AddCompanyPage = lazy(() => import('./pages/master-data/companies/AddCompanyPage'))
 const UpdateCompanyPage = lazy(() => import('./pages/master-data/companies/UpdateCompanyPage'))
 
-// Master Data - Customers
-const CustomersPage = lazy(() => import('./pages/master-data/customers/CustomersPage'))
-const AddCustomerPage = lazy(() => import('./pages/master-data/customers/AddCustomerPage'))
-const UpdateCustomerPage = lazy(() => import('./pages/master-data/customers/UpdateCustomerPage'))
-
-// Master Data - Vendors
-const VendorsPage = lazy(() => import('./pages/master-data/vendors/VendorsPage'))
-const AddVendorPage = lazy(() => import('./pages/master-data/vendors/AddVendorPage'))
-const UpdateVendorPage = lazy(() => import('./pages/master-data/vendors/UpdateVendorPage'))
 
 // Master Data - Users
 const UsersPage = lazy(() => import('./pages/master-data/users/UsersPage'))
@@ -55,8 +46,6 @@ const UpdatePartyPage = lazy(() => import('./pages/master-data/parties/UpdatePar
 const BankAccountListPage = lazy(() => import('./pages/master-data/bank-accounts/BankAccountListPage'))
 const AddBankAccountPage = lazy(() => import('./pages/master-data/bank-accounts/AddBankAccountPage'))
 
-// Inventory
-const ProductsPage = lazy(() => import('./pages/inventory/ProductsPage'))
 
 // Sales
 const SalesInvoiceListPage = lazy(() => import('./pages/sales/invoices/SalesInvoiceListPage'))
@@ -119,14 +108,19 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
   return isAuthenticated ? <>{children}</> : <Navigate to="/login" replace />
 }
 
-const PermissionRoute: React.FC<{ permission: string; children: React.ReactNode }> = ({
-  permission,
-  children,
-}) => {
+const PermissionRoute: React.FC<{
+  permission?: string
+  adminOnly?: boolean
+  children: React.ReactNode
+}> = ({ permission, adminOnly, children }) => {
   const { hasPermission, user } = useAuth()
   const isAdmin = user?.roleName?.toLowerCase() === 'admin'
-  if (isAdmin || hasPermission(permission)) return <>{children}</>
-  return <Navigate to="/dashboard" replace />
+
+  if (isAdmin) return <>{children}</>
+  if (adminOnly) return <Navigate to="/dashboard" replace />
+  if (permission && !hasPermission(permission)) return <Navigate to="/dashboard" replace />
+
+  return <>{children}</>
 }
 
 function App() {
@@ -198,438 +192,479 @@ function App() {
             </SuspenseRoute>
           }
         />
-        <Route
-          path="products"
-          element={
-            <SuspenseRoute>
-              <ProductsPage />
-            </SuspenseRoute>
-          }
-        />
+
         <Route
           path="categories"
           element={
-            <SuspenseRoute>
-              <CategoryListPage />
-            </SuspenseRoute>
+            <PermissionRoute permission="view_categories">
+              <SuspenseRoute>
+                <CategoryListPage />
+              </SuspenseRoute>
+            </PermissionRoute>
           }
         />
         <Route
           path="companies"
           element={
-            <SuspenseRoute>
-              <CompaniesPage />
-            </SuspenseRoute>
+            <PermissionRoute adminOnly>
+              <SuspenseRoute>
+                <CompaniesPage />
+              </SuspenseRoute>
+            </PermissionRoute>
           }
         />
         <Route
           path="companies/add"
           element={
-            <SuspenseRoute>
-              <AddCompanyPage />
-            </SuspenseRoute>
+            <PermissionRoute adminOnly>
+              <SuspenseRoute>
+                <AddCompanyPage />
+              </SuspenseRoute>
+            </PermissionRoute>
           }
         />
         <Route
           path="companies/update/:id"
           element={
-            <SuspenseRoute>
-              <UpdateCompanyPage />
-            </SuspenseRoute>
+            <PermissionRoute adminOnly>
+              <SuspenseRoute>
+                <UpdateCompanyPage />
+              </SuspenseRoute>
+            </PermissionRoute>
           }
         />
-        <Route
-          path="customer"
-          element={
-            <SuspenseRoute>
-              <CustomersPage />
-            </SuspenseRoute>
-          }
-        />
-        <Route
-          path="customer/add"
-          element={
-            <SuspenseRoute>
-              <AddCustomerPage />
-            </SuspenseRoute>
-          }
-        />
-        <Route
-          path="customer/update/:id"
-          element={
-            <SuspenseRoute>
-              <UpdateCustomerPage />
-            </SuspenseRoute>
-          }
-        />
-        <Route
-          path="vendor"
-          element={
-            <SuspenseRoute>
-              <VendorsPage />
-            </SuspenseRoute>
-          }
-        />
-        <Route
-          path="vendor/add"
-          element={
-            <SuspenseRoute>
-              <AddVendorPage />
-            </SuspenseRoute>
-          }
-        />
-        <Route
-          path="vendor/update/:id"
-          element={
-            <SuspenseRoute>
-              <UpdateVendorPage />
-            </SuspenseRoute>
-          }
-        />
+
+
         <Route
           path="tax"
           element={
-            <SuspenseRoute>
-              <TaxListPage />
-            </SuspenseRoute>
+            <PermissionRoute permission="view_taxes">
+              <SuspenseRoute>
+                <TaxListPage />
+              </SuspenseRoute>
+            </PermissionRoute>
           }
         />
         <Route
           path="tax/add"
           element={
-            <SuspenseRoute>
-              <AddTaxPage />
-            </SuspenseRoute>
+            <PermissionRoute permission="view_taxes">
+              <SuspenseRoute>
+                <AddTaxPage />
+              </SuspenseRoute>
+            </PermissionRoute>
           }
         />
         <Route
           path="tax/update/:id"
           element={
-            <SuspenseRoute>
-              <UpdateTaxPage />
-            </SuspenseRoute>
+            <PermissionRoute permission="view_taxes">
+              <SuspenseRoute>
+                <UpdateTaxPage />
+              </SuspenseRoute>
+            </PermissionRoute>
           }
         />
         <Route
           path="users"
           element={
-            <SuspenseRoute>
-              <UsersPage />
-            </SuspenseRoute>
+            <PermissionRoute permission="view_users">
+              <SuspenseRoute>
+                <UsersPage />
+              </SuspenseRoute>
+            </PermissionRoute>
           }
         />
         <Route
           path="users/add"
           element={
-            <SuspenseRoute>
-              <AddUserPage />
-            </SuspenseRoute>
+            <PermissionRoute permission="view_users">
+              <SuspenseRoute>
+                <AddUserPage />
+              </SuspenseRoute>
+            </PermissionRoute>
           }
         />
         <Route
           path="users/edit/:id"
           element={
-            <SuspenseRoute>
-              <UpdateUserPage />
-            </SuspenseRoute>
+            <PermissionRoute permission="view_users">
+              <SuspenseRoute>
+                <UpdateUserPage />
+              </SuspenseRoute>
+            </PermissionRoute>
           }
         />
         <Route
           path="party"
           element={
-            <SuspenseRoute>
-              <PartyListPage />
-            </SuspenseRoute>
+            <PermissionRoute permission="party:read">
+              <SuspenseRoute>
+                <PartyListPage />
+              </SuspenseRoute>
+            </PermissionRoute>
           }
         />
         <Route
           path="party/add"
           element={
-            <SuspenseRoute>
-              <AddPartyPage />
-            </SuspenseRoute>
+            <PermissionRoute permission="party:read">
+              <SuspenseRoute>
+                <AddPartyPage />
+              </SuspenseRoute>
+            </PermissionRoute>
           }
         />
         <Route
           path="party/update/:id"
           element={
-            <SuspenseRoute>
-              <UpdatePartyPage />
-            </SuspenseRoute>
+            <PermissionRoute permission="party:read">
+              <SuspenseRoute>
+                <UpdatePartyPage />
+              </SuspenseRoute>
+            </PermissionRoute>
           }
         />
         <Route
           path="inventory"
           element={
-            <SuspenseRoute>
-              <InventoryListPage />
-            </SuspenseRoute>
+            <PermissionRoute permission="view_inventory_movements">
+              <SuspenseRoute>
+                <InventoryListPage />
+              </SuspenseRoute>
+            </PermissionRoute>
           }
         />
         <Route
           path="inventory/add"
           element={
-            <SuspenseRoute>
-              <AddItemPage />
-            </SuspenseRoute>
+            <PermissionRoute permission="view_inventory_movements">
+              <SuspenseRoute>
+                <AddItemPage />
+              </SuspenseRoute>
+            </PermissionRoute>
           }
         />
         <Route
           path="inventory/update/:id"
           element={
-            <SuspenseRoute>
-              <UpdateItemPage />
-            </SuspenseRoute>
+            <PermissionRoute permission="view_inventory_movements">
+              <SuspenseRoute>
+                <UpdateItemPage />
+              </SuspenseRoute>
+            </PermissionRoute>
           }
         />
         <Route
           path="categories/add"
           element={
-            <SuspenseRoute>
-              <AddCategoryPage />
-            </SuspenseRoute>
+            <PermissionRoute permission="view_categories">
+              <SuspenseRoute>
+                <AddCategoryPage />
+              </SuspenseRoute>
+            </PermissionRoute>
           }
         />
         <Route
           path="categories/update/:id"
           element={
-            <SuspenseRoute>
-              <UpdateCategoryPage />
-            </SuspenseRoute>
+            <PermissionRoute permission="view_categories">
+              <SuspenseRoute>
+                <UpdateCategoryPage />
+              </SuspenseRoute>
+            </PermissionRoute>
           }
         />
         {/* Account Routes */}
         <Route
           path="account/expense"
           element={
-            <SuspenseRoute>
-              <ExpenseListPage />
-            </SuspenseRoute>
+            <PermissionRoute permission="view_expenses">
+              <SuspenseRoute>
+                <ExpenseListPage />
+              </SuspenseRoute>
+            </PermissionRoute>
           }
         />
         <Route
           path="account/expense/add"
           element={
-            <SuspenseRoute>
-              <AddExpensePage />
-            </SuspenseRoute>
+            <PermissionRoute permission="view_expenses">
+              <SuspenseRoute>
+                <AddExpensePage />
+              </SuspenseRoute>
+            </PermissionRoute>
           }
         />
         <Route
           path="account/expense/update/:id"
           element={
-            <SuspenseRoute>
-              <AddExpensePage />
-            </SuspenseRoute>
+            <PermissionRoute permission="view_expenses">
+              <SuspenseRoute>
+                <AddExpensePage />
+              </SuspenseRoute>
+            </PermissionRoute>
           }
         />
         <Route
           path="account/bank-deposit"
           element={
-            <SuspenseRoute>
-              <BankDepositListPage />
-            </SuspenseRoute>
+            <PermissionRoute permission="view_bank_deposits">
+              <SuspenseRoute>
+                <BankDepositListPage />
+              </SuspenseRoute>
+            </PermissionRoute>
           }
         />
         <Route
           path="account/bank-deposit/add"
           element={
-            <SuspenseRoute>
-              <AddBankDepositPage />
-            </SuspenseRoute>
+            <PermissionRoute permission="view_bank_deposits">
+              <SuspenseRoute>
+                <AddBankDepositPage />
+              </SuspenseRoute>
+            </PermissionRoute>
           }
         />
         <Route
           path="account/bank-deposit/update/:id"
           element={
-            <SuspenseRoute>
-              <AddBankDepositPage />
-            </SuspenseRoute>
+            <PermissionRoute permission="view_bank_deposits">
+              <SuspenseRoute>
+                <AddBankDepositPage />
+              </SuspenseRoute>
+            </PermissionRoute>
           }
         />
         <Route
           path="account/journal-entry"
           element={
-            <SuspenseRoute>
-              <JournalEntryListPage />
-            </SuspenseRoute>
+            <PermissionRoute permission="view_journal_entries">
+              <SuspenseRoute>
+                <JournalEntryListPage />
+              </SuspenseRoute>
+            </PermissionRoute>
           }
         />
         <Route
           path="account/journal-entry/add"
           element={
-            <SuspenseRoute>
-              <AddJournalEntryPage />
-            </SuspenseRoute>
+            <PermissionRoute permission="view_journal_entries">
+              <SuspenseRoute>
+                <AddJournalEntryPage />
+              </SuspenseRoute>
+            </PermissionRoute>
           }
         />
         <Route
           path="account/journal-entry/update/:id"
           element={
-            <SuspenseRoute>
-              <AddJournalEntryPage />
-            </SuspenseRoute>
+            <PermissionRoute permission="view_journal_entries">
+              <SuspenseRoute>
+                <AddJournalEntryPage />
+              </SuspenseRoute>
+            </PermissionRoute>
           }
         />
         <Route
           path="account/bank-account"
           element={
-            <SuspenseRoute>
-              <BankAccountListPage />
-            </SuspenseRoute>
+            <PermissionRoute permission="view_bank_accounts">
+              <SuspenseRoute>
+                <BankAccountListPage />
+              </SuspenseRoute>
+            </PermissionRoute>
           }
         />
         <Route
           path="account/bank-account/add"
           element={
-            <SuspenseRoute>
-              <AddBankAccountPage />
-            </SuspenseRoute>
+            <PermissionRoute permission="view_bank_accounts">
+              <SuspenseRoute>
+                <AddBankAccountPage />
+              </SuspenseRoute>
+            </PermissionRoute>
           }
         />
         <Route
           path="account/bank-account/update/:id"
           element={
-            <SuspenseRoute>
-              <AddBankAccountPage />
-            </SuspenseRoute>
+            <PermissionRoute permission="view_bank_accounts">
+              <SuspenseRoute>
+                <AddBankAccountPage />
+              </SuspenseRoute>
+            </PermissionRoute>
           }
         />
         <Route
           path="account/other-payments"
           element={
-            <SuspenseRoute>
-              <OtherPaymentsListPage />
-            </SuspenseRoute>
+            <PermissionRoute permission="view_other_payments">
+              <SuspenseRoute>
+                <OtherPaymentsListPage />
+              </SuspenseRoute>
+            </PermissionRoute>
           }
         />
         <Route
           path="account/other-payments/add"
           element={
-            <SuspenseRoute>
-              <AddOtherPaymentsPage />
-            </SuspenseRoute>
+            <PermissionRoute permission="view_other_payments">
+              <SuspenseRoute>
+                <AddOtherPaymentsPage />
+              </SuspenseRoute>
+            </PermissionRoute>
           }
         />
         <Route
           path="account/other-payments/update/:id"
           element={
-            <SuspenseRoute>
-              <AddOtherPaymentsPage />
-            </SuspenseRoute>
+            <PermissionRoute permission="view_other_payments">
+              <SuspenseRoute>
+                <AddOtherPaymentsPage />
+              </SuspenseRoute>
+            </PermissionRoute>
           }
         />
         <Route
           path="account/chart-of-account/add"
           element={
-            <SuspenseRoute>
-              <AddChartOfAccountPage />
-            </SuspenseRoute>
+            <PermissionRoute permission="view_chart_of_accounts">
+              <SuspenseRoute>
+                <AddChartOfAccountPage />
+              </SuspenseRoute>
+            </PermissionRoute>
           }
         />
         <Route
           path="account/chart-of-account/update/:id"
           element={
-            <SuspenseRoute>
-              <AddChartOfAccountPage />
-            </SuspenseRoute>
+            <PermissionRoute permission="view_chart_of_accounts">
+              <SuspenseRoute>
+                <AddChartOfAccountPage />
+              </SuspenseRoute>
+            </PermissionRoute>
           }
         />
         <Route
           path="account/chart-of-account"
           element={
-            <SuspenseRoute>
-              <ChartOfAccountPage />
-            </SuspenseRoute>
+            <PermissionRoute permission="view_chart_of_accounts">
+              <SuspenseRoute>
+                <ChartOfAccountPage />
+              </SuspenseRoute>
+            </PermissionRoute>
           }
         />
         <Route
           path="account/opening-balance"
           element={
-            <SuspenseRoute>
-              <OpeningBalancePage />
-            </SuspenseRoute>
+            <PermissionRoute permission="view_journal_entries">
+              <SuspenseRoute>
+                <OpeningBalancePage />
+              </SuspenseRoute>
+            </PermissionRoute>
           }
         />
         <Route
           path="reports"
           element={
-            <SuspenseRoute>
-              <ReportsHubPage />
-            </SuspenseRoute>
+            <PermissionRoute permission="view_journal_entries">
+              <SuspenseRoute>
+                <ReportsHubPage />
+              </SuspenseRoute>
+            </PermissionRoute>
           }
         />
         <Route
           path="reports/trial-balance"
           element={
-            <SuspenseRoute>
-              <TrialBalancePage />
-            </SuspenseRoute>
+            <PermissionRoute permission="view_journal_entries">
+              <SuspenseRoute>
+                <TrialBalancePage />
+              </SuspenseRoute>
+            </PermissionRoute>
           }
         />
         <Route
           path="reports/general-ledger"
           element={
-            <SuspenseRoute>
-              <GeneralLedgerPage />
-            </SuspenseRoute>
+            <PermissionRoute permission="view_journal_entries">
+              <SuspenseRoute>
+                <GeneralLedgerPage />
+              </SuspenseRoute>
+            </PermissionRoute>
           }
         />
         <Route
           path="reports/viewer"
           element={
-            <SuspenseRoute>
-              <ReportViewerPage />
-            </SuspenseRoute>
+            <PermissionRoute permission="view_journal_entries">
+              <SuspenseRoute>
+                <ReportViewerPage />
+              </SuspenseRoute>
+            </PermissionRoute>
           }
         />
         {/* Purchase Routes */}
         <Route
           path="purchase/invoice"
           element={
-            <SuspenseRoute>
-              <PurchaseInvoiceListPage />
-            </SuspenseRoute>
+            <PermissionRoute permission="view_purchase_invoices">
+              <SuspenseRoute>
+                <PurchaseInvoiceListPage />
+              </SuspenseRoute>
+            </PermissionRoute>
           }
         />
         <Route
           path="purchase/invoice/add"
           element={
-            <SuspenseRoute>
-              <AddPurchaseInvoicePage />
-            </SuspenseRoute>
+            <PermissionRoute permission="view_purchase_invoices">
+              <SuspenseRoute>
+                <AddPurchaseInvoicePage />
+              </SuspenseRoute>
+            </PermissionRoute>
           }
         />
         <Route
           path="purchase/invoice/update/:id"
           element={
-            <SuspenseRoute>
-              <AddPurchaseInvoicePage />
-            </SuspenseRoute>
+            <PermissionRoute permission="view_purchase_invoices">
+              <SuspenseRoute>
+                <AddPurchaseInvoicePage />
+              </SuspenseRoute>
+            </PermissionRoute>
           }
         />
         <Route
           path="purchase/return"
           element={
-            <SuspenseRoute>
-              <PurchaseReturnListPage />
-            </SuspenseRoute>
+            <PermissionRoute permission="view_purchase_returns">
+              <SuspenseRoute>
+                <PurchaseReturnListPage />
+              </SuspenseRoute>
+            </PermissionRoute>
           }
         />
         <Route
           path="purchase/return/add"
           element={
-            <SuspenseRoute>
-              <AddPurchaseReturnPage />
-            </SuspenseRoute>
+            <PermissionRoute permission="view_purchase_returns">
+              <SuspenseRoute>
+                <AddPurchaseReturnPage />
+              </SuspenseRoute>
+            </PermissionRoute>
           }
         />
         <Route
           path="purchase/return/update/:id"
           element={
-            <SuspenseRoute>
-              <AddPurchaseReturnPage />
-            </SuspenseRoute>
+            <PermissionRoute permission="view_purchase_returns">
+              <SuspenseRoute>
+                <AddPurchaseReturnPage />
+              </SuspenseRoute>
+            </PermissionRoute>
           }
         />
         {/* Activity & Approval Routes */}
@@ -657,49 +692,61 @@ function App() {
         <Route
           path="sales/invoice"
           element={
-            <SuspenseRoute>
-              <SalesInvoiceListPage />
-            </SuspenseRoute>
+            <PermissionRoute permission="view_sales_invoices">
+              <SuspenseRoute>
+                <SalesInvoiceListPage />
+              </SuspenseRoute>
+            </PermissionRoute>
           }
         />
         <Route
           path="sales/invoice/add"
           element={
-            <SuspenseRoute>
-              <AddSalesInvoicePage />
-            </SuspenseRoute>
+            <PermissionRoute permission="view_sales_invoices">
+              <SuspenseRoute>
+                <AddSalesInvoicePage />
+              </SuspenseRoute>
+            </PermissionRoute>
           }
         />
         <Route
           path="sales/invoice/update/:id"
           element={
-            <SuspenseRoute>
-              <AddSalesInvoicePage />
-            </SuspenseRoute>
+            <PermissionRoute permission="view_sales_invoices">
+              <SuspenseRoute>
+                <AddSalesInvoicePage />
+              </SuspenseRoute>
+            </PermissionRoute>
           }
         />
         <Route
           path="sales/return"
           element={
-            <SuspenseRoute>
-              <SalesReturnListPage />
-            </SuspenseRoute>
+            <PermissionRoute permission="view_sales_returns">
+              <SuspenseRoute>
+                <SalesReturnListPage />
+              </SuspenseRoute>
+            </PermissionRoute>
           }
         />
         <Route
           path="sales/return/add"
           element={
-            <SuspenseRoute>
-              <AddSalesReturnPage />
-            </SuspenseRoute>
+            <PermissionRoute permission="view_sales_returns">
+              <SuspenseRoute>
+                <AddSalesReturnPage />
+              </SuspenseRoute>
+            </PermissionRoute>
           }
         />
         <Route
           path="sales/return/update/:id"
           element={
-            <SuspenseRoute>
-              <AddSalesReturnPage />
-            </SuspenseRoute>
+            <PermissionRoute permission="view_sales_returns">
+              <SuspenseRoute>
+                <AddSalesReturnPage />
+              </SuspenseRoute>
+            </PermissionRoute>
           }
         />
       </Route>

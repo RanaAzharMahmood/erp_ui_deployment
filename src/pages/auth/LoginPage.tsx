@@ -35,7 +35,12 @@ const LoginPage: React.FC = () => {
     setLoading(false)
 
     if (result.success) {
-      navigate('/dashboard')
+      const isAdmin = result.user?.roleName?.toLowerCase() === 'admin'
+      if (!isAdmin && !result.user?.selectedCompanyId) {
+        navigate('/select-company')
+      } else {
+        navigate('/dashboard')
+      }
     } else {
       setError(result.message || 'Invalid email or password')
     }

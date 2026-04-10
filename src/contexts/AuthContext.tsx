@@ -16,7 +16,7 @@ interface AuthContextType {
   companies: Company[]
   isAuthenticated: boolean
   isLoading: boolean
-  login: (email: string, password: string) => Promise<{ success: boolean; message: string }>
+  login: (email: string, password: string) => Promise<{ success: boolean; message: string; user?: AuthUser }>
   logout: () => Promise<void>
   refreshToken: () => Promise<boolean>
   hasPermission: (permission: string) => boolean
@@ -179,7 +179,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, [scheduleTokenRefresh])
 
   const login = useCallback(
-    async (email: string, password: string): Promise<{ success: boolean; message: string }> => {
+    async (email: string, password: string): Promise<{ success: boolean; message: string; user?: AuthUser }> => {
       try {
         const response = await authService.login({ email, password })
 
@@ -188,7 +188,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
           saveAuthData(userData, userPermissions, userCompanies, expiresIn)
 
-          return { success: true, message: response.message }
+          return { success: true, message: response.message, user: userData }
         }
 
         return { success: false, message: response.message || 'Login failed' }
