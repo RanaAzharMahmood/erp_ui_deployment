@@ -10,6 +10,8 @@ export interface Company {
   logoUrl?: string;
   ntnNumber?: string;
   salesTaxRegistrationNo?: string;
+  contactName?: string;
+  contactEmail?: string;
   isActive: boolean;
   createdAt?: string;
   updatedAt?: string;
@@ -26,6 +28,8 @@ interface ApiCompanyResponse {
   logoUrl?: string;
   ntnNumber?: string;
   salesTaxRegistrationNo?: string;
+  contactName?: string;
+  contactEmail?: string;
   isActive?: boolean;
   createdAt?: string;
   updatedAt?: string;
@@ -46,6 +50,8 @@ const mapToCompany = (c: ApiCompanyResponse, useDefaultActive = false): Company 
   logoUrl: c.logoUrl,
   ntnNumber: c.ntnNumber,
   salesTaxRegistrationNo: c.salesTaxRegistrationNo,
+  contactName: c.contactName,
+  contactEmail: c.contactEmail,
   isActive: useDefaultActive ? (c.isActive ?? true) : (c.isActive ?? false),
   createdAt: c.createdAt,
   updatedAt: c.updatedAt,

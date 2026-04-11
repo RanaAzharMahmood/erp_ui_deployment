@@ -480,37 +480,44 @@ const AddSalesInvoicePage: React.FC = () => {
     navigate('/sales/invoice');
   }, [navigate]);
 
-  const handlePrint = useCallback(() => {
-    if (!invoiceSectionRef.current) return;
-    const printContent = invoiceSectionRef.current.innerHTML;
-    const printWindow = window.open('', '_blank', 'width=900,height=700');
-    if (!printWindow) return;
-    printWindow.document.write(`
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Sales Invoice - ${formData.invoiceNumber}</title>
-          <style>
-            * { margin: 0; padding: 0; box-sizing: border-box; }
-            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 24px; color: #1F2937; }
-            table { width: 100%; border-collapse: collapse; margin: 16px 0; }
-            th { background: #1F2937; color: white; padding: 8px 12px; text-align: left; font-size: 13px; }
-            td { padding: 8px 12px; border-bottom: 1px solid #E5E7EB; font-size: 13px; }
-            input, select { border: none; background: none; font-size: 13px; font-family: inherit; }
-            button, .MuiIconButton-root { display: none !important; }
-            .MuiSelect-icon { display: none !important; }
-            svg, .MuiSvgIcon-root { display: none !important; }
-            hr { border: none; border-top: 1px solid #E5E7EB; margin: 16px 0; }
-            @media print { body { padding: 0; } }
-          </style>
-        </head>
-        <body>${printContent}</body>
-      </html>
-    `);
-    printWindow.document.close();
-    printWindow.focus();
-    setTimeout(() => { printWindow.print(); printWindow.close(); }, 300);
-  }, [formData.invoiceNumber]);
+  const handlePrint = useCallback(async () => {
+    try {
+      const { downloadInvoicePdf } = await import('../../../components/pdf/downloadInvoicePdf');
+      const company = companiesData.find((c) => c.id === Number(formData.companyId));
+      const customer = customers.find((c) => c.id === formData.customerId);
+      const validLines = lineItems.filter((l) => l.itemId);
+      const taxRate = selectedTax ? selectedTax.percentage : 0;
+
+      await downloadInvoicePdf({
+        variant: 'sales',
+        documentNumber: formData.invoiceNumber || 'draft',
+        date: formData.date,
+        company: {
+          name: company?.name || 'Company',
+          logoUrl: company?.logoUrl,
+          salesTaxNumber: company?.salesTaxRegistrationNo,
+          ntnNumber: company?.ntnNumber,
+          representator: company?.contactName,
+          phone: company?.phone,
+          address: company?.address,
+        },
+        party: {
+          name: customer?.name || 'Customer',
+        },
+        lines: validLines.map((l) => ({
+          quantity: l.quantity,
+          description: items.find((i) => i.id === l.itemId)?.name || '',
+          unitPrice: l.rate,
+          taxRatePercent: taxRate,
+        })),
+        discountPercent: formData.discount || 0,
+        paidAmount: formData.paidAmount || 0,
+      });
+    } catch (err) {
+      console.error('Error generating PDF:', err);
+      setError('Failed to generate PDF. Please try again.');
+    }
+  }, [formData, lineItems, companiesData, customers, items, selectedTax]);
 
   const handlePostInvoice = useCallback(async () => {
     if (!id) return;

@@ -31,6 +31,7 @@ import {
   Download as DownloadIcon,
   Save as SaveIcon,
   Inventory as InventoryIcon,
+  Print as PrintIcon,
 } from '@mui/icons-material';
 import PageHeader from '../../../components/common/PageHeader';
 import FormSection from '../../../components/common/FormSection';
@@ -405,6 +406,46 @@ const AddPurchaseInvoicePage: React.FC = () => {
   const handleCancel = useCallback(() => {
     navigate('/purchase/invoice');
   }, [navigate]);
+
+  const handlePrint = useCallback(async () => {
+    try {
+      const { downloadInvoicePdf } = await import('../../../components/pdf/downloadInvoicePdf');
+      const company = companiesData.find((c) => c.id === Number(formData.companyId));
+      const vendor = vendors.find((v) => v.id === formData.vendorId);
+      const validLines = lineItems.filter((l) => l.itemId);
+      const selectedTaxOpt = taxes.find((t) => t.id === formData.taxId);
+      const taxRate = selectedTaxOpt ? selectedTaxOpt.percentage : 0;
+
+      await downloadInvoicePdf({
+        variant: 'purchase',
+        documentNumber: formData.billNumber || 'draft',
+        date: formData.date,
+        company: {
+          name: company?.name || 'Company',
+          logoUrl: company?.logoUrl,
+          salesTaxNumber: company?.salesTaxRegistrationNo,
+          ntnNumber: company?.ntnNumber,
+          representator: company?.contactName,
+          phone: company?.phone,
+          address: company?.address,
+        },
+        party: {
+          name: vendor?.name || 'Vendor',
+        },
+        lines: validLines.map((l) => ({
+          quantity: l.quantity,
+          description: items.find((i) => i.id === l.itemId)?.name || '',
+          unitPrice: l.rate,
+          taxRatePercent: taxRate,
+        })),
+        discountPercent: formData.discount || 0,
+        paidAmount: formData.paidAmount || 0,
+      });
+    } catch (err) {
+      console.error('Error generating PDF:', err);
+      setError('Failed to generate PDF. Please try again.');
+    }
+  }, [formData, lineItems, companiesData, vendors, items, taxes]);
 
   // Show skeleton while loading in edit mode
   if (isLoading) {
@@ -876,7 +917,28 @@ const AddPurchaseInvoicePage: React.FC = () => {
           </FormSection>
 
           {/* Action Buttons */}
-          <Box sx={{ display: 'flex', gap: 2 }}>
+          <Box sx={{ display: 'flex', gap: 2, flexDirection: 'column' }}>
+            {isEditMode && (
+              <Button
+                fullWidth
+                variant="outlined"
+                onClick={handlePrint}
+                startIcon={<PrintIcon />}
+                sx={{
+                  py: 1.5,
+                  textTransform: 'none',
+                  borderColor: '#FF6B35',
+                  color: '#FF6B35',
+                  '&:hover': {
+                    borderColor: '#E55A2B',
+                    bgcolor: '#FFF7ED',
+                  },
+                }}
+              >
+                Download PDF
+              </Button>
+            )}
+            <Box sx={{ display: 'flex', gap: 2 }}>
             <Button
               fullWidth
               variant="outlined"
@@ -912,6 +974,7 @@ const AddPurchaseInvoicePage: React.FC = () => {
             >
               {isSubmitting ? 'Saving...' : isEditMode ? 'Update Invoice' : 'Save Invoice'}
             </Button>
+            </Box>
           </Box>
         </Grid>
       </Grid>

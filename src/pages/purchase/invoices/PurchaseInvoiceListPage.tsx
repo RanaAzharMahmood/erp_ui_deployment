@@ -32,13 +32,14 @@ import {
   FileDownload as FileDownloadIcon,
   GridOn as GridIcon,
   PostAdd as PostAddIcon,
+  PictureAsPdf as PictureAsPdfIcon,
 } from '@mui/icons-material';
 import TableSkeleton from '../../../components/common/TableSkeleton';
 import PageError from '../../../components/common/PageError';
 import ConfirmDialog from '../../../components/feedback/ConfirmDialog';
 import { exportToCsv } from '../../../utils/csvExport';
 import { COLORS } from '../../../constants/colors';
-import { getPurchaseInvoicesApi } from '../../../generated/api/client';
+import { getPurchaseInvoicesApi, getCompaniesApi } from '../../../generated/api/client';
 
 interface PurchaseInvoice {
   id: string;
@@ -230,6 +231,87 @@ const PurchaseInvoiceListPage: React.FC = () => {
       setError(message);
     }
   }, [loadInvoices]);
+
+  const handleDownloadPdf = useCallback(async (id: string) => {
+    try {
+      const purchaseInvoicesApi = getPurchaseInvoicesApi();
+      const [invoiceRes, companiesRes] = await Promise.all([
+        purchaseInvoicesApi.getById(Number(id)),
+        getCompaniesApi().v1ApiCompaniesGet(),
+      ]);
+      const invoice = invoiceRes.data as unknown as {
+        billNumber?: string;
+        invoiceNumber?: string;
+        date?: string;
+        companyId?: number;
+        vendor?: { partyName?: string };
+        discountAmount?: number;
+        paidAmount?: number;
+        lines?: Array<{
+          quantity?: number;
+          unitPrice?: number;
+          lineTotal?: number;
+          taxAmount?: number;
+          item?: { itemName?: string };
+        }>;
+      };
+      const companiesList = (companiesRes.data as unknown as Array<{
+        id?: number;
+        name?: string;
+        companyName?: string;
+        logoUrl?: string;
+        salesTaxRegistrationNo?: string;
+        ntnNumber?: string;
+        contactName?: string;
+        phone?: string;
+        address?: string;
+      }>) || [];
+      const company = companiesList.find((c) => c.id === invoice.companyId);
+
+      const lines = (invoice.lines || []).map((l) => {
+        const quantity = Number(l.quantity || 0);
+        const unitPrice = Number(l.unitPrice || 0);
+        const valueEx = quantity * unitPrice;
+        const taxAmount = Number(l.taxAmount || 0);
+        const taxRatePercent = valueEx > 0 ? Math.round((taxAmount / valueEx) * 100) : 0;
+        return {
+          quantity,
+          description: l.item?.itemName || '',
+          unitPrice,
+          taxRatePercent,
+        };
+      });
+
+      const grossTotal = lines.reduce((sum, l) => sum + l.quantity * l.unitPrice, 0);
+      const storedDiscount = Number(invoice.discountAmount || 0);
+      const discountPercent = grossTotal > 0 ? Math.round((storedDiscount / grossTotal) * 100) : 0;
+
+      const { downloadInvoicePdf } = await import('../../../components/pdf/downloadInvoicePdf');
+      await downloadInvoicePdf({
+        variant: 'purchase',
+        documentNumber: invoice.billNumber || invoice.invoiceNumber || String(id),
+        date: invoice.date || '',
+        company: {
+          name: company?.name || company?.companyName || 'Company',
+          logoUrl: company?.logoUrl,
+          salesTaxNumber: company?.salesTaxRegistrationNo,
+          ntnNumber: company?.ntnNumber,
+          representator: company?.contactName,
+          phone: company?.phone,
+          address: company?.address,
+        },
+        party: {
+          name: invoice.vendor?.partyName || 'Vendor',
+        },
+        lines,
+        discountPercent,
+        paidAmount: Number(invoice.paidAmount || 0),
+      });
+    } catch (err) {
+      console.error('Error generating PDF:', err);
+      setError('Failed to generate PDF. Please try again.');
+    }
+  }, []);
 
   const handleFilterClick = (event: React.MouseEvent<HTMLButtonElement>) => {
     setFilterAnchorEl(event.currentTarget);
@@ -648,6 +730,17 @@ const PurchaseInvoiceListPage: React.FC = () => {
                           title="Post invoice (creates GL entry)"
                         >
                           <PostAddIcon fontSize="small" />
+                        </IconButton>
+                      )}
+                      {(invoice.rawStatus === 'paid' || invoice.rawStatus === 'partially_paid' || invoice.rawStatus === 'posted') && (
+                        <IconButton
+                          size="small"
+                          onClick={() => handleDownloadPdf(invoice.id)}
+                          sx={{ color: '#FF6B35' }}
+                          aria-label={`Download PDF for invoice ${invoice.invoiceNumber}`}
+                          title="Download PDF"
+                        >
+                          <PictureAsPdfIcon fontSize="small" />
                         </IconButton>
                       )}
                       <IconButton
