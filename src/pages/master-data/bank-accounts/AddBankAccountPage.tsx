@@ -32,6 +32,7 @@ import {
   UpdateBankAccountRequest,
   BankAccountType,
 } from '../../../generated/api/client';
+import { ApiError } from '../../../utils/apiError';
 
 interface BankAccountFormData {
   companyId: number | '';
@@ -114,8 +115,17 @@ const AddBankAccountPage: React.FC = () => {
   }, []);
 
   const handleSubmit = useCallback(async () => {
+    if (!formData.companyId) {
+      setError('Please select a company');
+      return;
+    }
     if (!formData.bankName || !formData.accountTitle || !formData.accountNumber || !formData.branchName || !formData.date) {
       setError('Please fill in all required fields');
+      return;
+    }
+    // Account number must be alphanumeric (with optional dashes) and 5-30 characters
+    if (!/^[A-Za-z0-9-]{5,30}$/.test(formData.accountNumber)) {
+      setError('Account number must be alphanumeric and between 5-30 characters');
       return;
     }
 
@@ -130,7 +140,7 @@ const AddBankAccountPage: React.FC = () => {
           accountNumber: formData.accountNumber,
           bankName: formData.bankName,
           branchName: formData.branchName,
-          companyId: formData.companyId ? Number(formData.companyId) : undefined,
+          companyId: Number(formData.companyId),
           isActive: formData.status === 'Active',
         };
 
@@ -139,7 +149,7 @@ const AddBankAccountPage: React.FC = () => {
           setSuccessMessage('Bank account updated successfully!');
           setTimeout(() => navigate('/account/bank-account'), 1500);
         } else {
-          setError('Failed to update bank account');
+          setError(response.message || 'Failed to update bank account');
         }
       } else {
         // Create new account
@@ -149,7 +159,7 @@ const AddBankAccountPage: React.FC = () => {
           bankName: formData.bankName,
           branchName: formData.branchName,
           accountType: 'current' as BankAccountType, // Default to current
-          companyId: formData.companyId ? Number(formData.companyId) : undefined,
+          companyId: Number(formData.companyId),
         };
 
         const response = await api.create(createRequest);
@@ -157,12 +167,18 @@ const AddBankAccountPage: React.FC = () => {
           setSuccessMessage('Bank account created successfully!');
           setTimeout(() => navigate('/account/bank-account'), 1500);
         } else {
-          setError('Failed to create bank account');
+          setError(response.message || 'Failed to create bank account');
         }
       }
     } catch (err) {
       console.error('Error saving bank account:', err);
-      setError('Failed to save bank account');
+      if (err instanceof ApiError) {
+        setError(err.message);
+      } else if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError('Failed to save bank account');
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -184,7 +200,7 @@ const AddBankAccountPage: React.FC = () => {
                 {isAdmin && (
                 <Grid item xs={12} sm={6}>
                   <Typography variant="body2" sx={{ mb: 0.5, fontWeight: 500 }}>
-                    Select Company*
+                    Select Company *
                   </Typography>
                   <FormControl fullWidth size="small">
                     <Select
@@ -193,6 +209,7 @@ const AddBankAccountPage: React.FC = () => {
                       displayEmpty
                       sx={{ bgcolor: 'white' }}
                     >
+                      <MenuItem value="" disabled>Select Company</MenuItem>
                       {companies.map((company) => (
                         <MenuItem key={company.id} value={company.id}>
                           {company.name}
@@ -353,10 +370,20 @@ const AddBankAccountPage: React.FC = () => {
         </Grid>
       </Box>
 
-      <Snackbar open={!!error} autoHideDuration={6000} onClose={() => setError('')}>
-        <Alert severity="error" onClose={() => setError('')}>{error}</Alert>
+      <Snackbar
+        open={!!error}
+        autoHideDuration={6000}
+        onClose={() => setError('')}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert severity="error" onClose={() => setError('')} sx={{ maxWidth: 500 }}>{error}</Alert>
       </Snackbar>
-      <Snackbar open={!!successMessage} autoHideDuration={3000} onClose={() => setSuccessMessage('')}>
+      <Snackbar
+        open={!!successMessage}
+        autoHideDuration={3000}
+        onClose={() => setSuccessMessage('')}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
         <Alert severity="success" onClose={() => setSuccessMessage('')}>{successMessage}</Alert>
       </Snackbar>
     </Box>
