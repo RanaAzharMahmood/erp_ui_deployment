@@ -171,30 +171,6 @@ const AddPurchaseInvoicePage: React.FC = () => {
           setTaxes([]);
         }
 
-        // Load items from API
-        try {
-          const itemsApi = getItemsApi();
-          const itemsResponse = await itemsApi.v1ApiItemsGet(undefined);
-          type ItemShape = { id?: number; itemName?: string; purchasePrice?: number; unitPrice?: number; currentStock?: number; isActive?: boolean };
-          const itemsData = itemsResponse.data as { data?: ItemShape[] } | ItemShape[] | undefined;
-          const itemsList: ItemShape[] = itemsData && 'data' in (itemsData as object) && (itemsData as { data?: ItemShape[] }).data
-            ? (itemsData as { data: ItemShape[] }).data
-            : Array.isArray(itemsData) ? itemsData : [];
-          if (itemsList.length > 0) {
-            setItems(itemsList.map((i) => ({
-              id: String(i.id),
-              name: i.itemName || '',
-              rate: i.purchasePrice || i.unitPrice || 0,
-              currentStock: i.currentStock || 0,
-              isActive: i.isActive !== false,
-            })));
-          }
-        } catch (err: unknown) {
-          const msg = err instanceof Error ? err.message : 'Failed to load items';
-          setDataLoadWarning(msg);
-          setItems([]);
-        }
-
         // Load existing invoice for edit mode
         if (isEditMode && id) {
           try {
@@ -267,6 +243,35 @@ const AddPurchaseInvoicePage: React.FC = () => {
 
     loadData();
   }, [isEditMode, id]);
+
+  // Load items filtered by the selected company so the dropdown only
+  // shows inventory belonging to that company.
+  useEffect(() => {
+    const loadItems = async () => {
+      try {
+        const itemsApi = getItemsApi();
+        const companyIdParam = formData.companyId ? Number(formData.companyId) : undefined;
+        const itemsResponse = await itemsApi.v1ApiItemsGet(undefined, undefined, companyIdParam);
+        type ItemShape = { id?: number; itemName?: string; purchasePrice?: number; unitPrice?: number; currentStock?: number; isActive?: boolean };
+        const itemsData = itemsResponse.data as { data?: ItemShape[] } | ItemShape[] | undefined;
+        const itemsList: ItemShape[] = itemsData && 'data' in (itemsData as object) && (itemsData as { data?: ItemShape[] }).data
+          ? (itemsData as { data: ItemShape[] }).data
+          : Array.isArray(itemsData) ? itemsData : [];
+        setItems(itemsList.map((i) => ({
+          id: String(i.id),
+          name: i.itemName || '',
+          rate: i.purchasePrice || i.unitPrice || 0,
+          currentStock: i.currentStock || 0,
+          isActive: i.isActive !== false,
+        })));
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : 'Failed to load items';
+        setDataLoadWarning(msg);
+        setItems([]);
+      }
+    };
+    loadItems();
+  }, [formData.companyId]);
 
   const handleInputChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
