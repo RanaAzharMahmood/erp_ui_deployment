@@ -401,6 +401,10 @@ const AddSalesInvoicePage: React.FC = () => {
       errors.lineItems = 'At least one line item is required';
     }
 
+    if (formData.paidAmount > subtotal + 0.01) {
+      errors.paidAmount = `Paid amount cannot exceed the invoice total (${subtotal.toFixed(2)})`;
+    }
+
     setFieldErrors(errors);
     if (Object.keys(errors).length > 0) {
       setError('Please fix the errors below');
@@ -923,11 +927,14 @@ const AddSalesInvoicePage: React.FC = () => {
                     type="number"
                     value={formData.paidAmount || ''}
                     onChange={(e) => {
-                      const val = e.target.value === '' ? 0 : Math.max(0, parseFloat(e.target.value));
-                      handleSelectChange('paidAmount', isNaN(val) ? 0 : val);
+                      const raw = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                      const safe = isNaN(raw) ? 0 : raw;
+                      // Clamp to the invoice total so the user can't overpay.
+                      const clamped = Math.min(Math.max(0, safe), subtotal);
+                      handleSelectChange('paidAmount', clamped);
                     }}
                     size="small"
-                    inputProps={{ min: 0 }}
+                    inputProps={{ min: 0, max: subtotal }}
                     sx={{ width: 100, '& .MuiOutlinedInput-root': { bgcolor: 'white' } }}
                   />
                 </Box>
