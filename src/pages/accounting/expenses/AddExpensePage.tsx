@@ -57,6 +57,22 @@ interface ExpenseFormData {
 
 const PAYMENT_METHODS = ['Cash', 'Cheque', 'Bank Transfer', 'Online', 'Credit Card'];
 
+// Map UI labels to backend enum values (cash | bank | credit)
+const mapPaymentMethodToBackend = (label: string): 'cash' | 'bank' | 'credit' => {
+  switch (label) {
+    case 'Cash':
+      return 'cash';
+    case 'Cheque':
+    case 'Bank Transfer':
+    case 'Online':
+      return 'bank';
+    case 'Credit Card':
+      return 'credit';
+    default:
+      return 'cash';
+  }
+};
+
 const AddExpensePage: React.FC = () => {
   const navigate = useNavigate();
   const today = new Date().toISOString().split('T')[0];
@@ -187,7 +203,7 @@ const AddExpensePage: React.FC = () => {
         description: formData.payFor,
         amount: subtotal, // Use subtotal as the main amount
         taxAmount: taxAmount,
-        paymentMethod: (formData.paymentMethod as 'cash' | 'bank' | 'credit' | undefined) ?? 'cash',
+        paymentMethod: mapPaymentMethodToBackend(formData.paymentMethod),
         reference: formData.remarks || undefined,
         companyId: formData.companyId ? Number(formData.companyId) : 1,
       };
