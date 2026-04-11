@@ -118,6 +118,11 @@ const AddChartOfAccountPage: React.FC = () => {
     loadParentAccounts();
   }, [formData.accountType, formData.companyId]);
 
+  // Track how many posted transactions reference this account. Opening
+  // balance can only be edited when there are zero, otherwise the cached
+  // current balance would drift out of sync with the journal.
+  const [transactionCount, setTransactionCount] = useState<number | null>(null);
+
   // Load existing account if editing
   useEffect(() => {
     const loadAccount = async () => {
@@ -139,6 +144,7 @@ const AddChartOfAccountPage: React.FC = () => {
             currentBalance: account.currentBalance || 0,
             status: account.isActive ? 'Active' : 'Inactive',
           });
+          setTransactionCount(account.transactionCount ?? 0);
         } else {
           setError('Failed to load chart of account');
         }
@@ -331,7 +337,15 @@ const AddChartOfAccountPage: React.FC = () => {
                     value={formData.openingBalance}
                     onChange={(e) => handleInputChange('openingBalance', Number(e.target.value))}
                     sx={{ bgcolor: 'white' }}
-                    disabled={isEditMode}
+                    // In edit mode, only allow changes while the account has
+                    // no posted transactions — otherwise the cached current
+                    // balance would drift out of sync with the journal.
+                    disabled={isEditMode && (transactionCount === null || transactionCount > 0)}
+                    helperText={
+                      isEditMode && transactionCount !== null && transactionCount > 0
+                        ? 'Locked because this account has posted transactions'
+                        : undefined
+                    }
                   />
                 </Grid>
 

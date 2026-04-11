@@ -142,6 +142,9 @@ export interface ChartOfAccount {
   updatedAt: string;
   parent?: ChartOfAccount;
   children?: ChartOfAccount[];
+  /** Number of posted journal entry lines referencing this account. Only
+   *  populated on the getById response. */
+  transactionCount?: number;
 }
 
 export interface CreateChartOfAccountRequest {
@@ -166,6 +169,22 @@ export interface UpdateChartOfAccountRequest {
   currentBalance?: number;
   isSystemAccount?: boolean;
   isActive?: boolean;
+}
+
+export interface AccountLedgerLine {
+  id: number;
+  date: string;
+  entryNumber: string;
+  description?: string;
+  reference?: string;
+  debit: number;
+  credit: number;
+  runningBalance: number;
+}
+
+export interface AccountLedger {
+  account: ChartOfAccount;
+  lines: AccountLedgerLine[];
 }
 
 export interface ChartOfAccountApiResponse<T> {
@@ -387,6 +406,22 @@ export class ChartOfAccountsApi {
     if (!response.ok) {
       const error = await response.json();
       throw new ApiError(response.status, error.message || 'Failed to fetch chart of account');
+    }
+
+    return response.json();
+  }
+
+  async getAccountLedger(id: number): Promise<ChartOfAccountApiResponse<AccountLedger>> {
+    const url = `${this.basePath}/v1/api/chart-of-accounts/${id}/ledger`;
+
+    const response = await this.fetch(url, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new ApiError(response.status, error.message || 'Failed to fetch account ledger');
     }
 
     return response.json();

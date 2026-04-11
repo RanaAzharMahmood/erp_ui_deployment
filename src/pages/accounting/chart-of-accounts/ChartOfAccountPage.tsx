@@ -5,6 +5,10 @@ import {
   Card,
   Table,
   TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
   Typography,
   Button,
   TextField,
@@ -19,6 +23,9 @@ import {
   Snackbar,
   Alert,
   TableSortLabel,
+  Drawer,
+  Divider,
+  CircularProgress,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -43,6 +50,7 @@ import {
   ChartOfAccount as ApiChartOfAccount,
   AccountType as ApiAccountType,
   getCompaniesApi,
+  AccountLedger,
 } from '../../../generated/api/client';
 
 // Map API account type to display type
@@ -136,6 +144,33 @@ const ChartOfAccountPage: React.FC = () => {
     severity: 'info',
   });
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Ledger drawer state
+  const [ledgerOpen, setLedgerOpen] = useState(false);
+  const [ledgerLoading, setLedgerLoading] = useState(false);
+  const [ledgerData, setLedgerData] = useState<AccountLedger | null>(null);
+  const [ledgerError, setLedgerError] = useState<string | null>(null);
+
+  const handleViewLedger = useCallback(async (accountId: number) => {
+    setLedgerOpen(true);
+    setLedgerLoading(true);
+    setLedgerError(null);
+    setLedgerData(null);
+    try {
+      const api = getChartOfAccountsApi();
+      const response = await api.getAccountLedger(accountId);
+      if (response.success && response.data) {
+        setLedgerData(response.data);
+      } else {
+        setLedgerError('Failed to load ledger');
+      }
+    } catch (err) {
+      console.error('Error loading account ledger:', err);
+      setLedgerError(err instanceof Error ? err.message : 'Failed to load ledger');
+    } finally {
+      setLedgerLoading(false);
+    }
+  }, []);
 
   // Sorting state
   const [orderBy, setOrderBy] = useState<AccountOrderBy>('code');
@@ -475,7 +510,16 @@ const ChartOfAccountPage: React.FC = () => {
                 Add Account
               </Button>
             )}
-            <IconButton size="small" sx={{ color: '#6B7280' }} aria-label={`View details for ${account.name}`}>
+            <IconButton
+              size="small"
+              sx={{ color: '#6B7280' }}
+              aria-label={`View ledger for ${account.name}`}
+              title="View ledger"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleViewLedger(account.id);
+              }}
+            >
               <DescriptionIcon fontSize="small" />
             </IconButton>
             <IconButton
@@ -807,6 +851,73 @@ const ChartOfAccountPage: React.FC = () => {
           {snackbar.message}
         </Alert>
       </Snackbar>
+
+      {/* Account ledger drawer — opened from the document icon on each row */}
+      <Drawer
+        anchor="right"
+        open={ledgerOpen}
+        onClose={() => setLedgerOpen(false)}
+        PaperProps={{ sx: { width: { xs: '100%', sm: 720 } } }}
+      >
+        <Box sx={{ p: 3 }}>
+          {ledgerLoading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
+              <CircularProgress />
+            </Box>
+          ) : ledgerError ? (
+            <Alert severity="error" sx={{ mt: 2 }}>{ledgerError}</Alert>
+          ) : ledgerData ? (
+            <>
+              <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                {ledgerData.account.accountCode} — {ledgerData.account.accountName}
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                Opening balance: {Number(ledgerData.account.openingBalance).toFixed(2)} PKR
+                &nbsp;·&nbsp; Current balance: {Number(ledgerData.account.currentBalance).toFixed(2)} PKR
+              </Typography>
+              <Divider sx={{ mb: 2 }} />
+              {ledgerData.lines.length === 0 ? (
+                <Typography variant="body2" color="text.secondary" sx={{ py: 4, textAlign: 'center' }}>
+                  No posted transactions for this account yet.
+                </Typography>
+              ) : (
+                <TableContainer>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>Date</TableCell>
+                        <TableCell>Entry #</TableCell>
+                        <TableCell>Description</TableCell>
+                        <TableCell align="right">Debit</TableCell>
+                        <TableCell align="right">Credit</TableCell>
+                        <TableCell align="right">Balance</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {ledgerData.lines.map((line) => (
+                        <TableRow key={line.id} hover>
+                          <TableCell>{new Date(line.date).toLocaleDateString()}</TableCell>
+                          <TableCell>{line.entryNumber}</TableCell>
+                          <TableCell>{line.description || line.reference || '—'}</TableCell>
+                          <TableCell align="right">
+                            {line.debit > 0 ? line.debit.toFixed(2) : '—'}
+                          </TableCell>
+                          <TableCell align="right">
+                            {line.credit > 0 ? line.credit.toFixed(2) : '—'}
+                          </TableCell>
+                          <TableCell align="right" sx={{ fontWeight: 600 }}>
+                            {Number(line.runningBalance).toFixed(2)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              )}
+            </>
+          ) : null}
+        </Box>
+      </Drawer>
     </Box>
   );
 };
