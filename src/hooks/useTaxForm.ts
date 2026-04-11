@@ -118,6 +118,11 @@ export const useTaxForm = ({ mode, taxId }: UseTaxFormOptions): UseTaxFormReturn
 
     if (!formData.taxPercentage) {
       errors.taxPercentage = 'Tax percentage is required';
+    } else {
+      const pct = Number(formData.taxPercentage);
+      if (!Number.isFinite(pct) || pct < 1 || pct > 99) {
+        errors.taxPercentage = 'Tax percentage must be between 1 and 99';
+      }
     }
 
     setFieldErrors(errors);

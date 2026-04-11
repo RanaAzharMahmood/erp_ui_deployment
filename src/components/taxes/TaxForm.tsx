@@ -4,24 +4,17 @@ import {
   TextField,
   Typography,
   Divider,
-  FormControl,
-  FormHelperText,
-  Select,
-  MenuItem,
+  InputAdornment,
 } from '@mui/material';
 import { Description as DescriptionIcon } from '@mui/icons-material';
 import FormSection from '../common/FormSection';
-import { TaxFormData, TAX_PERCENTAGES } from './taxTypes';
+import { TaxFormData } from './taxTypes';
 import { TaxFieldErrors } from '../../hooks/useTaxForm';
-
-// Type for select change value (string for most selects, number for IDs, boolean for toggles)
-type SelectChangeValue = string | number | boolean;
 
 interface TaxFormProps {
   formData: TaxFormData;
   fieldErrors?: TaxFieldErrors;
   onInputChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
-  onSelectChange: (name: string, value: SelectChangeValue) => void;
   placeholders?: {
     taxId?: string;
     taxName?: string;
@@ -33,7 +26,6 @@ const TaxForm: React.FC<TaxFormProps> = ({
   formData,
   fieldErrors = {},
   onInputChange,
-  onSelectChange,
   placeholders = {},
 }) => {
   const {
@@ -104,30 +96,33 @@ const TaxForm: React.FC<TaxFormProps> = ({
           >
             Tax %age *
           </Typography>
-          <FormControl fullWidth size="small" error={!!fieldErrors.taxPercentage}>
-            <Select
-              value={formData.taxPercentage}
-              onChange={(e) => onSelectChange('taxPercentage', e.target.value)}
-              displayEmpty
-              sx={{ bgcolor: 'white' }}
-              aria-required="true"
-              aria-invalid={!!fieldErrors.taxPercentage}
-              aria-describedby={fieldErrors.taxPercentage ? 'tax-percentage-error' : undefined}
-              aria-labelledby="tax-percentage-label"
-            >
-              <MenuItem value="" disabled>
-                Select
-              </MenuItem>
-              {TAX_PERCENTAGES.map((pct) => (
-                <MenuItem key={pct} value={pct}>
-                  {pct}
-                </MenuItem>
-              ))}
-            </Select>
-            {fieldErrors.taxPercentage && (
-              <FormHelperText id="tax-percentage-error">{fieldErrors.taxPercentage}</FormHelperText>
-            )}
-          </FormControl>
+          <TextField
+            fullWidth
+            name="taxPercentage"
+            type="number"
+            value={formData.taxPercentage}
+            onChange={onInputChange}
+            placeholder="1 - 99"
+            size="small"
+            error={!!fieldErrors.taxPercentage}
+            helperText={fieldErrors.taxPercentage}
+            sx={{ '& .MuiOutlinedInput-root': { bgcolor: 'white' } }}
+            InputProps={{
+              endAdornment: <InputAdornment position="end">%</InputAdornment>,
+            }}
+            inputProps={{
+              min: 1,
+              max: 99,
+              step: 1,
+              'aria-required': true,
+              'aria-invalid': !!fieldErrors.taxPercentage,
+              'aria-describedby': fieldErrors.taxPercentage ? 'tax-percentage-error' : undefined,
+              'aria-labelledby': 'tax-percentage-label',
+            }}
+            FormHelperTextProps={{
+              id: 'tax-percentage-error',
+            }}
+          />
         </Grid>
         <Grid item xs={12} sm={6}>
           <Typography

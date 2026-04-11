@@ -20,8 +20,6 @@ export interface TaxRecord {
   updatedAt?: string;
 }
 
-export const TAX_PERCENTAGES = ['5', '10', '12', '15', '16', '17', '18', '19', '20'];
-
 export const INITIAL_TAX_FORM_DATA: TaxFormData = {
   taxId: '',
   taxName: '',

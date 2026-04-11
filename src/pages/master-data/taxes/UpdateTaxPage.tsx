@@ -20,7 +20,6 @@ const UpdateTaxPage: React.FC = () => {
     error,
     successMessage,
     handleInputChange,
-    handleSelectChange,
     handleStatusChange,
     handleSubmit,
     handleDelete,
@@ -44,7 +43,6 @@ const UpdateTaxPage: React.FC = () => {
             formData={formData}
             fieldErrors={fieldErrors}
             onInputChange={handleInputChange}
-            onSelectChange={handleSelectChange}
             placeholders={{
               taxId: 'T546',
               taxName: 'GST 2024',
