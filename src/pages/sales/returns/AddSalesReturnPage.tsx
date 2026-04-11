@@ -540,7 +540,6 @@ const AddSalesReturnPage: React.FC = () => {
                   value={formData.date}
                   onChange={handleInputChange}
                   size="small"
-                  inputProps={{ min: today }}
                   sx={{ '& .MuiOutlinedInput-root': { bgcolor: 'white' } }}
                   InputLabelProps={{ shrink: true }}
                 />

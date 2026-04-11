@@ -27,11 +27,12 @@ import {
   Delete as DeleteIcon,
   Search as SearchIcon,
   FilterList as FilterIcon,
-  Print as PrintIcon,
+  FileDownload as FileDownloadIcon,
   GridOn as GridIcon,
 } from '@mui/icons-material';
 import TableSkeleton from '../../../components/common/TableSkeleton';
 import ConfirmDialog from '../../../components/common/ConfirmDialog';
+import { exportToCsv } from '../../../utils/csvExport';
 import { COLORS } from '../../../constants/colors';
 
 interface OtherPayment {
@@ -269,7 +270,16 @@ const OtherPaymentsListPage: React.FC = () => {
 
         <Button
           variant="outlined"
-          startIcon={<PrintIcon />}
+          startIcon={<FileDownloadIcon />}
+          onClick={() => exportToCsv('other-payments', filteredPayments, [
+            { header: 'Company', value: 'companyName' },
+            { header: 'Number', value: 'number' },
+            { header: 'Date', value: 'date' },
+            { header: 'Reference', value: 'reference' },
+            { header: 'Contact Name', value: 'contactName' },
+            { header: 'Total Amount', value: 'totalAmount' },
+            { header: 'Status', value: 'status' },
+          ])}
           sx={{
             borderColor: '#10B981',
             color: '#10B981',
@@ -277,7 +287,7 @@ const OtherPaymentsListPage: React.FC = () => {
             '&:hover': { borderColor: '#059669', bgcolor: 'rgba(16, 185, 129, 0.04)' },
           }}
         >
-          Print List
+          Export to CSV
         </Button>
 
         <Button

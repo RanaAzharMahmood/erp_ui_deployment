@@ -29,12 +29,13 @@ import {
   Delete as DeleteIcon,
   Search as SearchIcon,
   FilterList as FilterIcon,
-  Print as PrintIcon,
+  FileDownload as FileDownloadIcon,
   GridOn as GridIcon,
 } from '@mui/icons-material';
 import TableSkeleton from '../../../components/common/TableSkeleton';
 import PageError from '../../../components/common/PageError';
 import ConfirmDialog from '../../../components/feedback/ConfirmDialog';
+import { exportToCsv } from '../../../utils/csvExport';
 import { COLORS } from '../../../constants/colors';
 import { getCategoriesApi } from '../../../generated/api/client';
 
@@ -309,7 +310,15 @@ const CategoryListPage: React.FC = () => {
 
         <Button
           variant="outlined"
-          startIcon={<PrintIcon />}
+          startIcon={<FileDownloadIcon />}
+          onClick={() => exportToCsv('categories', filteredCategories, [
+            { header: 'Category Id', value: 'id' },
+            { header: 'Category Name', value: 'categoryName' },
+            { header: 'Company', value: 'companyName' },
+            { header: 'Description', value: 'description' },
+            { header: 'Status', value: (c) => (c.isActive ? 'Active' : 'Inactive') },
+            { header: 'Created At', value: 'createdAt' },
+          ])}
           sx={{
             borderColor: '#10B981',
             color: '#10B981',
@@ -317,7 +326,7 @@ const CategoryListPage: React.FC = () => {
             '&:hover': { borderColor: '#059669', bgcolor: 'rgba(16, 185, 129, 0.04)' },
           }}
         >
-          Print List
+          Export to CSV
         </Button>
 
         <Button

@@ -32,7 +32,7 @@ import {
   Delete as DeleteIcon,
   Search as SearchIcon,
   FilterList as FilterIcon,
-  Print as PrintIcon,
+  FileDownload as FileDownloadIcon,
   GridOn as GridIcon,
   CheckCircle as ApproveIcon,
   Payment as PayIcon,
@@ -41,6 +41,7 @@ import {
 import TableSkeleton from '../../../components/common/TableSkeleton';
 import PageError from '../../../components/common/PageError';
 import ConfirmDialog from '../../../components/common/ConfirmDialog';
+import { exportToCsv } from '../../../utils/csvExport';
 import { COLORS } from '../../../constants/colors';
 import { useDebounce } from '../../../hooks/useDebounce';
 import { expenseService, type Expense, type ExpenseStatus } from '../../../services';
@@ -440,7 +441,16 @@ const ExpenseListPage: React.FC = () => {
 
         <Button
           variant="outlined"
-          startIcon={<PrintIcon />}
+          startIcon={<FileDownloadIcon />}
+          onClick={() => exportToCsv('expenses', filteredExpenses, [
+            { header: 'Expense #', value: 'expenseNumber' },
+            { header: 'Date', value: 'date' },
+            { header: 'Vendor', value: 'vendorName' },
+            { header: 'Description', value: 'description' },
+            { header: 'Amount', value: 'amount' },
+            { header: 'Total', value: 'totalAmount' },
+            { header: 'Status', value: (e) => formatStatusLabel(e.status) },
+          ])}
           sx={{
             borderColor: '#10B981',
             color: '#10B981',
@@ -448,7 +458,7 @@ const ExpenseListPage: React.FC = () => {
             '&:hover': { borderColor: '#059669', bgcolor: 'rgba(16, 185, 129, 0.04)' },
           }}
         >
-          Print List
+          Export to CSV
         </Button>
 
         <Button

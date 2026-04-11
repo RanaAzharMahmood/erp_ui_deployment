@@ -30,12 +30,13 @@ import {
   Delete as DeleteIcon,
   Search as SearchIcon,
   FilterList as FilterIcon,
-  Print as PrintIcon,
+  FileDownload as FileDownloadIcon,
   Upload as UploadIcon,
 } from '@mui/icons-material';
 import PageHeader from '../../../components/common/PageHeader';
 import PageError from '../../../components/common/PageError';
 import TableSkeleton from '../../../components/common/TableSkeleton';
+import { exportToCsv } from '../../../utils/csvExport';
 import ConfirmDialog from '../../../components/feedback/ConfirmDialog';
 import { COLORS } from '../../../constants/colors';
 import { getPartiesApi } from '../../../generated/api/client';
@@ -327,7 +328,16 @@ const PartyListPage: React.FC = () => {
 
         <Button
           variant="outlined"
-          startIcon={<PrintIcon />}
+          startIcon={<FileDownloadIcon />}
+          onClick={() => exportToCsv('parties', filteredParties, [
+            { header: 'Contact Name', value: 'contactName' },
+            { header: 'Contact Email', value: 'contactEmail' },
+            { header: 'Company', value: 'companyName' },
+            { header: 'Party Name', value: 'partyName' },
+            { header: 'Party Type', value: 'partyType' },
+            { header: 'Status', value: (p) => (p.isActive ? 'Active' : 'Inactive') },
+            { header: 'Created At', value: 'createdAt' },
+          ])}
           sx={{
             borderColor: '#10B981',
             color: '#10B981',
@@ -335,7 +345,7 @@ const PartyListPage: React.FC = () => {
             '&:hover': { borderColor: '#059669', bgcolor: 'rgba(16, 185, 129, 0.04)' },
           }}
         >
-          Print List
+          Export to CSV
         </Button>
 
         <Button

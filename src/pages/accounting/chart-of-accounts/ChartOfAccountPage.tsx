@@ -23,7 +23,7 @@ import {
 import {
   Add as AddIcon,
   Search as SearchIcon,
-  Print as PrintIcon,
+  FileDownload as FileDownloadIcon,
   GridOn as GridIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
@@ -34,6 +34,7 @@ import {
 import TableSkeleton from '../../../components/common/TableSkeleton';
 import PageError from '../../../components/common/PageError';
 import ConfirmDialog from '../../../components/feedback/ConfirmDialog';
+import { exportToCsv } from '../../../utils/csvExport';
 import { COLORS } from '../../../constants/colors';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useCompany } from '../../../contexts/CompanyContext';
@@ -628,7 +629,16 @@ const ChartOfAccountPage: React.FC = () => {
 
         <Button
           variant="outlined"
-          startIcon={<PrintIcon />}
+          startIcon={<FileDownloadIcon />}
+          onClick={() => exportToCsv('chart-of-accounts', filteredAccounts, [
+            { header: 'Code', value: 'code' },
+            { header: 'Name', value: 'name' },
+            { header: 'Account Type', value: 'accountType' },
+            { header: 'Balance', value: 'balance' },
+            { header: 'Opening Balance', value: 'openingBalance' },
+            { header: 'Company', value: 'companyName' },
+            { header: 'Status', value: (a) => (a.isActive ? 'Active' : 'Inactive') },
+          ])}
           sx={{
             borderColor: '#10B981',
             color: '#10B981',
@@ -636,7 +646,7 @@ const ChartOfAccountPage: React.FC = () => {
             '&:hover': { borderColor: '#059669', bgcolor: 'rgba(16, 185, 129, 0.04)' },
           }}
         >
-          Print List
+          Export to CSV
         </Button>
 
         <Button

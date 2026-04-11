@@ -20,9 +20,10 @@ import {
 } from '@mui/material'
 import {
   Search as SearchIcon,
-  Print as PrintIcon,
+  FileDownload as FileDownloadIcon,
   GridOn as GridOnIcon,
 } from '@mui/icons-material'
+import { exportToCsv } from '../../utils/csvExport'
 import { useAuth } from '../../contexts/AuthContext'
 import { useCompany } from '../../contexts/CompanyContext'
 import { useCompanies, useDebounce } from '../../hooks'
@@ -127,10 +128,6 @@ const ActivityPage: React.FC = () => {
   const handleChangeRowsPerPage = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     setRowsPerPage(parseInt(event.target.value, 10))
     setPage(0)
-  }, [])
-
-  const handlePrint = useCallback(() => {
-    window.print()
   }, [])
 
   const handleExportCSV = useCallback(() => {
@@ -240,8 +237,15 @@ const ActivityPage: React.FC = () => {
           />
           <Button
             variant="outlined"
-            startIcon={<PrintIcon />}
-            onClick={handlePrint}
+            startIcon={<FileDownloadIcon />}
+            onClick={() => exportToCsv('activity-log', sortedActivities, [
+              { header: 'User Name', value: 'userName' },
+              { header: 'Description', value: 'description' },
+              { header: 'Entity Type', value: 'entityType' },
+              { header: 'Action', value: 'action' },
+              { header: 'Company', value: 'companyName' },
+              { header: 'Created At', value: 'createdAt' },
+            ])}
             sx={{
               textTransform: 'none',
               borderColor: COLORS.success,
@@ -253,7 +257,7 @@ const ActivityPage: React.FC = () => {
               },
             }}
           >
-            Print List
+            Export to CSV
           </Button>
           <Button
             variant="outlined"

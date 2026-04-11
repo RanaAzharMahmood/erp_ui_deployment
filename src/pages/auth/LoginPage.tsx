@@ -9,6 +9,7 @@ import {
 } from '@mui/material'
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward'
 import { useAuth } from '../../contexts/AuthContext'
+import { isValidEmail } from '../../utils/validators'
 import loginBg from '../../assets/images/login-bg.jpg'
 import petrozenLogo from '../../assets/images/white-logo.svg'
 
@@ -27,6 +28,12 @@ const LoginPage: React.FC = () => {
 
     if (!email || !password) {
       setError('Please fill in all fields')
+      setLoading(false)
+      return
+    }
+
+    if (!isValidEmail(email)) {
+      setError('Please enter a valid email address')
       setLoading(false)
       return
     }

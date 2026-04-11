@@ -202,6 +202,16 @@ const AddSalesInvoicePage: React.FC = () => {
                 cancelled: 'Cancelled',
                 returned: 'Returned',
               };
+              // Reverse-calculate the discount percentage from the stored
+              // amount so the input can display it in the new % UI.
+              const loadedGross = (invoice.lines || []).reduce(
+                (sum: number, l: any) => sum + Number(l.lineTotal || 0),
+                0,
+              );
+              const storedDiscount = Number(invoice.discountAmount) || 0;
+              const discountPercent = loadedGross > 0
+                ? Math.round((storedDiscount / loadedGross) * 100)
+                : 0;
               setFormData({
                 companyId: invoice.companyId || '',
                 customerId: String(invoice.customerId) || '',
@@ -214,7 +224,7 @@ const AddSalesInvoicePage: React.FC = () => {
                 status: apiStatusMap[invoice.status] || 'Draft',
                 taxId: lineTaxId,
                 paidAmount: invoice.paidAmount || 0,
-                discount: invoice.discountAmount || 0,
+                discount: discountPercent,
                 stockConfirmed: invoice.stockConfirmed || false,
               });
               if (invoice.lines) {
@@ -356,11 +366,13 @@ const AddSalesInvoicePage: React.FC = () => {
     }
   }, []);
 
-  // Calculate totals
+  // Calculate totals. `formData.discount` is a percentage (0-99); the actual
+  // discount amount is derived from the gross amount at render time.
   const grossAmount = lineItems.reduce((sum, item) => sum + (item.amount || 0), 0);
   const selectedTax = taxes.find((t) => t.id === formData.taxId);
   const taxAmount = selectedTax ? (grossAmount * selectedTax.percentage) / 100 : 0;
-  const subtotal = grossAmount + taxAmount - formData.discount;
+  const discountAmount = (grossAmount * (formData.discount || 0)) / 100;
+  const subtotal = grossAmount + taxAmount - discountAmount;
   const balance = subtotal - formData.paidAmount;
 
   const handleSubmit = useCallback(async () => {
@@ -424,7 +436,8 @@ const AddSalesInvoicePage: React.FC = () => {
         date: formData.date,
         dueDate: formData.dueDate || undefined,
         customerId: Number(formData.customerId),
-        discount: formData.discount,
+        // formData.discount is a percentage; backend expects the amount.
+        discount: discountAmount,
         paidAmount: formData.paidAmount,
         paymentMethod: formData.paymentMethod || undefined,
         accountNumber: formData.accountNumber || undefined,
@@ -638,7 +651,6 @@ const AddSalesInvoicePage: React.FC = () => {
                   size="small"
                   error={!!fieldErrors.date}
                   helperText={fieldErrors.date}
-                  inputProps={{ min: today }}
                   sx={{ '& .MuiOutlinedInput-root': { bgcolor: 'white' } }}
                   InputLabelProps={{ shrink: true }}
                 />
@@ -654,7 +666,6 @@ const AddSalesInvoicePage: React.FC = () => {
                   value={formData.dueDate}
                   onChange={handleInputChange}
                   size="small"
-                  inputProps={{ min: today }}
                   sx={{ '& .MuiOutlinedInput-root': { bgcolor: 'white' } }}
                   InputLabelProps={{ shrink: true }}
                 />
@@ -861,18 +872,19 @@ const AddSalesInvoicePage: React.FC = () => {
                 </FormControl>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   <Typography variant="body2" color="text.secondary">Discount:</Typography>
-                  <Typography variant="body2">PKR</Typography>
                   <TextField
                     type="number"
                     value={formData.discount || ''}
                     onChange={(e) => {
-                      const val = e.target.value === '' ? 0 : Math.max(0, parseFloat(e.target.value));
-                      handleSelectChange('discount', isNaN(val) ? 0 : val);
+                      const raw = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                      const clamped = Math.min(99, Math.max(0, isNaN(raw) ? 0 : raw));
+                      handleSelectChange('discount', clamped);
                     }}
                     size="small"
-                    inputProps={{ min: 0 }}
-                    sx={{ width: 100, '& .MuiOutlinedInput-root': { bgcolor: 'white' } }}
+                    inputProps={{ min: 0, max: 99, step: 1 }}
+                    sx={{ width: 80, '& .MuiOutlinedInput-root': { bgcolor: 'white' } }}
                   />
+                  <Typography variant="body2">%</Typography>
                 </Box>
               </Box>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

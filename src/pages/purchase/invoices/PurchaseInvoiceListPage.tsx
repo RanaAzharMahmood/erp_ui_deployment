@@ -29,13 +29,14 @@ import {
   Delete as DeleteIcon,
   Search as SearchIcon,
   FilterList as FilterIcon,
-  Print as PrintIcon,
+  FileDownload as FileDownloadIcon,
   GridOn as GridIcon,
   PostAdd as PostAddIcon,
 } from '@mui/icons-material';
 import TableSkeleton from '../../../components/common/TableSkeleton';
 import PageError from '../../../components/common/PageError';
 import ConfirmDialog from '../../../components/feedback/ConfirmDialog';
+import { exportToCsv } from '../../../utils/csvExport';
 import { COLORS } from '../../../constants/colors';
 import { getPurchaseInvoicesApi } from '../../../generated/api/client';
 
@@ -313,7 +314,17 @@ const PurchaseInvoiceListPage: React.FC = () => {
 
         <Button
           variant="outlined"
-          startIcon={<PrintIcon />}
+          startIcon={<FileDownloadIcon />}
+          onClick={() => exportToCsv('purchase-invoices', filteredAndSortedInvoices, [
+            { header: 'Invoice Number', value: 'invoiceNumber' },
+            { header: 'Company', value: 'companyName' },
+            { header: 'Vendor', value: 'vendorName' },
+            { header: 'Total Amount', value: 'totalAmount' },
+            { header: 'Paid Amount', value: 'paidAmount' },
+            { header: 'Due Date', value: 'dueDate' },
+            { header: 'Status', value: 'status' },
+            { header: 'Date', value: 'date' },
+          ])}
           sx={{
             borderColor: '#10B981',
             color: '#10B981',
@@ -321,7 +332,7 @@ const PurchaseInvoiceListPage: React.FC = () => {
             '&:hover': { borderColor: '#059669', bgcolor: 'rgba(16, 185, 129, 0.04)' },
           }}
         >
-          Print List
+          Export to CSV
         </Button>
 
         <Button

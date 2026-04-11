@@ -30,7 +30,7 @@ import {
   Delete as DeleteIcon,
   Search as SearchIcon,
   FilterList as FilterIcon,
-  Print as PrintIcon,
+  FileDownload as FileDownloadIcon,
   GridOn as GridIcon,
   CheckCircle as PostIcon,
   Block as VoidIcon,
@@ -38,6 +38,7 @@ import {
 import TableSkeleton from '../../../components/common/TableSkeleton';
 import PageError from '../../../components/common/PageError';
 import ConfirmDialog from '../../../components/common/ConfirmDialog';
+import { exportToCsv } from '../../../utils/csvExport';
 import { COLORS } from '../../../constants/colors';
 import {
   getJournalEntriesApi,
@@ -388,7 +389,16 @@ const JournalEntryListPage: React.FC = () => {
 
         <Button
           variant="outlined"
-          startIcon={<PrintIcon />}
+          startIcon={<FileDownloadIcon />}
+          onClick={() => exportToCsv('journal-entries', filteredEntries, [
+            { header: 'Entry Number', value: 'entryNumber' },
+            { header: 'Date', value: 'date' },
+            { header: 'Reference', value: 'reference' },
+            { header: 'Description', value: 'description' },
+            { header: 'Total Debit', value: 'totalDebit' },
+            { header: 'Total Credit', value: 'totalCredit' },
+            { header: 'Status', value: 'status' },
+          ])}
           sx={{
             borderColor: '#10B981',
             color: '#10B981',
@@ -396,7 +406,7 @@ const JournalEntryListPage: React.FC = () => {
             '&:hover': { borderColor: '#059669', bgcolor: 'rgba(16, 185, 129, 0.04)' },
           }}
         >
-          Print List
+          Export to CSV
         </Button>
 
         <Button

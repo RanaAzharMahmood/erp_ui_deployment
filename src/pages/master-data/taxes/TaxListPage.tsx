@@ -29,12 +29,13 @@ import {
   Delete as DeleteIcon,
   Search as SearchIcon,
   FilterList as FilterIcon,
-  Print as PrintIcon,
+  FileDownload as FileDownloadIcon,
   GridOn as GridIcon,
 } from '@mui/icons-material';
 import TableSkeleton from '../../../components/common/TableSkeleton';
 import PageError from '../../../components/common/PageError';
 import ConfirmDialog from '../../../components/feedback/ConfirmDialog';
+import { exportToCsv } from '../../../utils/csvExport';
 import { COLORS } from '../../../constants/colors';
 import { taxService, Tax } from '../../../services';
 
@@ -295,7 +296,15 @@ const TaxListPage: React.FC = () => {
 
         <Button
           variant="outlined"
-          startIcon={<PrintIcon />}
+          startIcon={<FileDownloadIcon />}
+          onClick={() => exportToCsv('taxes', filteredTaxes, [
+            { header: 'Tax Code', value: 'taxId' },
+            { header: 'Tax Name', value: 'taxName' },
+            { header: 'Rate %', value: 'taxPercentage' },
+            { header: 'Company', value: 'companyName' },
+            { header: 'Note', value: 'note' },
+            { header: 'Status', value: (t) => (t.isActive ? 'Active' : 'Inactive') },
+          ])}
           sx={{
             borderColor: '#10B981',
             color: '#10B981',
@@ -303,7 +312,7 @@ const TaxListPage: React.FC = () => {
             '&:hover': { borderColor: '#059669', bgcolor: 'rgba(16, 185, 129, 0.04)' },
           }}
         >
-          Print List
+          Export to CSV
         </Button>
 
         <Button

@@ -15,6 +15,7 @@ interface CompanyFormFieldsProps {
     ntnNumber?: string;
     industry?: string;
     companyEmail?: string;
+    contactEmail?: string;
   };
   onInputChange: (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
@@ -269,6 +270,8 @@ const CompanyFormFields: React.FC<CompanyFormFieldsProps> = ({
               onChange={onInputChange}
               placeholder="example@example.com"
               size="small"
+              error={!!fieldErrors.contactEmail}
+              helperText={fieldErrors.contactEmail}
             />
           </Grid>
           <Grid item xs={12}>

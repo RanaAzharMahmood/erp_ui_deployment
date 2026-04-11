@@ -26,6 +26,7 @@ import { useCompanyAccess } from '../../../hooks/useCompanyAccess';
 import { useCompanies } from '../../../hooks';
 import { optimizeImage, validateImage } from '../../../utils/imageOptimizer';
 import { companyAccessToApiFormat } from '../../../utils/permissionMapper';
+import { validateEmail } from '../../../utils/validators';
 import type { UserFormData } from '../../../types/common.types';
 import { getUsersApi } from '../../../generated/api/client';
 import type { CreateUserRequest } from '../../../generated/api/api';
@@ -161,8 +162,9 @@ const AddUserPage: React.FC = () => {
     if (!formData.firstName) {
       errors.firstName = 'First name is required';
     }
-    if (!formData.email) {
-      errors.email = 'Email is required';
+    const emailError = validateEmail(formData.email);
+    if (emailError) {
+      errors.email = emailError;
     }
     if (!password) {
       errors.password = 'Password is required';

@@ -293,7 +293,6 @@ const AddBankAccountPage: React.FC = () => {
                     onChange={(e) => handleInputChange('date', e.target.value)}
                     InputLabelProps={{ shrink: true }}
                     sx={{ bgcolor: 'white' }}
-                    inputProps={{ min: today }}
                   />
                 </Grid>
 

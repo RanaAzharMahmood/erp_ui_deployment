@@ -6,6 +6,7 @@ import {
   Company,
 } from '../components/parties/types';
 import { getPartiesApi, getCompaniesApi } from '../generated/api/client';
+import { validateEmail } from '../utils/validators';
 import {
   CreatePartyRequest,
   UpdatePartyRequest,
@@ -199,6 +200,12 @@ export const usePartyForm = ({ partyId, mode }: UsePartyFormOptions): UsePartyFo
 
     if (!formData.contactNumber?.trim()) {
       errors.contactNumber = 'Contact number is required';
+    }
+
+    // Contact email is optional, but must be valid when provided.
+    const emailError = validateEmail(formData.contactEmail || '', { required: false });
+    if (emailError) {
+      errors.contactEmail = emailError;
     }
 
     setFieldErrors(errors);

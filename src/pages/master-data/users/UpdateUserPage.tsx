@@ -28,6 +28,7 @@ import { useCompanyAccess, type ExtendedUserCompanyAccess } from '../../../hooks
 import { useCompanies } from '../../../hooks';
 import { optimizeImage, validateImage } from '../../../utils/imageOptimizer';
 import { companyAccessToApiFormat, apiToCompanyAccess } from '../../../utils/permissionMapper';
+import { validateEmail } from '../../../utils/validators';
 import type { UserFormData } from '../../../types/common.types';
 import { getUsersApi } from '../../../generated/api/client';
 import type { UpdateUserRequest } from '../../../generated/api/api';
@@ -238,8 +239,9 @@ const UpdateUserPage: React.FC = () => {
     if (!formData.firstName) {
       errors.firstName = 'First name is required';
     }
-    if (!formData.email) {
-      errors.email = 'Email is required';
+    const emailError = validateEmail(formData.email);
+    if (emailError) {
+      errors.email = emailError;
     }
 
     // Check for at least one company

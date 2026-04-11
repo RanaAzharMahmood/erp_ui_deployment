@@ -41,6 +41,7 @@ interface FieldErrors {
   ntnNumber?: string;
   industry?: string;
   companyEmail?: string;
+  contactEmail?: string;
 }
 
 interface UseCompanyFormReturn {
@@ -167,6 +168,12 @@ export const useCompanyForm = ({
       isValid = false;
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.companyEmail)) {
       errors.companyEmail = 'Please enter a valid email address';
+      isValid = false;
+    }
+
+    // Contact email is optional, but must be valid when provided.
+    if (formData.contactEmail?.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.contactEmail)) {
+      errors.contactEmail = 'Please enter a valid email address';
       isValid = false;
     }
 

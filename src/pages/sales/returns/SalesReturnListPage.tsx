@@ -29,12 +29,13 @@ import {
   Delete as DeleteIcon,
   Search as SearchIcon,
   FilterList as FilterIcon,
-  Print as PrintIcon,
+  FileDownload as FileDownloadIcon,
   GridOn as GridIcon,
 } from '@mui/icons-material';
 import TableSkeleton from '../../../components/common/TableSkeleton';
 import PageError from '../../../components/common/PageError';
 import ConfirmDialog from '../../../components/feedback/ConfirmDialog';
+import { exportToCsv } from '../../../utils/csvExport';
 import { COLORS } from '../../../constants/colors';
 import { getSalesReturnsApi } from '../../../generated/api/client';
 
@@ -288,7 +289,17 @@ const SalesReturnListPage: React.FC = () => {
 
         <Button
           variant="outlined"
-          startIcon={<PrintIcon />}
+          startIcon={<FileDownloadIcon />}
+          onClick={() => exportToCsv('sales-returns', filteredAndSortedReturns, [
+            { header: 'Return Number', value: 'returnNumber' },
+            { header: 'Company', value: 'companyName' },
+            { header: 'Customer', value: 'customerName' },
+            { header: 'Item', value: 'item' },
+            { header: 'Quantity', value: 'quantity' },
+            { header: 'Net Amount', value: 'netAmount' },
+            { header: 'Status', value: 'status' },
+            { header: 'Date', value: 'date' },
+          ])}
           sx={{
             borderColor: '#10B981',
             color: '#10B981',
@@ -296,7 +307,7 @@ const SalesReturnListPage: React.FC = () => {
             '&:hover': { borderColor: '#059669', bgcolor: 'rgba(16, 185, 129, 0.04)' },
           }}
         >
-          Print List
+          Export to CSV
         </Button>
 
         <Button

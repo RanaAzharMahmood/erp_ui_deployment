@@ -301,7 +301,6 @@ const AddBankDepositPage: React.FC = () => {
                   size="small"
                   sx={{ '& .MuiOutlinedInput-root': { bgcolor: 'white' } }}
                   InputLabelProps={{ shrink: true }}
-                  inputProps={{ min: today }}
                 />
               </Grid>
               <Grid item xs={12} sm={6}>

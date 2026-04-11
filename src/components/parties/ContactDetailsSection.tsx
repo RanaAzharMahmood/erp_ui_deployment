@@ -109,6 +109,8 @@ const ContactDetailsSection: React.FC<ContactDetailsSectionProps> = ({
               placeholder="example@example.com"
               type="email"
               size="small"
+              error={!!fieldErrors.contactEmail}
+              helperText={fieldErrors.contactEmail}
               sx={{ '& .MuiOutlinedInput-root': { bgcolor: 'white' } }}
               inputProps={{
                 'aria-labelledby': 'contact-email-label',

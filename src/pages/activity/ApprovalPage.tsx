@@ -29,12 +29,13 @@ import {
 } from '@mui/material'
 import {
   Search as SearchIcon,
-  Print as PrintIcon,
+  FileDownload as FileDownloadIcon,
   GridOn as GridOnIcon,
   CheckCircle as CheckCircleIcon,
   Cancel as CancelIcon,
   Close as CloseIcon,
 } from '@mui/icons-material'
+import { exportToCsv } from '../../utils/csvExport'
 import { useAuth } from '../../contexts/AuthContext'
 import { useCompany } from '../../contexts/CompanyContext'
 import { useCompanies, useDebounce } from '../../hooks'
@@ -199,10 +200,6 @@ const ApprovalPage: React.FC = () => {
     }
   }, [loadApprovals])
 
-  const handlePrint = useCallback(() => {
-    window.print()
-  }, [])
-
   const handleExportCSV = useCallback(() => {
     const headers = ['User Name', 'Activity', 'Status', 'Time', 'Date']
     const rows = approvals.map((a) => {
@@ -311,8 +308,15 @@ const ApprovalPage: React.FC = () => {
           />
           <Button
             variant="outlined"
-            startIcon={<PrintIcon />}
-            onClick={handlePrint}
+            startIcon={<FileDownloadIcon />}
+            onClick={() => exportToCsv('approvals', sortedApprovals, [
+              { header: 'Requester', value: 'requesterName' },
+              { header: 'Action', value: 'action' },
+              { header: 'Entity Type', value: 'entityType' },
+              { header: 'Status', value: (a) => mapStatusLabel(a.status) },
+              { header: 'Company', value: 'companyName' },
+              { header: 'Created At', value: 'createdAt' },
+            ])}
             sx={{
               textTransform: 'none',
               borderColor: COLORS.success,
@@ -324,7 +328,7 @@ const ApprovalPage: React.FC = () => {
               },
             }}
           >
-            Print List
+            Export to CSV
           </Button>
           <Button
             variant="outlined"
