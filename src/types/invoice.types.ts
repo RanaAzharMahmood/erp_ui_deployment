@@ -223,6 +223,7 @@ export interface SalesInvoiceFormData {
   dueDate: string;
   paymentMethod: string;
   accountNumber: string;
+  reference: string;
   remarks: string;
   status: InvoiceStatus;
   taxId: string;
@@ -239,6 +240,7 @@ export interface PurchaseInvoiceFormData {
   dueDate: string;
   paymentMethod: string;
   accountNumber: string;
+  reference: string;
   remarks: string;
   status: InvoiceStatus;
   taxId: string;

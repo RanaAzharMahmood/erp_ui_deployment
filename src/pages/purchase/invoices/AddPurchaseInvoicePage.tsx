@@ -76,6 +76,7 @@ const AddPurchaseInvoicePage: React.FC = () => {
     dueDate: '',
     paymentMethod: '',
     accountNumber: '',
+    reference: '',
     remarks: '',
     status: 'Draft',
     taxId: '',
@@ -207,6 +208,7 @@ const AddPurchaseInvoicePage: React.FC = () => {
                 dueDate: invoice.dueDate || '',
                 paymentMethod: invoice.paymentMethod || '',
                 accountNumber: invoice.accountNumber || '',
+                reference: invoice.reference || '',
                 remarks: invoice.remarks || '',
                 status: apiStatusMap[invoice.status] || 'Draft',
                 taxId: '',
@@ -372,6 +374,7 @@ const AddPurchaseInvoicePage: React.FC = () => {
         paidAmount: formData.paidAmount,
         paymentMethod: formData.paymentMethod || undefined,
         accountNumber: formData.accountNumber || undefined,
+        reference: formData.reference || undefined,
         remarks: formData.remarks || undefined,
         companyId: formData.companyId ? Number(formData.companyId) : 1,
         lines: lineItems.filter(l => l.itemId).map((l) => ({
@@ -609,7 +612,25 @@ const AddPurchaseInvoicePage: React.FC = () => {
                 </Grid>
               )}
 
-              <Grid item xs={12} sm={requiresImageAndAccount ? 12 : 6}>
+              {/* Conditional Reference Field (cheque number / online transaction id) */}
+              {requiresImageAndAccount && (
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="body2" sx={{ mb: 0.5, fontWeight: 500 }}>
+                    Reference No
+                  </Typography>
+                  <TextField
+                    fullWidth
+                    name="reference"
+                    value={formData.reference}
+                    onChange={handleInputChange}
+                    placeholder={formData.paymentMethod === 'Cheque' ? 'Cheque number' : 'Transaction ID'}
+                    size="small"
+                    sx={{ '& .MuiOutlinedInput-root': { bgcolor: 'white' } }}
+                  />
+                </Grid>
+              )}
+
+              <Grid item xs={12} sm={6}>
                 <Typography variant="body2" sx={{ mb: 0.5, fontWeight: 500 }}>
                   Remarks
                 </Typography>

@@ -353,7 +353,7 @@ export const InvoicePdf: React.FC<{ data: InvoicePdfData }> = ({ data }) => {
 
         {/* Footer disclaimer */}
         <Text style={styles.footer}>
-          This is a Computer Generated Invoice — does not require any signature.
+          This is Computer Generated Invoice does not required any signature.
         </Text>
       </Page>
     </Document>
