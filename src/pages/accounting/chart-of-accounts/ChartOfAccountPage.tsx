@@ -35,6 +35,8 @@ import TableSkeleton from '../../../components/common/TableSkeleton';
 import PageError from '../../../components/common/PageError';
 import ConfirmDialog from '../../../components/feedback/ConfirmDialog';
 import { COLORS } from '../../../constants/colors';
+import { useAuth } from '../../../contexts/AuthContext';
+import { useCompany } from '../../../contexts/CompanyContext';
 import {
   getChartOfAccountsApi,
   ChartOfAccount as ApiChartOfAccount,
@@ -108,12 +110,17 @@ const mapApiToInternal = (account: ApiChartOfAccount, companyName: string = ''):
 
 const ChartOfAccountPage: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const { selectedCompany } = useCompany();
+  const isAdmin = user?.roleName?.toLowerCase() === 'admin';
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [hierarchyAccounts, setHierarchyAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<unknown>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCompanyId, setSelectedCompanyId] = useState<number | ''>('');
+  const [selectedCompanyId, setSelectedCompanyId] = useState<number | ''>(
+    !isAdmin && selectedCompany ? selectedCompany.id : ''
+  );
   const [selectedTab, setSelectedTab] = useState(0);
   const [expandedSections, setExpandedSections] = useState<Set<number>>(new Set());
   const [companies, setCompanies] = useState<Array<{ id: number; name: string }>>([]);
@@ -135,8 +142,16 @@ const ChartOfAccountPage: React.FC = () => {
 
   const tabs = ['All', 'Asset', 'Equity', 'Expenses', 'Liabilities', 'Revenue', 'Cost of Sales'];
 
-  // Load companies
+  // Load companies (admin only — non-admins are scoped to their selected company)
   const loadCompanies = useCallback(async () => {
+    if (!isAdmin) {
+      // Non-admins: use the selected company from context
+      if (selectedCompany) {
+        setCompanies([{ id: selectedCompany.id, name: selectedCompany.name }]);
+      }
+      return;
+    }
+
     try {
       const companiesApi = getCompaniesApi();
       const response = await companiesApi.v1ApiCompaniesGet();
@@ -160,7 +175,7 @@ const ChartOfAccountPage: React.FC = () => {
         severity: 'error',
       });
     }
-  }, [selectedCompanyId]);
+  }, [selectedCompanyId, isAdmin, selectedCompany]);
 
   // Load accounts from API
   const loadAccounts = useCallback(async () => {
@@ -578,19 +593,21 @@ const ChartOfAccountPage: React.FC = () => {
 
       {/* Toolbar */}
       <Card sx={{ p: 2, mb: 3, display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
-        <FormControl size="small" sx={{ minWidth: 150 }}>
-          <Select
-            value={selectedCompanyId}
-            onChange={(e) => setSelectedCompanyId(e.target.value as number)}
-            displayEmpty
-            sx={{ bgcolor: 'white' }}
-          >
-            <MenuItem value="" disabled>Select Company</MenuItem>
-            {companies.map((company) => (
-              <MenuItem key={company.id} value={company.id}>{company.name}</MenuItem>
-            ))}
-          </Select>
-        </FormControl>
+        {isAdmin && (
+          <FormControl size="small" sx={{ minWidth: 150 }}>
+            <Select
+              value={selectedCompanyId}
+              onChange={(e) => setSelectedCompanyId(e.target.value as number)}
+              displayEmpty
+              sx={{ bgcolor: 'white' }}
+            >
+              <MenuItem value="" disabled>Select Company</MenuItem>
+              {companies.map((company) => (
+                <MenuItem key={company.id} value={company.id}>{company.name}</MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        )}
 
         <TextField
           placeholder="Search"
