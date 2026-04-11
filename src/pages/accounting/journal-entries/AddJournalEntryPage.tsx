@@ -24,7 +24,6 @@ import {
 import Radio from '@mui/material/Radio';
 import {
   Description as DescriptionIcon,
-  Image as ImageIcon,
   Circle as CircleIcon,
   Add as AddIcon,
   Close as CloseIcon,
@@ -59,7 +58,7 @@ interface JournalEntryFormData {
   paymentMethod: string;
   referenceType: string;
   accountType: string;
-  status: 'Draft' | 'Approved' | 'Pending';
+  status: 'Draft' | 'Posted' | 'Void';
 }
 
 const MEMO_TYPES = ['Memorandum Entries', 'Debit Memos/Credit Memos'];
@@ -116,7 +115,6 @@ const AddJournalEntryPage: React.FC = () => {
     }
   }, [isAdmin, selectedCompany, user?.selectedCompanyId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const [chequeImage, setChequeImage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
@@ -179,7 +177,7 @@ const AddJournalEntryPage: React.FC = () => {
             paymentMethod: '',
             referenceType: entry.reference || '',
             accountType: '',
-            status: entry.status === 'posted' ? 'Approved' : entry.status === 'void' ? 'Pending' : 'Draft',
+            status: entry.status === 'posted' ? 'Posted' : entry.status === 'void' ? 'Void' : 'Draft',
           });
           if (entry.lines) {
             setLineItems(entry.lines.map((line) => ({
@@ -232,14 +230,6 @@ const AddJournalEntryPage: React.FC = () => {
     setLineItems((prev) => prev.filter((item) => item.id !== itemId));
   }, []);
 
-  const handleImageUpload = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onloadend = () => setChequeImage(reader.result as string);
-    reader.readAsDataURL(file);
-  }, []);
-
   const totalDebit = lineItems.reduce((s, i) => s + (parseFloat(i.debit) || 0), 0);
   const totalCredit = lineItems.reduce((s, i) => s + (parseFloat(i.credit) || 0), 0);
   const isBalanced = Math.abs(totalDebit - totalCredit) < 0.001;
@@ -272,10 +262,10 @@ const AddJournalEntryPage: React.FC = () => {
     setIsSubmitting(true);
     try {
       const api = getJournalEntriesApi();
-      const statusMap: Record<'Draft' | 'Approved' | 'Pending', string> = {
+      const statusMap: Record<'Draft' | 'Posted' | 'Void', string> = {
         Draft: 'draft',
-        Approved: 'posted',
-        Pending: 'void',
+        Posted: 'posted',
+        Void: 'void',
       };
       const payload = {
         companyId: Number(formData.companyId),
@@ -537,40 +527,6 @@ const AddJournalEntryPage: React.FC = () => {
 
           {/* Right Sidebar */}
           <Grid item xs={12} md={4}>
-            {/* Upload Cheque Image */}
-            <Card sx={{ p: 2.5, mb: 3, border: '1px solid #E5E7EB', boxShadow: 'none' }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2 }}>
-                <ImageIcon sx={{ color: '#FF6B35' }} />
-                <Typography variant="h6" sx={{ fontWeight: 600 }}>Upload Cheque Image</Typography>
-              </Box>
-              <Divider sx={{ mb: 2 }} />
-              <Box
-                sx={{
-                  border: '2px dashed #E5E7EB', borderRadius: 1, p: 4,
-                  textAlign: 'center', cursor: 'pointer',
-                  '&:hover': { borderColor: '#FF6B35' },
-                }}
-                component="label"
-              >
-                <input type="file" hidden accept="image/*" onChange={handleImageUpload} />
-                {chequeImage ? (
-                  <img src={chequeImage} alt="Cheque" style={{ maxWidth: '100%', maxHeight: 150 }} />
-                ) : (
-                  <>
-                    <Box sx={{
-                      width: 48, height: 48, borderRadius: '50%', bgcolor: '#FFF7ED',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      mx: 'auto', mb: 1,
-                    }}>
-                      <ImageIcon sx={{ color: '#FF6B35' }} />
-                    </Box>
-                    <Typography variant="body2" sx={{ fontWeight: 500 }}>Upload Cheque Image</Typography>
-                    <Typography variant="caption" color="text.secondary">SVG, PNG, JPG or GIF (max. 2Mb)</Typography>
-                  </>
-                )}
-              </Box>
-            </Card>
-
             {/* Status */}
             <Card sx={{ p: 2.5, mb: 3, border: '1px solid #E5E7EB', boxShadow: 'none' }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2 }}>
@@ -578,7 +534,7 @@ const AddJournalEntryPage: React.FC = () => {
                 <Typography variant="h6" sx={{ fontWeight: 600 }}>Status</Typography>
               </Box>
               <Divider sx={{ mb: 2 }} />
-              {(['Draft', 'Approved', 'Pending'] as const).map((s) => (
+              {(['Draft', 'Posted', 'Void'] as const).map((s) => (
                 <Box
                   key={s}
                   sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5, cursor: 'pointer' }}
