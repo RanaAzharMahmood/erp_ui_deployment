@@ -172,7 +172,8 @@ const AddChartOfAccountPage: React.FC = () => {
       const api = getChartOfAccountsApi();
 
       if (isEditMode && id) {
-        // Update existing account
+        // Update existing account. currentBalance is intentionally omitted —
+        // it's a cached aggregate of the journal, not a user-editable field.
         const updateRequest: UpdateChartOfAccountRequest = {
           accountCode: formData.accountCode,
           accountName: formData.accountName,
@@ -180,7 +181,6 @@ const AddChartOfAccountPage: React.FC = () => {
           parentId: formData.parentId ? Number(formData.parentId) : null,
           description: formData.description || undefined,
           openingBalance: formData.openingBalance,
-          currentBalance: formData.currentBalance,
           isActive: formData.status === 'Active',
         };
 
@@ -192,7 +192,8 @@ const AddChartOfAccountPage: React.FC = () => {
           setError('Failed to update chart of account');
         }
       } else {
-        // Create new account
+        // Create new account. currentBalance is omitted — the backend
+        // initialises it to openingBalance on create.
         const createRequest: CreateChartOfAccountRequest = {
           accountCode: formData.accountCode,
           accountName: formData.accountName,
@@ -200,7 +201,6 @@ const AddChartOfAccountPage: React.FC = () => {
           parentId: formData.parentId ? Number(formData.parentId) : undefined,
           description: formData.description || undefined,
           openingBalance: formData.openingBalance,
-          currentBalance: formData.currentBalance,
           companyId: Number(formData.companyId),
         };
 
@@ -358,10 +358,10 @@ const AddChartOfAccountPage: React.FC = () => {
                       fullWidth
                       size="small"
                       type="number"
-                      placeholder="0.00"
                       value={formData.currentBalance}
-                      onChange={(e) => handleInputChange('currentBalance', Number(e.target.value))}
-                      sx={{ bgcolor: 'white' }}
+                      InputProps={{ readOnly: true }}
+                      helperText="Computed from the journal — edit via journal entries, not here"
+                      sx={{ bgcolor: '#F3F4F6' }}
                     />
                   </Grid>
                 )}
