@@ -24,6 +24,8 @@ import PageHeader from '../../../components/common/PageHeader';
 import FormSection from '../../../components/common/FormSection';
 import StatusSelector from '../../../components/common/StatusSelector';
 import { useCompanies } from '../../../hooks';
+import { useAuth } from '../../../contexts/AuthContext';
+import { useCompany } from '../../../contexts/CompanyContext';
 import {
   getChartOfAccountsApi,
   CreateChartOfAccountRequest,
@@ -57,12 +59,15 @@ const AddChartOfAccountPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const isEditMode = Boolean(id);
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const { selectedCompany } = useCompany();
+  const isAdmin = user?.roleName?.toLowerCase() === 'admin';
 
   const typeFromQuery = searchParams.get('type') as AccountType | null;
   const parentIdFromQuery = searchParams.get('parent');
 
   const [formData, setFormData] = useState<ChartOfAccountFormData>({
-    companyId: '',
+    companyId: (!isAdmin && selectedCompany) ? selectedCompany.id : '',
     accountCode: '',
     accountName: '',
     accountType: typeFromQuery || '',
@@ -233,9 +238,10 @@ const AddChartOfAccountPage: React.FC = () => {
           <Grid item xs={12} md={8}>
             <FormSection title="Account Details" icon={<AccountTreeIcon sx={{ color: '#FF6B35' }} />}>
               <Grid container spacing={2}>
+                {isAdmin && (
                 <Grid item xs={12} sm={6}>
                   <Typography variant="body2" sx={{ mb: 0.5, fontWeight: 500 }}>
-                    Select Company*
+                    Select Company *
                   </Typography>
                   <FormControl fullWidth size="small">
                     <Select
@@ -244,7 +250,7 @@ const AddChartOfAccountPage: React.FC = () => {
                       displayEmpty
                       sx={{ bgcolor: 'white' }}
                     >
-                      <MenuItem value="">Select Company</MenuItem>
+                      <MenuItem value="" disabled>Select Company</MenuItem>
                       {companies.map((company) => (
                         <MenuItem key={company.id} value={company.id}>
                           {company.name}
@@ -253,6 +259,7 @@ const AddChartOfAccountPage: React.FC = () => {
                     </Select>
                   </FormControl>
                 </Grid>
+                )}
 
                 <Grid item xs={12} sm={6}>
                   <Typography variant="body2" sx={{ mb: 0.5, fontWeight: 500 }}>
