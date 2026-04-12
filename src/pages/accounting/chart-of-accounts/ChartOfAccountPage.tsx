@@ -31,7 +31,6 @@ import {
   Add as AddIcon,
   Search as SearchIcon,
   FileDownload as FileDownloadIcon,
-  GridOn as GridIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
   Description as DescriptionIcon,
@@ -691,19 +690,6 @@ const ChartOfAccountPage: React.FC = () => {
           }}
         >
           Export to CSV
-        </Button>
-
-        <Button
-          variant="outlined"
-          startIcon={<GridIcon />}
-          sx={{
-            borderColor: '#10B981',
-            color: '#10B981',
-            textTransform: 'none',
-            '&:hover': { borderColor: '#059669', bgcolor: 'rgba(16, 185, 129, 0.04)' },
-          }}
-        >
-          Export To CSV
         </Button>
 
         <Button
