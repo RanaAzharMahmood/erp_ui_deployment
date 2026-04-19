@@ -148,8 +148,8 @@ export interface InvoicePdfLine {
 }
 
 export interface InvoicePdfData {
-  variant: 'sales' | 'purchase';
-  /** Sales: invoice number. Purchase: bill number. */
+  variant: 'sales' | 'purchase' | 'sales-return' | 'purchase-return';
+  /** Sales: invoice number. Purchase: bill number. Return variants: return number. */
   documentNumber: string;
   date: string;
   /** Seller company — renders in the left column (tax IDs) and right column (representor/phone/address). */
@@ -230,7 +230,14 @@ const HeaderField: React.FC<{ label: string; value?: string }> = ({ label, value
 );
 
 export const InvoicePdf: React.FC<{ data: InvoicePdfData }> = ({ data }) => {
-  const documentLabel = data.variant === 'sales' ? 'Invoice Number' : 'Bill Number';
+  const documentLabel =
+    data.variant === 'sales'
+      ? 'Invoice Number'
+      : data.variant === 'purchase'
+        ? 'Bill Number'
+        : data.variant === 'sales-return'
+          ? 'Sales Return Number'
+          : 'Purchase Return Number';
 
   // Line totals
   const lineRows = data.lines.map((line) => {

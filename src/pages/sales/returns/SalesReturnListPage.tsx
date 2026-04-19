@@ -30,13 +30,14 @@ import {
   Search as SearchIcon,
   FilterList as FilterIcon,
   FileDownload as FileDownloadIcon,
+  PictureAsPdf as PictureAsPdfIcon,
 } from '@mui/icons-material';
 import TableSkeleton from '../../../components/common/TableSkeleton';
 import PageError from '../../../components/common/PageError';
 import ConfirmDialog from '../../../components/feedback/ConfirmDialog';
 import { exportToCsv } from '../../../utils/csvExport';
 import { COLORS } from '../../../constants/colors';
-import { getSalesReturnsApi } from '../../../generated/api/client';
+import { getSalesReturnsApi, getCompaniesApi } from '../../../generated/api/client';
 
 interface SalesReturn {
   id: string;
@@ -178,6 +179,85 @@ const SalesReturnListPage: React.FC = () => {
 
   const handleDeleteClick = useCallback((id: string) => {
     setDeleteDialog({ open: true, id });
+  }, []);
+
+  const handleDownloadPdf = useCallback(async (id: string) => {
+    try {
+      const salesReturnsApi = getSalesReturnsApi();
+      const [returnRes, companiesRes] = await Promise.all([
+        salesReturnsApi.getById(Number(id)),
+        getCompaniesApi().v1ApiCompaniesGet(),
+      ]);
+      const ret = returnRes.data as unknown as {
+        returnNumber?: string;
+        date?: string;
+        companyId?: number;
+        customer?: { partyName?: string };
+        discountAmount?: number;
+        paidAmount?: number;
+        lines?: Array<{
+          quantity?: number;
+          unitPrice?: number;
+          taxAmount?: number;
+          item?: { itemName?: string };
+        }>;
+      };
+      const companiesList = (companiesRes.data as unknown as Array<{
+        id?: number;
+        name?: string;
+        companyName?: string;
+        logoUrl?: string;
+        salesTaxRegistrationNo?: string;
+        ntnNumber?: string;
+        contactName?: string;
+        phone?: string;
+        address?: string;
+      }>) || [];
+      const company = companiesList.find((c) => c.id === ret.companyId);
+
+      const lines = (ret.lines || []).map((l) => {
+        const quantity = Number(l.quantity || 0);
+        const unitPrice = Number(l.unitPrice || 0);
+        const valueEx = quantity * unitPrice;
+        const taxAmount = Number(l.taxAmount || 0);
+        const taxRatePercent = valueEx > 0 ? Math.round((taxAmount / valueEx) * 100) : 0;
+        return {
+          quantity,
+          description: l.item?.itemName || '',
+          unitPrice,
+          taxRatePercent,
+        };
+      });
+
+      const grossTotal = lines.reduce((sum, l) => sum + l.quantity * l.unitPrice, 0);
+      const storedDiscount = Number(ret.discountAmount || 0);
+      const discountPercent = grossTotal > 0 ? Math.round((storedDiscount / grossTotal) * 100) : 0;
+
+      const { downloadInvoicePdf } = await import('../../../components/pdf/downloadInvoicePdf');
+      await downloadInvoicePdf({
+        variant: 'sales-return',
+        documentNumber: ret.returnNumber || String(id),
+        date: ret.date || '',
+        company: {
+          name: company?.name || company?.companyName || 'Company',
+          logoUrl: company?.logoUrl,
+          salesTaxNumber: company?.salesTaxRegistrationNo,
+          ntnNumber: company?.ntnNumber,
+          representator: company?.contactName,
+          phone: company?.phone,
+          address: company?.address,
+        },
+        party: {
+          name: ret.customer?.partyName || 'Customer',
+        },
+        lines,
+        discountPercent,
+        paidAmount: Number(ret.paidAmount || 0),
+      });
+    } catch (err) {
+      console.error('Error generating PDF:', err);
+      setError('Failed to generate PDF. Please try again.');
+    }
   }, []);
 
   const handleDeleteConfirm = useCallback(async () => {
@@ -598,6 +678,14 @@ const SalesReturnListPage: React.FC = () => {
                         aria-label={`Edit return ${returnItem.returnNumber}`}
                       >
                         <EditIcon fontSize="small" />
+                      </IconButton>
+                      <IconButton
+                        size="small"
+                        onClick={() => handleDownloadPdf(returnItem.id)}
+                        sx={{ color: '#6366F1' }}
+                        aria-label={`Download return ${returnItem.returnNumber} as PDF`}
+                      >
+                        <PictureAsPdfIcon fontSize="small" />
                       </IconButton>
                       <IconButton
                         size="small"

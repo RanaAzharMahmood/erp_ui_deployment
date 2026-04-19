@@ -27,7 +27,8 @@ import { useSearchParams } from 'react-router-dom'
 import PageHeader from '../../components/common/PageHeader'
 import { useAuth } from '../../contexts/AuthContext'
 import { useCompany } from '../../contexts/CompanyContext'
-import { useCompanies } from '../../hooks'
+import { useCompanies, useBankAccounts } from '../../hooks'
+import { useCustomers } from '../../hooks/useCustomers'
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
@@ -229,6 +230,12 @@ const ReportViewerPage: React.FC = () => {
 
   const config = reportType ? REPORT_TYPES[reportType] : null
 
+  // Populate dropdowns for customer / bank-account parameter types. Both
+  // hooks honour the backend's auto-scoping to the selected company, so
+  // switching companies refreshes the available options automatically.
+  const { customers } = useCustomers(true)
+  const { bankAccounts } = useBankAccounts({ activeOnly: true })
+
   const setParam = (key: string, value: string) => {
     setParamValues((prev) => ({ ...prev, [key]: value }))
   }
@@ -377,6 +384,42 @@ const ReportViewerPage: React.FC = () => {
                       InputLabelProps={{ shrink: true }}
                       sx={{ minWidth: 160 }}
                     />
+                  )
+                }
+                if (p.type === 'customerId') {
+                  return (
+                    <FormControl key={p.key} size="small" sx={{ minWidth: 220 }}>
+                      <Select
+                        value={paramValues[p.key] || ''}
+                        onChange={(e) => setParam(p.key, String(e.target.value))}
+                        displayEmpty
+                      >
+                        <MenuItem value="">-- {p.label} --</MenuItem>
+                        {customers.map((c) => (
+                          <MenuItem key={c.id} value={String(c.id)}>
+                            {c.name}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  )
+                }
+                if (p.type === 'bankAccountId') {
+                  return (
+                    <FormControl key={p.key} size="small" sx={{ minWidth: 220 }}>
+                      <Select
+                        value={paramValues[p.key] || ''}
+                        onChange={(e) => setParam(p.key, String(e.target.value))}
+                        displayEmpty
+                      >
+                        <MenuItem value="">-- {p.label} --</MenuItem>
+                        {bankAccounts.map((b) => (
+                          <MenuItem key={b.id} value={String(b.id)}>
+                            {b.accountName}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
                   )
                 }
                 return (

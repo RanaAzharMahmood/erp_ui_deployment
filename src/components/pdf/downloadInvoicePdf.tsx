@@ -22,7 +22,11 @@ export async function downloadInvoicePdf(
   const defaultName =
     data.variant === 'sales'
       ? `invoice-${data.documentNumber || 'sales'}.pdf`
-      : `bill-${data.documentNumber || 'purchase'}.pdf`;
+      : data.variant === 'purchase'
+        ? `bill-${data.documentNumber || 'purchase'}.pdf`
+        : data.variant === 'sales-return'
+          ? `sales-return-${data.documentNumber || 'return'}.pdf`
+          : `purchase-return-${data.documentNumber || 'return'}.pdf`;
 
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
